@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/schemas/
