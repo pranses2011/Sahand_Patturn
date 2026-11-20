@@ -20,6 +20,8 @@ FILES = [
     ("11-QA-ACCEPTANCE.md", "✅ تست"),
     ("12-PHASE-PROMPTS.md", "🚀 پرامپت‌های فازی"),
     ("13-GAP-ANALYSIS.md", "➕ شکاف‌ها"),
+    ("14-CHECKLIST.md", "✅ چک‌لیست"),
+    ("15-RULES.md", "⚖️ قوانین"),
 ]
 
 CSS = """
@@ -74,6 +76,7 @@ li{margin:.28em 0}
 hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 .mermaid-src{display:none}
 pre.mermaid{background:#fff;border:1px solid var(--line);color:var(--ink2);font-size:12.5px}
+input[type=checkbox]{accent-color:var(--clay);width:16px;height:16px;vertical-align:-3px;cursor:default}td.task{text-align:center}li.task{list-style:none}li.task input{margin-inline-end:8px}
 .badge{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;
   background:#F6E7DC;color:var(--clay2);border:1px solid #EBD3C1}
 .hero{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:36px;align-items:center;
@@ -136,6 +139,12 @@ def convert(path: pathlib.Path) -> str:
     text = re.sub(r"```mermaid\n(.*?)```", stash, text, flags=re.S)
     md = markdown.Markdown(extensions=["tables", "fenced_code", "toc", "attr_list", "sane_lists"])
     body = md.convert(text)
+    # render task list items as real checkboxes
+    body = re.sub(r"<li>\[ \]\s*", '<li class="task"><input type="checkbox" disabled> ', body)
+    body = re.sub(r"<li>\[x\]\s*", '<li class="task"><input type="checkbox" checked disabled> ', body)
+    body = re.sub(r"<td([^>]*)>\[ \]</td>", r'<td\1 class="task"><input type="checkbox" disabled></td>', body)
+    body = re.sub(r"<td([^>]*)>\[x\]</td>", r'<td\1 class="task"><input type="checkbox" checked disabled></td>', body)
+    body = body.replace("[ ] ", "").replace("[x] ", "")
     for i, b in enumerate(blocks):
         body = body.replace(f"<p>@@MERMAID{i}@@</p>",
                             f'<pre class="mermaid">{html.escape(b)}</pre>')
@@ -171,7 +180,7 @@ def main():
   <div class="brand"><span class="dot">🏺</span> Patturn Studio</div>
   <span class="badge">Handbook v1.0</span>
   <span class="grow"></span>
-  <span class="tag">۱۵ سند · تحلیل + نقشه راه + پرامپت</span>
+  <span class="tag">۱۷ سند · تحلیل + نقشه راه + پرامپت + قوانین + چک‌لیست</span>
 </div>
 <div class="layout">
 <nav class="toc">
@@ -187,8 +196,8 @@ def main():
        برای ساخت یک پلتفرم طراحی پارامتریک سفال — از پروفیل نودی و revolve، تا الگوی بی‌درز، قالب چندتکه با کلید ثبت،
        مادرقالب سیلیکونی و خروجی STL/SVG/DXF/PDF.</p>
     <div class="chips">
-      <span>🗂️ ۱۵ سند</span><span>🗺️ ۲۴ هفته نقشه راه</span><span>🧮 ۱۵ تست طلایی</span>
-      <span>🧱 ۴ ماژول اصلی</span><span>🛠️ ۱۹ ابزار</span><span>➕ ۱۰ شکاف تکمیلی</span>
+      <span>🗂️ ۱۷ سند</span><span>🗺️ ۲۴ هفته نقشه راه</span><span>🧮 ۱۵ تست طلایی</span>
+      <span>🧱 ۴ ماژول اصلی</span><span>🛠️ ۱۹ ابزار</span><span>➕ ۱۰ شکاف تکمیلی</span><span>⚖️ ۱۷ قانون AI</span><span>✅ ۱۲۲ کار چک‌لیست</span><span>🪟 نسخهٔ ویندوز آفلاین</span>
     </div>
   </div>
   <img src="assets/cover.jpg" alt="تصویر جلد: فرم سفالی پارامتریک و دو نیمهٔ قالب گچی">
