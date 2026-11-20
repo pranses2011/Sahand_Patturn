@@ -88,7 +88,7 @@ export function toDxf(paths: { d: string; fill?: boolean }[]): ExportResult {
     if (pairs.length >= 2) {
       push(0, 'POLYLINE', 8, p.fill ? '0' : '1', 66, '1', 70, '0');
       for (const m of pairs) {
-        push(0, 'VERTEX', 8, p.fill ? '0' : '1', 10, m[2], 20, m[3], 30, '0.0');
+        push(0, "VERTEX", 8, p.fill ? "0" : "1", 10, m[2] ?? "0", 20, m[3] ?? "0", 30, "0.0");
       }
       push(0, 'SEQEND');
     }

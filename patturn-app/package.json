@@ -11,13 +11,14 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -p apps/web --noEmit && for f in packages/*/tsconfig.json; do tsc -p \"$f\" --noEmit || exit 1; done",
     "build": "npm run build -w @patturn/web",
     "dev": "npm run dev -w @patturn/web",
     "desktop:dev": "npm run tauri dev -w @patturn/desktop",
     "desktop:build": "npm run tauri build -w @patturn/desktop"
   },
   "devDependencies": {
+    "@types/node": "^26.6.6",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }

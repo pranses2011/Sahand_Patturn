@@ -83,7 +83,7 @@ export class ParamGraph {
       }
       // cache keys embed node id as prefix "<deriveId>@..." — drop all entries for dirty derive nodes
       for (const key of [...this.cache.keys()]) {
-        const deriveId = key.split('@')[0];
+        const deriveId = key.split('@')[0] ?? '';
         if (ids.has(deriveId)) this.cache.delete(key);
       }
     }

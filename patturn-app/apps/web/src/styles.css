@@ -1,0 +1,91 @@
+:root {
+  --bg: #f7f3ec;
+  --surface: #ffffff;
+  --sunken: #efe9df;
+  --line: #e3dbcc;
+  --ink: #1c1917;
+  --ink2: #57534e;
+  --clay: #c4622d;
+  --clay-dark: #a94f21;
+  --plaster: #3f6c7a;
+  --ok: #3f7d53;
+  --warn: #c9902a;
+  --danger: #b3382c;
+  --r: 10px;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  font-family: 'Vazirmatn', 'Segoe UI', Tahoma, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  direction: rtl;
+}
+button { font-family: inherit; cursor: pointer; }
+input, select { font-family: inherit; }
+
+.app { display: flex; flex-direction: column; height: 100%; }
+
+/* ── header ── */
+.header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.header .brand { font-weight: 700; color: var(--clay-dark); }
+.header .saved { font-size: 12px; color: var(--ok); }
+.header .spacer { flex: 1; }
+.btn {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  padding: 6px 14px; border-radius: var(--r); font-size: 13.5px; font-weight: 500;
+}
+.btn:hover { background: var(--sunken); }
+.btn.primary { background: var(--clay); border-color: var(--clay); color: #fff; }
+.btn.primary:hover { background: var(--clay-dark); }
+
+/* ── layout ── */
+.main { display: grid; grid-template-columns: 220px 1fr 300px; flex: 1; min-height: 0; }
+.panel { background: var(--surface); border-inline-start: 1px solid var(--line); overflow-y: auto; padding: 14px; }
+.panel.left { border-inline-start: 0; border-inline-end: 1px solid var(--line); }
+.viewport { position: relative; min-width: 0; background: #14110e; }
+.viewport canvas { display: block; }
+.statusbar {
+  display: flex; gap: 16px; padding: 6px 16px; font-size: 12.5px;
+  background: var(--surface); border-top: 1px solid var(--line); color: var(--ink2);
+  direction: ltr; justify-content: center;
+}
+.statusbar b { color: var(--ink); font-weight: 600; }
+
+/* ── parts list ── */
+.parts { list-style: none; margin: 0 0 16px; padding: 0; }
+.parts li {
+  display: flex; gap: 8px; align-items: center;
+  padding: 9px 10px; border-radius: var(--r); cursor: pointer;
+  font-size: 14px; color: var(--ink2); margin-bottom: 4px;
+  border: 1px solid transparent;
+}
+.parts li:hover { background: var(--sunken); }
+.parts li.active { background: #f6e7dc; border-color: #ebd3c1; color: var(--clay-dark); font-weight: 600; }
+
+/* ── controls ── */
+.ctl { margin-bottom: 14px; }
+.ctl label { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink2); margin-bottom: 5px; }
+.ctl label .val { color: var(--ink); font-weight: 600; direction: ltr; }
+.ctl input[type='range'] { width: 100%; accent-color: var(--clay); }
+.ctl .num {
+  width: 72px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px;
+  font-size: 13px; text-align: left; direction: ltr; background: var(--bg);
+}
+.ctl .row { display: flex; gap: 8px; align-items: center; }
+h3.sec { font-size: 13px; color: var(--clay-dark); margin: 18px 0 10px; letter-spacing: .03em; }
+.hint { font-size: 12px; color: var(--ink2); background: var(--sunken); padding: 8px 10px; border-radius: 8px; line-height: 1.7; }
+
+/* ── 2D profile strip ── */
+.profile-2d {
+  position: absolute; bottom: 12px; inset-inline-start: 12px;
+  background: rgba(247,243,236,.94); border: 1px solid var(--line);
+  border-radius: 12px; padding: 8px;
+}
+.profile-2d svg { display: block; }
+.profile-2d .cap { font-size: 11px; color: var(--ink2); text-align: center; margin-top: 2px; }
