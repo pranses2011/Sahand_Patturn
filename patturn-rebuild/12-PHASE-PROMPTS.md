@@ -10,17 +10,23 @@
 > این متن را ابتدای هر پرامپت فازی بگذارید:
 
 ```
-تو یک تیم مهندسی محصول هستی (معمار نرم‌افزار، مهندس هندسه محاسباتی، فرانت‌اند React/three.js، بک‌اند، UX، QA).
-ما در حال ساخت «Patturn Studio» هستیم: یک SaaS پارامتریک برای سفالگران که فرم سه‌بعدی می‌سازد، الگو روی آن می‌نشاند، قالب سیلیپ‌کستینگ تولید می‌کند و STL/SVG/DXF/PDF صادر می‌کند.
+تو یک تیم مهندسی محصول هستی (معمار نرم‌افزار، مهندس هندسه محاسباتی، فرانت‌اند React/three.js، مهندس دسکتاپ Tauri، بک‌اند، UX، QA).
+ما در حال ساخت «Patturn Studio» هستیم: نرم‌افزار طراحی پارامتریک برای سفالگران — نسخهٔ اصلی آن یک اپ نصب‌شدنی ویندوز (Tauri 2) است که باید کاملاً آفلاین کار کند؛ فرم سه‌بعدی می‌سازد، الگو روی آن می‌نشاند، قالب سیلیپ‌کستینگ تولید می‌کند و STL/SVG/DXF/PDF صادر می‌کند.
+
+⚖️ ابتدا فایل 15-RULES.md را بخوان و به آن پایبند باش؛ مهم‌ترین‌ها:
+- R-001: قبل از هر تغییر git pull --ff-only بزن (آخرین نسخه پایه باشد).
+- R-002: بعد از هر تغییر معنادار، کامیت با پیام فارسی + git push به شاخهٔ فعال.
+- R-014: آفلاین‌کاری دسکتاپ مقدم بر هر ویژگی ابری است.
 
 قواعد آهنین پروژه:
 - واحد داخلی = میلیمتر، عدد خالص.
 - پروژه = JSON پارامترها، نه مش. هندسه بازتولیدپذیر و قطعی.
 - هر خروجی STL باید manifold و watertight باشد.
-- kernel نباید به React/DOM وابسته باشد.
+- kernel نباید به React/DOM/Tauri وابسته باشد.
 - همه‌چیز با Vitest تست می‌شود؛ هر ادعای عددی یک تست دارد.
-- استک: Next.js + TypeScript strict + Tailwind + shadcn/ui + Zustand + three.js + manifold-3d (WASM) + Web Worker + Postgres/Drizzle + Clerk + Stripe + Vercel.
+- استک: Tauri 2 + React/Vite + TypeScript strict + Tailwind + shadcn/ui + Zustand + three.js + manifold-3d (WASM) + Web Worker + SQLite/Drizzle (محلی)؛ وب اختیاری با همان SPA؛ Postgres/Clerk/Stripe فقط برای sync اختیاری.
 - فارسی (RTL) و انگلیسی؛ کد و کامنت انگلیسی.
+- بعد از هر فاز، ردیف‌های مرتبط در 14-CHECKLIST.md را تیک بزن.
 
 کد کامل، قابل اجرا و با مسیر فایل بده. از TODO فقط برای موارد غیرضروری استفاده کن.
 ```
@@ -35,17 +41,19 @@
 ## وظیفه: فاز ۰ — بنیان
 
 ۱) یک مونوریپو با pnpm workspaces + Turborepo بساز با این ساختار:
-   apps/web (Next.js 14 App Router, TS strict)
-   packages/{config,schema,kernel,patterns,mapping,molds,tools,exporters,worker,ui}
+   apps/desktop (Tauri 2 + React/Vite, TS strict) — اصلی
+   apps/web (همان SPA + adapter ابری — اختیاری)
+   packages/{config,schema,kernel,patterns,mapping,molds,tools,exporters,storage,worker,ui}
 
 ۲) برای هر پکیج: package.json، tsconfig با project references، vitest، و entry خالی.
-   در ESLint قانون no-restricted-paths اعمال کن: kernel نباید از ui/web import کند.
+   در ESLint قانون no-restricted-paths اعمال کن: kernel نباید از ui/desktop/web import کند.
 
 ۳) ADR بنویس (docs/adr/):
    - ADR-001: هستهٔ هندسی = manifold-3d (WASM) + revolve دستی؛ three-bvh-csg به‌عنوان fallback؛ voxel remesh برای ترمیم.
    - ADR-002: State = Zustand + Immer + history stack دستی (snapshot از نودهای input).
    - ADR-003: رندر دوبعدی = SVG منبع حقیقت + Canvas برای پیش‌نمایش.
-   - ADR-004: ذخیره = Postgres JSONB + IndexedDB آفلاین.
+   - ADR-004: ذخیره = SQLite محلی (Drizzle) = منبع حقیقت؛ Postgres فقط آینهٔ sync اختیاری.
+   - ADR-009: پلتفرم اصلی = Tauri 2 برای ویندوز (آفلاین)؛ هسته پلتفرم‌بی‌طرف.
    هر ADR با: زمینه، گزینه‌ها، تصمیم، پیامدها.
 
 ۴) Design tokens را در packages/config/tokens.ts و packages/ui/tokens.css بساز:
@@ -53,18 +61,19 @@
    secondary plaster #3F6C7A, success #3F7D53, warning #C9902A, danger #B3382C.
    فاصله‌ها 4/8/12/16/24/32/48/64/96، شعاع 6/10/16/24، سایه‌های نرم.
 
-۵) اسکلت Next.js با:
-   - next-intl با locale های fa (پیش‌فرض، RTL) و en (LTR)
+۵) اسکلت اپ دسکتاپ (Tauri 2 + React/Vite) با:
+   - i18n خودساخته با locale های fa (پیش‌فرض، RTL) و en (LTR)
    - Tailwind با توکن‌ها
-   - شِل صفحات: /, /subscribe, /login, /pricing, /privacy, /terms, /contact, /feature-requests, /studio
+   - مسیرها: /studio, /projects, /library, /settings, /about, /support
+   - پیکربندی tauri.conf.json (شناسهٔ app، آیکون، capabilities برای fs/dialog/sql)
+   - صفحهٔ «درباره ما» و «پشتیبانی» با اطلاعات R-013 (سعید نجفی — سهند سرویس — 09144220430 — Pranses2011@GMail.com — 6219 8619 1893 4679 — EA-Fixer.ir)
    - هر صفحه یک placeholder معنادار (نه lorem)
-   - metadata، sitemap.ts، robots.ts، OG image با ImageResponse
 
 ۶) دادهٔ نمونه: پریست «گلدان بلند» و «کاسه» به‌صورت ProfileNode[] در packages/config/presets.ts
 
 ۷) یک Web Worker با Comlink بساز که پیام {kind:'ping'} را echo کند + تست.
 
-۸) CI: pnpm lint, typecheck, test, build. و یک تست smoke که صفحهٔ / را ۲۰۰ برگرداند.
+۸) CI: pnpm lint, typecheck, test, build + ساخت نصب‌کنندهٔ ویندوز با `tauri build`.
 
 ## تحویل
 - ساختار کامل فایل‌ها با محتوای واقعی
@@ -361,49 +370,45 @@ P3: slab-template, jigger-jolly, puzzle-pattern
 
 ---
 
-# 6️⃣ پرامپت فاز ۶ — SaaS: حساب، پلن، پروژه، جامعه
+# 6️⃣ پرامپت فاز ۶ — دسکتاپ ویندوز، آفلاین، لایسنس (و سرویس اختیاری)
 
 ```
 [Preface]
-[ضمیمه: 10-BACKEND-AUTH-BILLING.md، 04-DATA-MODEL.md]
+[ضمیمه: 10-BACKEND-AUTH-BILLING.md، 04-DATA-MODEL.md، بخش ۹ از 14-CHECKLIST.md]
 
-## وظیفه: فاز ۶ — لایهٔ SaaS
+## وظیفه: فاز ۶ — نسخهٔ نصب‌شدنی ویندوز با اولویت آفلاین (R-014)
 
-### ۱) Auth
-Clerk (یا Auth.js) با Google + ایمیل؛ middleware روی /studio,/projects,/account,/library
+### ۱) پوستهٔ Tauri 2
+پروژهٔ apps/desktop با tauri.conf.json، آیکون، شناسه، capabilities برای fs/dialog/sql/updater.
+نصب‌کنندهٔ NSIS یا MSI با uninstall تمیز و ارتقا روی نسخهٔ قبلی.
 
-### ۲) دیتابیس
-Drizzle + Postgres با جداول users, projects, project_revisions, patterns_library, feature_requests, feature_votes, subscriptions, subscribers, user_usage
+### ۲) SQLite محلی (منبع حقیقت)
+Drizzle + SQLite با جداول users(محلی), projects, project_revisions, user_usage, licenses.
+migrations در src-tauri/migrations؛ autosave هر ۲ ثانیه بی‌کاری.
 
-### ۳) API
-پیاده‌سازی همهٔ مسیرهای فایل ۱۰ با zod، پاسخ یکسان {data,error,meta}، cursor pagination، کدهای خطا
+### ۳) فایل و دیسک
+دیالوگ باز/ذخیرهٔ ویندوز برای STL/SVG/DXF/PDF؛ Export/Import پروژه به‌صورت `.patturn`.
+بکاپ خودکار در پوشهٔ backups با چرخش ۱۰ نسخه + دکمهٔ بازیابی.
 
-### ۴) پروژه‌ها
-CRUD + duplicate + publish + revisions + thumbnail (webp 256) + IndexedDB آفلاین + حل تعارض
+### ۴) آفلاین کامل
+با قطع کامل اینترنت: ساخت فرم/الگو/قالب/خروجی/ذخیره/بازیابی — همه کار کنند.
+هیچ fetch در مسیرهای اصلی وجود نداشته باشد (تست با شبکهٔ قطع).
 
-### ۵) پلن و پرداخت
-PLANS در packages/config/plans.ts، Stripe Checkout + Portal + webhook با idempotency، تریال ۱۴ روز، سهمیه، paywall نرم
+### ۵) لایسنس و حمایت
+فعال‌سازی کلید ۲۵ رقمی (آفلاین-امضاشده) + پلن Free بدون کلید.
+صفحهٔ «حمایت» با کارت 6219 8619 1893 4679 (سعید نجفی) + دکمهٔ کپی.
+صفحات «درباره ما» و «پشتیبانی» با اطلاعات کامل R-013.
 
-### ۶) جامعه
-فید عمومی، لایسنس ۴گانه، like، fork، گزارش محتوا، صفحهٔ پروژهٔ عمومی با OG image
-
-### ۷) درخواست قابلیت
-لیست Top/New، فیلتر وضعیت، رأی toggle، rate limit ۳/روز، پنل ادمین برای تغییر وضعیت
-
-### ۸) ایمیل
-Resend + React Email: verify, welcome, receipt, trial-ending, payment-failed, delete-account
-
-### ۹) ادمین
-/users, /projects, /reports, /feature-requests, /subscribers با نقش admin
-
-### ۱۰) صفحات
-/projects, /library, /community, /account, /pricing, /feature-requests, /changelog
+### ۶) (اختیاری) sync ابری
+فقط با اجازهٔ کاربر و هنگام اتصال: push/pull پروژه‌ها به Postgres، حل تعارض با نمایش «دو نسخه».
 
 ## تست‌ها
-B1–B10 از فایل ۱۰ + E2E E13,E14,E15
+- E2E نصب: نصب → اجرا → قطع اینترنت → ساخت و خروجی → بستن اجباری → باز کردن → پروژه برگردد
+- تست نصب/ارتقا/حذف روی ویندوز ۱۰ و ۱۱
+- تست‌های بخش ۱۲ چک‌لیست
 
 ## تحویل
-کد کامل + مایگریشن SQL + .env.example + راهنمای راه‌اندازی Stripe/Clerk
+کد کامل + فرمان `pnpm tauri build` + نصب‌کنندهٔ قابل اجرا + گزارش تست آفلاین
 ```
 
 ---
@@ -439,11 +444,11 @@ B1–B10 از فایل ۱۰ + E2E E13,E14,E15
 - CSP، HSTS، rate limits، sanitize SVG، audit
 - چک‌لیست OWASP Top 10 با وضعیت هر مورد
 
-### ۶) استقرار
-- Vercel + Postgres + env vars
-- sitemap, robots, 404, 500, error boundaries
-- بکاپ و بازیابی
-- Sentry + رویدادهای قیف
+### ۶) استقرار و بسته‌بندی
+- `tauri build` → نصب‌کنندهٔ ویندوز امضاشده (در صورت امکان) + تست روی ۳ دستگاه تمیز
+- تست آفلاین: قطع شبکه → همهٔ مسیرهای اصلی
+- (اختیاری) نسخهٔ وب + sitemap, robots, 404, 500
+- بکاپ محلی و بازیابی + لاگ خطاها
 
 ### ۷) مستندات
 - README (نصب، اجرا، معماری، نقشه راه)
@@ -469,13 +474,13 @@ graph LR
     C --> E["4️⃣ خروجی"]
     D --> E
     E --> F["5️⃣ ابزارها"]
-    C --> G["6️⃣ SaaS"]
+    C --> G["6️⃣ دسکتاپ ویندوز"]
     F --> H["7️⃣ عرضه"]
     G --> H
 ```
 
-> 💡 فازهای ۵ و ۶ می‌توانند **موازی** اجرا شوند (ابزارها روی هسته، SaaS روی API).
-> ⚠️ فاز ۳ حتماً بعد از ۱؛ فاز ۴ بعد از ۲ و ۳.
+> 💡 فازهای ۵ و ۶ می‌توانند **موازی** اجرا شوند (ابزارها روی هسته، Tauri/SQLite روی شِل).
+> ⚠️ فاز ۳ حتماً بعد از ۱؛ فاز ۴ بعد از ۲ و ۳. فاز ۶ بدون اینترنت هم قابل تست است.
 
 ---
 

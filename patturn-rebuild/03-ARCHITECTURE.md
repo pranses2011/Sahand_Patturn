@@ -8,39 +8,56 @@
 
 ```mermaid
 graph TB
-    subgraph Client["🖥️ Browser (Client-Side Heavy)"]
-        UI["Next.js App Router<br/>RSC برای مارکتینگ · CSR برای ادیتور"]
+    subgraph Desktop["🪟 Desktop App — Tauri 2 (اصلی، آفلاین)"]
+        UI["React SPA (Vite)<br/>ادیتور + صفحات fa/en"]
         ST["Zustand + Immer<br/>ParamGraph Store + History"]
         WK["Web Worker<br/>kernel · molds · exporters"]
         WASM["manifold-3d.wasm<br/>CSG"]
         T3["three.js Viewport"]
         SVG["SVG Canvas Engine"]
+        SQL[("SQLite محلی<br/>Drizzle · JSONB params")]
+        FS["دیسک کاربر<br/>STL/SVG/DXF/PDF · بکاپ · .patturn"]
+        TAU["tauri-plugin-fs / dialog / sql / updater"]
     end
-    subgraph Edge["☁️ Vercel"]
+    subgraph Cloud["☁️ Cloud (اختیاری — فقط وقتی اینترنت هست)"]
         API["Route Handlers /api/*"]
-        AUTH["Clerk / Auth.js"]
-    end
-    subgraph Data["🗄️ Managed"]
-        PG[("Postgres + Drizzle<br/>JSONB params")]
-        BLOB[("Blob Storage<br/>thumbnails, exports")]
+        AUTH["حساب ابری (اختیاری)"]
+        PG[("Postgres + Drizzle<br/>آینهٔ همگام‌سازی")]
         MAIL["Kit / Resend"]
-        STRIPE["Stripe"]
+        STRIPE["Stripe / لایسنس"]
     end
     UI --> ST --> WK
     WK --> WASM
     ST --> T3
     ST --> SVG
-    UI --> API --> PG
+    ST --> SQL
+    TAU --> FS
+    UI -.همگام‌سازی اختیاری.-> API
+    API --> PG
     API --> AUTH
     API --> STRIPE
     API --> MAIL
-    API --> BLOB
 ```
 
-### اصل حاکم: **«محاسبات کلاینت‌ساید، داده ابری»**
-- 🧮 همهٔ هندسه در مرورگر (WASM + Worker) → هزینهٔ سرور ≈ صفر، حریم خصوصی بهتر، تأخیر کمتر.
-- 🗄️ سرور فقط **پارامترها**، متادیتا، تصویر بندانگشتی و قابلیت‌های اجتماعی را نگه می‌دارد.
-- 📦 فایل‌های سنگین خروجی به‌صورت **موقت** در Blob (اختیاری، برای اشتراک‌گذاری).
+### اصل حاکم: **«محاسبات و داده لوکال، ابر فقط اختیاری»** (قانون R-014)
+- 🪟 نسخهٔ اصلی: **اپ نصب‌شدهٔ ویندوز با Tauri 2** — بدون مرورگر، بدون سرور، با قطع کامل اینترنت کامل کار میکند.
+- 🧮 همهٔ هندسه داخل خود اپ (WASM + Worker) → هزینهٔ سرور ≈ صفر، حریم خصوصی حداکثری.
+- 🗄️ **SQLite محلی منبع حقیقت** است؛ Postgres فقط آینهٔ همگام‌سازی در نسخهٔ وب/ابریِ اختیاری.
+- 📤 خروجی‌ها مستقیم روی دیسک با دیالوگ فایل ویندوز ذخیره میشوند — نه از طریق دانلود مرورگر.
+- 🌐 نسخهٔ وب همان SPA با adapter ذخیرهٔ متفاوت است؛ **هیچ وابستگی هسته‌ای به وب وجود ندارد.**
+
+### 🔌 لایهٔ پلتفرم (Platform Adapter)
+```ts
+// packages/storage/src/port.ts — تنها مرز بین هسته و پلتفرم
+interface Platform {
+  db: ProjectRepo;              // SQLite (desktop) | IndexedDB (web)
+  fs: { save(path, bytes); open(): Promise<{path,bytes}> };  // Tauri dialog | download
+  network?: SyncClient;         // تعریف‌نشده در آفلاین = بدون sync
+  license?: LicenseClient;      // فعال‌سازی کلید
+  updater?: UpdateClient;       // بررسی نسخهٔ جدید (اختیاری)
+}
+```
+> ⛔ `kernel`، `patterns`، `molds`، `exporters` هرگز `Platform` را مستقیم صدا نمیزنند — فقط از طریق interface بالا.
 
 ---
 
@@ -162,9 +179,13 @@ graph TD
     molds --> tools
     mapping --> tools
     kernel --> exporters["exporters"]
+    schema --> storage["storage<br/>(Platform interface)"]
     tools --> worker["worker"]
     worker --> ui["ui"]
-    ui --> web["apps/web"]
+    ui --> desktop["apps/desktop 🪟 (Tauri)"]
+    ui --> web["apps/web 🌐 (اختیاری)"]
+    storage --> desktop
+    storage -.adapter.-> web
 ```
 > ⛔ `kernel` نباید به `ui`، `web`، React یا DOM وابسته باشد. این تضمین تست‌پذیری است.
 > 📏 قانون: هر پکیج فقط از لایه‌های پایین‌تر خود import کند (بدون چرخه). با ESLint `import/no-restricted-paths` اعمال شود.
@@ -244,11 +265,13 @@ type Mesh = {
 | ADR-001 | هستهٔ هندسی | Proposed | manifold-3d + revolve دستی |
 | ADR-002 | State | Proposed | Zustand + Immer + history stack |
 | ADR-003 | رندر دو‌بعدی | Proposed | SVG منبع حقیقت، Canvas پیش‌نمایش |
-| ADR-004 | ذخیره‌سازی | Proposed | Postgres JSONB + IndexedDB آفلاین |
+| ADR-004 | ذخیره‌سازی | **Accepted** | **SQLite محلی = منبع حقیقت**؛ Postgres فقط آینهٔ اختیاری |
 | ADR-005 | واحد | Accepted | mm در همه‌جا |
-| ADR-006 | i18n | Accepted | next-intl، fa پیش‌فرض |
-| ADR-007 | پرداخت | Proposed | Stripe Checkout |
+| ADR-006 | i18n | Accepted | i18n خودساخته (یا next-intl در وب)، fa پیش‌فرض |
+| ADR-007 | پرداخت | **Accepted** | **کلید لایسنس + کارت حمایت** پیش‌فرض؛ Stripe فقط در وب |
 | ADR-008 | Excel/PDF | Proposed | pdf-lib + font subsetting |
+| **ADR-009** | **پلتفرم اصلی** | **Accepted** | **Tauri 2 برای ویندوز (آفلاین)؛ وب اختیاری؛ هسته پلتفرم‌بی‌طرف** |
+| **ADR-010** | **بدون حساب برای کار اصلی** | **Accepted** | پروفایل محلی؛ ورود ابری فقط برای همگام‌سازی/جامعه |
 
 ---
 
