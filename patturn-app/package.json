@@ -2,14 +2,14 @@
   "name": "patturn-app",
   "private": true,
   "version": "0.1.0",
-  "description": "Patturn-style parametric pottery design tool — desktop (Windows, offline) first",
+  "description": "Patturn-style parametric pottery design tool \u2014 desktop (Windows, offline) first",
   "type": "module",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
-    "test": "vitest run && node --test scripts/installer-checksums.test.mjs scripts/bundle-graph.test.mjs",
+    "test": "vitest run && node --test scripts/installer-checksums.test.mjs scripts/bundle-graph.test.mjs scripts/lint-config.test.mjs",
     "test:watch": "vitest",
     "typecheck": "node scripts/typecheck.mjs",
     "build": "npm run build -w @patturn/web",
@@ -20,11 +20,14 @@
     "bundle:report": "node scripts/bundle-report.mjs",
     "desktop:installer": "npm run tauri -w @patturn/desktop -- build --ci --bundles nsis",
     "installer:checksums": "node scripts/installer-checksums.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint": "eslint . --max-warnings=0"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
+    "@typescript-eslint/parser": "^8.73.0",
+    "eslint": "^10.15.0",
     "typescript": "^5.6.3",
     "vitest": "^5.1.1"
   },
@@ -32,6 +35,6 @@
     "manifold-3d": "^3.5.5"
   },
   "engines": {
-    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
+    "node": "^22.13.0 || ^24.0.0 || >=26.0.0"
   }
 }

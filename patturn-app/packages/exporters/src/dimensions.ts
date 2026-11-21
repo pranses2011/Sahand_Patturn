@@ -110,7 +110,7 @@ export async function toDimensionPdf(inputProfile: Profile, inputOptions: {
     ruler();
     for (const tile of layout.tiles) {
       // Yield between pages so browser UI/input can deliver a cancellation request.
-      if (options.signal) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      if (options.signal) await new Promise<void>((resolve) => { setTimeout(resolve, 0); });
       cancelled();
       pdf.addPage();
       fa('پروفیل با مقیاس واقعی ـ شبکهٔ ده میلی‌متری', 15, 14);

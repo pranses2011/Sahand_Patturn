@@ -30,6 +30,7 @@ jobs:
           cache: npm
           cache-dependency-path: patturn-app/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -79,6 +80,7 @@ jobs:
             patturn-app/apps/desktop/src-tauri/target
           key: windows-rust-${{ hashFiles('patturn-app/apps/desktop/src-tauri/Cargo.toml', 'patturn-app/apps/desktop/src-tauri/Cargo.lock') }}
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - name: Compile desktop executable, without installer or signing
         run: npm run desktop:check

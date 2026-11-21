@@ -19,7 +19,7 @@ test('software WebGL issues geometry draw calls and survives flat/surface remoun
   await expect.poll(async()=>page.evaluate(async()=>{
     const state=window as unknown as {testDraws:number};
     const before=state.testDraws;
-    await new Promise((resolve)=>setTimeout(resolve,150));
+    await new Promise((resolve)=>{setTimeout(resolve,150);});
     return state.testDraws-before;
   }),{timeout:10_000}).toBe(0);
   const before=await page.evaluate(()=>(window as unknown as {testDraws:number}).testDraws);
@@ -81,7 +81,7 @@ test('visibility lifecycle suspends software draws during geometry edits and res
   await expect(page.locator('footer')).toContainText('Segments 32');
   // Include a resize invalidation while paused, not just a geometry update.
   await page.setViewportSize({width:1100,height:800});
-  await page.evaluate(()=>new Promise((resolve)=>setTimeout(resolve,200)));
+  await page.evaluate(()=>new Promise((resolve)=>{setTimeout(resolve,200);}));
   expect(await draws()).toBe(before);
   await page.evaluate(()=>{
     Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});
