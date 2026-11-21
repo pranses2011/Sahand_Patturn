@@ -199,10 +199,29 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     };
   }, [mesh, mode, pattern]);
 
+  const zoomCamera = (factor: number) => {
+    const { camera, controls, invalidate } = stateRef.current;
+    if (!camera || !controls) return;
+    const damping = controls.enableDamping;
+    controls.enableDamping = false;
+    controls.update();
+    const offset = camera.position.clone().sub(controls.target);
+    const distance = offset.length();
+    if (distance > 0) {
+      const next = Math.min(camera.far / 2, Math.max(camera.near * 2, distance * factor));
+      camera.position.copy(controls.target).addScaledVector(offset, next / distance);
+      controls.update();
+    }
+    controls.enableDamping = damping;
+    invalidate?.();
+  };
+
   if (renderError) throw new Error('VIEWPORT_GRAPHICS_UNAVAILABLE');
   return <>
     <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />
-    <div className="viewport-reset">
+    <div className="viewport-reset" role="group" aria-label="کنترل دوربین">
+    <button className="btn" type="button" onClick={() => zoomCamera(0.8)}>نزدیک‌تر</button>
+    <button className="btn" type="button" onClick={() => zoomCamera(1.25)}>دورتر</button>
     <button className="btn" type="button" onClick={() => {
       const { controls, invalidate } = stateRef.current;
       if (!controls) return;

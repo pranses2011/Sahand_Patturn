@@ -110,3 +110,21 @@ test('camera reset restores the initial view after zoom without changing project
   await expect(page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true})).toHaveValue('4');
   await expect(page.getByRole('spinbutton',{name:'شیرینک',exact:true})).toHaveValue('12');
 });
+
+test('keyboard camera zoom controls change the view and reset without editing the project',async({page})=>{
+  await page.goto('/');
+  const canvas=page.locator('.viewport canvas');await expect(canvas).toBeVisible();
+  const group=page.getByRole('group',{name:'کنترل دوربین',exact:true});
+  const reset=group.getByRole('button',{name:'بازنشانی دوربین',exact:true});
+  await reset.focus();await page.keyboard.press('Enter');const initial=await canvas.screenshot();
+  for(const label of ['نزدیک‌تر','دورتر']){
+    const button=group.getByRole('button',{name:label,exact:true});
+    await button.focus();await page.keyboard.press('Enter');
+    // Remove focus differences so the image comparison observes the view, not the outline.
+    await reset.focus();
+    await expect.poll(async()=>Buffer.compare(await canvas.screenshot(),initial)).not.toBe(0);
+    await page.keyboard.press('Enter');
+    await expect.poll(async()=>Buffer.compare(await canvas.screenshot(),initial)).toBe(0);
+  }
+  await expect(page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true})).toHaveValue('4');
+});
