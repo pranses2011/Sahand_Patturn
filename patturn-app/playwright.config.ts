@@ -13,9 +13,19 @@ export default defineConfig({
     trace: 'retain-on-failure',
     launchOptions: {
       executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-      args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-webgl'],
+      args: ['--no-sandbox', '--disable-dev-shm-usage'],
     },
   },
+  projects: [
+    { name: 'no-webgl', testMatch: '**/editor.spec.ts', use: { launchOptions: {
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+      args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-webgl'],
+    } } },
+    { name: 'software-webgl', testMatch: '**/viewport.spec.ts', use: { launchOptions: {
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+      args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+    } } },
+  ],
   webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     command: 'npm run preview -w @patturn/web -- --host 0.0.0.0 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',

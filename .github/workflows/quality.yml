@@ -36,7 +36,7 @@ jobs:
       - run: npm run bundle:report
       - name: Install Chromium for browser smoke tests
         run: npx playwright install --with-deps chromium
-      - name: Browser smoke tests (WebGL deliberately disabled)
+      - name: Browser smoke tests (disabled and software WebGL)
         run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
