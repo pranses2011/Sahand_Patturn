@@ -694,3 +694,25 @@ test('recipe rename and deletion restore search focus only after successful conf
   await expect(search).toBeFocused();await expect(page.locator('.saved-patterns li')).toHaveCount(0);
   await expect(page.getByRole('radio',{name:'شبکهٔ نقطه‌ای',exact:true})).toBeChecked();
 });
+
+test('saved recipe search matches Persian Arabic and Latin digits without renaming stored entries',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  for(const name of ['کاشی ۱۲','کاشی ۳۴']){
+    await page.getByLabel('نام تنظیمات',{exact:true}).fill(name);
+    await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  }
+  const search=page.getByLabel('جست‌وجوی تنظیمات ذخیره‌شده',{exact:true});
+  const list=page.locator('.saved-patterns li');
+  for(const query of ['12','١٢','۱۲']){
+    await search.fill(query);await expect(list).toHaveCount(1);
+    await expect(list.getByRole('button',{name:'اعمال کاشی ۱۲',exact:true})).toBeVisible();
+  }
+  await search.fill('34');await expect(list).toHaveCount(1);
+  await expect(list.getByRole('button',{name:'اعمال کاشی ۳۴',exact:true})).toBeVisible();
+  await page.reload();await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await expect(list).toHaveCount(2);
+  await expect(list.getByRole('button',{name:'اعمال کاشی ۱۲',exact:true})).toBeVisible();
+  await expect(list.getByRole('button',{name:'اعمال کاشی ۳۴',exact:true})).toBeVisible();
+});

@@ -3,6 +3,14 @@ import { filterPatterns, normalizePatternSearch } from './PatternLibrary';
 import { PATTERNS } from '@patturn/patterns';
 
 describe('Local pattern search',()=>{
+  it.each([
+    ['کاشی ۱۲','کاشی 12'],['کاشی ١٢','کاشی 12'],['کاشی 12','کاشی 12'],
+    ['۰۱۲۳۴۵۶۷۸۹','0123456789'],['٠١٢٣٤٥٦٧٨٩','0123456789'],
+    ['۴٢7','427'],['  كاشي‌ ۱۲  ','کاشی 12'],
+  ])('normalizes digit variants in %s without changing the stored name',(query,expected)=>{
+    expect(normalizePatternSearch(query)).toBe(expected);
+    expect(normalizePatternSearch(normalizePatternSearch(query))).toBe(expected);
+  });
   it('returns all patterns in original order for blank input',()=>{
     expect(filterPatterns('  ')).toEqual(PATTERNS);
   });
