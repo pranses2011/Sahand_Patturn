@@ -25,6 +25,7 @@ export function NumericControl({label,value,onChange,min,max,step=1,unit='mm',he
     <input id={id} aria-label={label} aria-describedby={`${id}-unit`} className="num" type="number" value={draft} min={min} max={max} step={step}
       onFocus={onBeginEdit} onChange={(event)=>setDraft(event.currentTarget.value)}
       onBlur={(event)=>commit(event.currentTarget)} onKeyDown={(event)=>{
+        if(event.nativeEvent.isComposing)return;
         if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur();}
         if(event.key==='Escape'){
           event.preventDefault();event.currentTarget.value=String(value);setDraft(String(value));event.currentTarget.blur();

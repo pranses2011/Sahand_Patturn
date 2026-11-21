@@ -475,3 +475,21 @@ test('cancelling a delayed project read preserves current edits and suppresses r
   await expect(page.getByRole('button',{name:'بازکردن پروژه',exact:true})).toBeEnabled();
   await expect(wall).toHaveValue('8');expect(dialogs).toBe(0);
 });
+
+test('numeric draft ignores composing Enter and Escape before ordinary commit',async({page})=>{
+  await page.goto('/');
+  const number=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  const slider=page.getByRole('slider',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await number.fill('7');
+  for(const key of ['Enter','Escape']){
+    const allowed=await number.evaluate((element,key)=>element.dispatchEvent(new KeyboardEvent('keydown',{
+      key,isComposing:true,bubbles:true,cancelable:true,
+    })),key);
+    expect(allowed).toBe(true);
+    await expect(number).toBeFocused();await expect(number).toHaveValue('7');
+    await expect(slider).toHaveValue('4');
+  }
+  await number.press('Enter');await expect(slider).toHaveValue('7');
+  await page.getByRole('button',{name:/^واگرد/}).click();
+  await expect(slider).toHaveValue('4');
+});
