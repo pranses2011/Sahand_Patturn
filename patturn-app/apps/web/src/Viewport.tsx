@@ -1,3 +1,4 @@
+import { cameraFit } from './camera-fit';
 import { createRenderScheduler } from './render-scheduler';
 import { disposeViewportObject } from './viewport-resources';
 import { useEffect, useRef, useState } from 'react';
@@ -201,7 +202,8 @@ export function Viewport({ mesh, mode, pattern }: Props) {
   if (renderError) throw new Error('VIEWPORT_GRAPHICS_UNAVAILABLE');
   return <>
     <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />
-    <button className="btn viewport-reset" type="button" onClick={() => {
+    <div className="viewport-reset">
+    <button className="btn" type="button" onClick={() => {
       const { controls, invalidate } = stateRef.current;
       if (!controls) return;
       // Flush residual damping before resetting so the saved pose stays stationary.
@@ -209,8 +211,29 @@ export function Viewport({ mesh, mode, pattern }: Props) {
       controls.enableDamping = false;
       controls.update();
       controls.reset();
+      const camera = stateRef.current.camera;
+      if (camera) { camera.near = 1; camera.far = 5000; camera.updateProjectionMatrix(); }
       controls.enableDamping = damping;
       invalidate?.();
     }}>بازنشانی دوربین</button>
+    <button className="btn" type="button" onClick={() => {
+      const { camera, controls, current, invalidate } = stateRef.current;
+      if (!camera || !controls || !current) return;
+      const fit = cameraFit(new THREE.Box3().setFromObject(current), camera.fov, camera.aspect);
+      if (!fit) return;
+      const damping = controls.enableDamping;
+      controls.enableDamping = false;
+      controls.update();
+      const direction = camera.position.clone().sub(controls.target).normalize();
+      if (direction.lengthSq() === 0) direction.set(1, 1, 1).normalize();
+      controls.target.copy(fit.center);
+      camera.position.copy(fit.center).addScaledVector(direction, fit.distance);
+      camera.near = fit.near; camera.far = fit.far;
+      camera.updateProjectionMatrix();
+      controls.update();
+      controls.enableDamping = damping;
+      invalidate?.();
+    }}>جا دادن مدل در نما</button>
+    </div>
   </>;
 }

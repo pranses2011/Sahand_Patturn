@@ -102,6 +102,9 @@ test('camera reset restores the initial view after zoom without changing project
   const initial=await canvas.screenshot();
   await canvas.hover();await page.mouse.wheel(0,350);
   await expect.poll(async()=>Buffer.compare(await canvas.screenshot(),initial),{timeout:10_000}).not.toBe(0);
+  const fit=page.getByRole('button',{name:'جا دادن مدل در نما',exact:true});
+  await fit.focus();await page.keyboard.press('Enter');
+  await expect(canvas).toBeVisible();
   await reset.focus();await page.keyboard.press('Enter');
   await expect.poll(async()=>Buffer.compare(await canvas.screenshot(),initial),{timeout:10_000}).toBe(0);
   await expect(page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true})).toHaveValue('4');
