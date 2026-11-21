@@ -457,15 +457,26 @@ export function App() {
     ],
   });
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfMessage, setPdfMessage] = useState<string | null>(null);
+  const pdfController = useRef<AbortController | null>(null);
+  useEffect(() => () => { pdfController.current?.abort(); },
+    [profile, profileMode, splitPlan, segments, wall, shrink, fill]);
   const exportDimensionPdf = async () => {
-    if (pdfBusy) return;
-    setPdfBusy(true);
+    if (pdfController.current) return;
+    const controller = new AbortController();
+    pdfController.current = controller;
+    setPdfBusy(true); setPdfMessage(null);
     try {
-      const result = await makeDimensionPdf();
-      if (result.ok) download(result.filename, result.bytes!);
-      else alert(`خطای برگهٔ ابعاد: ${result.error}`);
-    } catch (error) { alert(`بارگذاری خروجی PDF ناموفق بود: ${String(error)}`); }
-    finally { setPdfBusy(false); }
+      const result = await makeDimensionPdf(controller.signal);
+      if (controller.signal.aborted) setPdfMessage('آماده‌سازی PDF لغو شد؛ فایلی دانلود نشد.');
+      else if (result.ok) download(result.filename, result.bytes!);
+      else setPdfMessage(`خطای برگهٔ ابعاد: ${result.error}`);
+    } catch (error) {
+      setPdfMessage(controller.signal.aborted ? 'آماده‌سازی PDF لغو شد؛ فایلی دانلود نشد.' : `بارگذاری خروجی PDF ناموفق بود: ${String(error)}`);
+    } finally {
+      if (pdfController.current === controller) pdfController.current = null;
+      setPdfBusy(false);
+    }
   };
 
   const [zipBusy, setZipBusy] = useState(false);
@@ -723,6 +734,8 @@ export function App() {
               <div className="hint">ورود DXF با واحد mm؛ مسیر مرکزی بدون ضخامت برش. موج Bézier با تلورانس هندسی ۰٫۰۵mm پیش از برش، به خطوط تقریب زده می‌شود. هندسه به بوم ۳۰۰×۳۰۰ بریده می‌شود؛ کانتور مرزی جدید ساخته نمی‌شود. منحنی پشتیبانی‌نشده کل خروجی را متوقف می‌کند.</div>
               <div className="ctl"><button className="btn" disabled={!formMesh || pdfBusy} onClick={() => void exportDimensionPdf()}>
                 {pdfBusy ? '⏳ در حال آماده‌سازی PDF…' : '⬇ PDF برگهٔ ابعاد A4 — مقیاس ۱:۱'}</button></div>
+              {pdfBusy && <button className="btn" onClick={() => pdfController.current?.abort()}>لغو آماده‌سازی PDF</button>}
+              {pdfMessage && <div className="hint" role="status">{pdfMessage}</div>}
               <div className="hint">چاپ با اندازهٔ واقعی ۱۰۰٪؛ Fit to page خاموش. خط‌کش ۱۰۰mm را کنترل کنید.
                 فرم‌های بزرگ چندصفحه‌ای هستند و کوچک نمی‌شوند.</div>
               <div className="ctl"><button className="btn" disabled={!formMesh} onClick={() => exportObj('form')}>⬇ OBJ فرم با رنگ رأس</button></div>

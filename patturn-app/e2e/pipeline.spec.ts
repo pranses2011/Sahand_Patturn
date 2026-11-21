@@ -127,3 +127,20 @@ test('changing capacity inputs while PDF loads cancels stale ZIP and a retry exp
   expect(JSON.parse(strFromU8(entries['parameters.json']!)).wallMm).toBe(6);
   expect(downloads).toHaveLength(1);
 });
+
+test('standalone PDF supports explicit cancellation while loading and a subsequent retry',async({page})=>{
+  let release!:()=>void;const held=new Promise<void>((resolve)=>{release=resolve;});
+  let requested!:()=>void;const requestedPdf=new Promise<void>((resolve)=>{requested=resolve;});
+  await page.route('**/assets/jspdf.es.min-*.js',async(route)=>{requested();await held;await route.continue();});
+  const downloads:string[]=[];page.on('download',(file)=>downloads.push(file.suggestedFilename()));
+  await page.goto('/');await page.getByRole('button',{name:'📤 خروجی',exact:true}).click();
+  const pdf=page.getByRole('button',{name:'⬇ PDF برگهٔ ابعاد A4 — مقیاس ۱:۱',exact:true});
+  await pdf.click();await requestedPdf;
+  await page.getByRole('button',{name:'لغو آماده‌سازی PDF',exact:true}).click();release();
+  await expect(page.getByRole('status').filter({hasText:'آماده‌سازی PDF لغو شد؛ فایلی دانلود نشد.'})).toBeVisible();
+  expect(downloads).toEqual([]);await expect(pdf).toBeEnabled();
+  const downloaded=page.waitForEvent('download');await pdf.click();
+  const file=await downloaded;expect(file.suggestedFilename()).toMatch(/\.pdf$/);
+  const path=await file.path();expect(path).not.toBeNull();
+  expect((await readFile(path!)).subarray(0,5).toString()).toBe('%PDF-');expect(downloads).toHaveLength(1);
+});
