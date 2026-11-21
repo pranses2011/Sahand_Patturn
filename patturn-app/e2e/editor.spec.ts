@@ -318,3 +318,25 @@ test('library backup downloads all named recipes without changing the active pro
   ]});
   await expect(tile).toHaveValue('60');await expect(page.getByRole('radio',{name:'موج',exact:true})).toBeChecked();
 });
+
+test('library backup import requires confirmation, deduplicates and rejects conflicts without changing the project',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  const picker=page.getByLabel('انتخاب پشتیبان کتابخانهٔ الگو',{exact:true});
+  const backup=(tileSize:number)=>({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({format:'patturn-pattern-library',version:1,entries:[{name:'واردشده',patternId:'wave',tileSize}]}))});
+  page.once('dialog',(dialog)=>dialog.dismiss());await picker.setInputFiles(backup(60));
+  await expect(page.getByRole('button',{name:'ورود پشتیبان کتابخانهٔ الگو',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'اعمال واردشده',exact:true})).toHaveCount(0);
+  page.once('dialog',(dialog)=>dialog.accept());await picker.setInputFiles(backup(60));
+  await expect(page.getByRole('button',{name:'اعمال واردشده',exact:true})).toBeVisible();
+  page.once('dialog',(dialog)=>dialog.accept());await picker.setInputFiles(backup(60));
+  await expect(page.getByRole('button',{name:'ورود پشتیبان کتابخانهٔ الگو',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'اعمال واردشده',exact:true})).toHaveCount(1);
+  const before=await page.evaluate(()=>localStorage.getItem('patturn:pattern-library:v1'));
+  await picker.setInputFiles(backup(80));
+  await expect(page.getByRole('alert').filter({hasText:'چیزی وارد نشد'})).toBeVisible();
+  expect(await page.evaluate(()=>localStorage.getItem('patturn:pattern-library:v1'))).toBe(before);
+  await expect(page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true})).toHaveValue('40');
+  await page.getByRole('button',{name:'اعمال واردشده',exact:true}).click();
+  await expect(page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true})).toHaveValue('60');
+});

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { PatternLibraryRepo, PATTERN_LIBRARY_KEY, type PatternRecipe } from '@patturn/storage';
+import { useEffect, useRef, useState } from 'react';
+import { PatternLibraryRepo, PATTERN_LIBRARY_KEY, MAX_PATTERN_BACKUP_BYTES, type PatternRecipe } from '@patturn/storage';
 import { PATTERNS } from '@patturn/patterns';
 
 export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
@@ -8,6 +8,20 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
   const [entries, setEntries] = useState<PatternRecipe[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const importFile = async (file: File) => {
+    setImporting(true);
+    try {
+      if (file.size > MAX_PATTERN_BACKUP_BYTES) throw new Error('LIBRARY_BACKUP_TOO_LARGE');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const preview = repo().previewImport(bytes);
+      if (window.confirm(`${preview.added} تنظیمات جدید افزوده شود؟ مجموع پس از ادغام: ${preview.total}. موارد یکسان تکرار نمی‌شوند و پروژهٔ باز تغییر نمی‌کند.`)) {
+        perform(() => repo().importDocument(bytes));
+      }
+    } catch (e) { perform(() => { throw e; }); }
+    finally { setImporting(false); }
+  };
   const repo = () => new PatternLibraryRepo(window.localStorage, PATTERNS.map((p) => p.id));
   const perform = (action: () => PatternRecipe[]) => {
     try { setEntries(action()); setError(null); return true; }
@@ -15,6 +29,10 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
       const code = e instanceof Error ? e.message : '';
       setError(code === 'LIBRARY_NAME_EXISTS'
         ? 'این نام قبلاً ذخیره شده است؛ نام دیگری انتخاب کنید. تنظیمات قبلی تغییر نکرد.'
+        : code === 'LIBRARY_IMPORT_CONFLICT'
+          ? 'نام یکی از موارد پشتیبان با مقادیر متفاوت در کتابخانه وجود دارد؛ ابتدا نام مورد قبلی را تغییر دهید. چیزی وارد نشد.'
+        : code === 'LIBRARY_BACKUP_TOO_LARGE'
+          ? 'فایل پشتیبان باید حداکثر ۶۴ KiB باشد؛ چیزی وارد نشد.'
         : code === 'LIBRARY_NOT_FOUND'
           ? 'این تنظیمات دیگر در کتابخانه نیست؛ فهرست را بازخوانی کنید.'
         : code === 'LIBRARY_FULL'
@@ -33,7 +51,7 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
   }, []);
   return <details className="saved-patterns" onToggle={(e) => { if (e.currentTarget.open) perform(() => repo().list()); }}>
     <summary>تنظیمات الگوی ذخیره‌شده</summary>
-    <p className="hint">حداکثر ۳۰ ترکیب نام‌دار، فقط در همین دستگاه؛ شامل نوع الگو و اندازهٔ کاشی، نه مسیر سفارشی. فایل پروژه فقط تنظیمات فعال را دارد؛ پشتیبان JSON تمام موارد این کتابخانه را نگه می‌دارد. ورود پشتیبان هنوز اضافه نشده است.</p>
+    <p className="hint">حداکثر ۳۰ ترکیب نام‌دار، فقط در همین دستگاه؛ شامل نوع الگو و اندازهٔ کاشی، نه مسیر سفارشی. فایل پروژه فقط تنظیمات فعال را دارد؛ پشتیبان JSON تمام موارد این کتابخانه را نگه می‌دارد. ورود JSON فقط موارد جدید را ادغام می‌کند؛ برخورد نام با مقادیر متفاوت رد می‌شود.</p>
     <form onSubmit={(e) => { e.preventDefault(); if (perform(() => repo().save({ name, patternId, tileSize }))) setName(''); }}>
       <label>نام تنظیمات<input value={name} maxLength={60} required onChange={(e) => setName(e.currentTarget.value)} /></label>
       <button className="btn" type="submit" disabled={!name.trim()}>ذخیرهٔ تنظیمات فعلی</button>
@@ -45,6 +63,9 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
       onExport('patturn-pattern-library-v1.json', library.exportDocument());
       return library.list();
     })}>دانلود پشتیبان کتابخانهٔ الگو</button>
+    <input ref={inputRef} type="file" accept=".json" hidden aria-label="انتخاب پشتیبان کتابخانهٔ الگو" disabled={importing}
+      onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void importFile(file); }} />
+    <button className="btn" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? 'در حال خواندن پشتیبان…' : 'ورود پشتیبان کتابخانهٔ الگو'}</button>
     <ul>{entries.map((entry) => <li key={entry.name}>
       <b>{entry.name}</b> — {entry.tileSize} mm
       <button className="btn" onClick={() => onApply(entry)} aria-label={`اعمال ${entry.name}`}>اعمال</button>

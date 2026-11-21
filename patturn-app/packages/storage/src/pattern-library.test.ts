@@ -84,4 +84,32 @@ describe('Named pattern recipes',()=>{
     data.set(PATTERN_LIBRARY_KEY,'{broken');expect(()=>repo.exportDocument()).toThrow();expect(data.get(PATTERN_LIBRARY_KEY)).toBe('{broken');
   });
 
+  it('previews without writing and merges backup entries once while preserving existing order',()=>{
+    const source=setup();source.repo.save(recipe);source.repo.save({...recipe,name:'grid',patternId:'grid'});
+    const {repo,data}=setup();repo.save(recipe);const before=data.get(PATTERN_LIBRARY_KEY),bytes=source.repo.exportDocument();
+    expect(repo.previewImport(bytes)).toEqual({added:1,total:2});expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);
+    expect(repo.importDocument(bytes)).toEqual(source.repo.list());expect(repo.previewImport(bytes).added).toBe(0);
+  });
+  it('rejects conflicting names and changes between preview and commit without overwriting',()=>{
+    const source=setup();source.repo.save(recipe);const bytes=source.repo.exportDocument();
+    const {repo,data}=setup();expect(repo.previewImport(bytes).added).toBe(1);
+    repo.save({...recipe,tileSize:60});const before=data.get(PATTERN_LIBRARY_KEY);
+    expect(()=>repo.importDocument(bytes)).toThrow('LIBRARY_IMPORT_CONFLICT');expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);
+  });
+  it('rejects invalid backups and oversized or invalid UTF-8 bytes without touching storage',()=>{
+    const {repo,data}=setup();repo.save(recipe);const before=data.get(PATTERN_LIBRARY_KEY);
+    const encode=(input:unknown)=>new TextEncoder().encode(JSON.stringify(input));
+    for(const bytes of [new Uint8Array(65537),new Uint8Array([255]),encode({}),encode({format:'patturn-pattern-library',version:2,entries:[]}),
+      encode({format:'patturn-pattern-library',version:1,entries:[recipe,recipe]}),
+      encode({format:'patturn-pattern-library',version:1,entries:[{...recipe,patternId:'unknown'}]})]){
+      expect(()=>repo.importDocument(bytes)).toThrow();expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);
+    }
+  });
+  it('enforces merged capacity and preserves existing bytes on denied imports',()=>{
+    const source=setup();source.repo.save(recipe);const bytes=source.repo.exportDocument();
+    const {repo,data,storage}=setup();for(let i=0;i<30;i++)repo.save({...recipe,name:`row ${i}`});
+    const before=data.get(PATTERN_LIBRARY_KEY);expect(()=>repo.importDocument(bytes)).toThrow('LIBRARY_FULL');expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);
+    data.delete(PATTERN_LIBRARY_KEY);storage.setItem=()=>{throw Error('quota');};expect(()=>repo.importDocument(bytes)).toThrow('quota');expect(data.has(PATTERN_LIBRARY_KEY)).toBe(false);
+  });
+
 });
