@@ -39,7 +39,7 @@ export type FormNode = z.infer<typeof FormNode>;
 
 export const PatternNode = z.object({
   baseId: z.string(),
-  params: z.record(z.union([z.number(), z.string(), z.boolean()])),
+  params: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])),
   tile: z.object({
     width: z.number().positive(),
     height: z.number().positive(),
