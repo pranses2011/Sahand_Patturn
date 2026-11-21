@@ -827,3 +827,33 @@ test('saved recipe matches follow current pattern and tile values including undo
   await page.getByRole('button',{name:'اعمال نقطه دوم',exact:true}).click();
   await expect(page.locator('.saved-patterns li')).toHaveCount(2);await expect(matches).toHaveCount(2);
 });
+
+test('applying a saved recipe revalidates storage rather than trusting stale displayed values',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await page.getByLabel('نام تنظیمات',{exact:true}).fill('قابل تغییر');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  const row=page.locator('.saved-patterns li');await expect(row).toContainText('شبکهٔ نقطه‌ای');
+  // Same-document writes deliberately do not emit storage events. This leaves the
+  // displayed row stale and tests click-time validation independently of refresh.
+  await page.evaluate(()=>{
+    const key='patturn:pattern-library:v1';
+    const doc=JSON.parse(localStorage.getItem(key)!);
+    doc.entries[0].patternId='grid';doc.entries[0].tileSize=61;
+    localStorage.setItem(key,JSON.stringify(doc));
+  });
+  await expect(row).toContainText('شبکهٔ نقطه‌ای');
+  const apply=page.getByRole('button',{name:'اعمال قابل تغییر',exact:true});await apply.click();
+  await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
+  await expect(page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true})).toHaveValue('61');
+  await expect(row).toContainText('شبکهٔ مربعی — ۶۱ میلی‌متر');
+  const undo=page.getByRole('button',{name:/^واگرد/});const title=await undo.getAttribute('title');
+  await page.evaluate(()=>localStorage.setItem('patturn:pattern-library:v1',JSON.stringify({version:1,entries:[]})));
+  await apply.click();
+  await expect(page.getByRole('alert').filter({hasText:'این تنظیمات دیگر در کتابخانه نیست'})).toBeVisible();
+  await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
+  await expect(page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true})).toHaveValue('61');
+  await expect(undo).toHaveAttribute('title',title!);
+  await page.getByRole('button',{name:'بازخوانی / تلاش دوباره',exact:true}).click();
+  await expect(row).toHaveCount(0);
+});

@@ -101,7 +101,13 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
     <ul>{visible.map((entry) => <li key={entry.name}>
       <b>{entry.name}</b> — {PATTERN_NAMES_FA[entry.patternId] ?? entry.patternId} — {new Intl.NumberFormat('fa-IR').format(entry.tileSize)} میلی‌متر
       {entry.patternId === patternId && entry.tileSize === tileSize && <span className="hint"> — مطابق تنظیمات فعلی</span>}
-      <button className="btn" onClick={() => onApply(entry)} aria-label={`اعمال ${entry.name}`}>اعمال</button>
+      <button className="btn" onClick={() => perform(() => {
+        const current = repo().list();
+        const selected = current.find((item) => item.name === entry.name);
+        if (!selected) throw new Error('LIBRARY_NOT_FOUND');
+        onApply(selected);
+        return current;
+      })} aria-label={`اعمال ${entry.name}`}>اعمال</button>
       <button className="btn" onClick={() => {
         if (window.confirm(`نوع الگو و اندازهٔ کاشی فعلی جایگزین تنظیمات «${entry.name}» شود؟`)) {
           perform(() => repo().update(entry.name, { patternId, tileSize }));
