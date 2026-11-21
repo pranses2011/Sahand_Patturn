@@ -100,7 +100,6 @@ export function App() {
   const [patternId, setPatternId] = useState(startup.state.patternId);
   const [tileSize, setTileSize] = useState(startup.state.tileSize);
   const [saved, setSaved] = useState(startup.entries.length > 0);
-  const [meshErr, setMeshErr] = useState<string | null>(null);
   const [parameterHistory] = useState(() => new ParameterHistory(startup.state));
   const [, updateHistoryUi] = useState(0);
   const currentParameters = useMemo(() => ({ profileMode, segments, wall, shrink, fill, patternId, tileSize }),
@@ -199,19 +198,22 @@ export function App() {
 
   const profile = useMemo(() => PRESETS[profileMode], [profileMode]);
 
-  const formMesh: Mesh | null = useMemo(() => {
+  const formResult = useMemo(() => {
     try {
       // All presets are solid outer mold masters, including the reference profile.
       // An open rim cannot be passed to manifold CSG or exported as a validated solid STL.
       const m = revolve(profile, { segments, closeBottom: true, closeTop: true });
       const rep = validateMesh(m);
-      setMeshErr(rep.ok ? null : rep.problems.join(' · '));
-      return m;
+      return { mesh: rep.ok ? m : null, error: rep.ok ? null : rep.problems.join(' · ') };
     } catch (e) {
-      setMeshErr(String(e));
-      return null;
+      return { mesh: null, error: String(e) };
     }
   }, [profile, segments, profileMode]);
+
+  const formMesh: Mesh | null = formResult.mesh;
+  const meshErr = formResult.error;
+  const [moldError, setMoldError] = useState<string | null>(null);
+  const [moldAttempt, setMoldAttempt] = useState(0);
 
   // real boolean mold (block − form, split by plan) when Mold tab is active
   const moldActive = part === 'mold' || part === 'export';
@@ -276,6 +278,7 @@ export function App() {
     return () => { cancelled = true; };
   }, [motherBusy, moldParts]);
   useEffect(() => {
+    setMoldError(null);
     if (!formMesh || !moldActive || moldSnapshot?.inputs === moldInputs) {
       setMoldBusy(false);
       if (moldSnapshot && moldSnapshot.inputs !== moldInputs) setMoldSnapshot(null);
@@ -290,10 +293,10 @@ export function App() {
         const parts = await buildSplitMold(formMesh, plan, { shrink: shrink / 100, profile });
         if (!cancelled) {
           setMoldSnapshot({ inputs: moldInputs, parts, plan });
-          setMeshErr(null);
+          setMoldError(null);
         }
       } catch (e) {
-        if (!cancelled) setMeshErr(String(e).slice(0, 160));
+        if (!cancelled) setMoldError(String(e).slice(0, 160));
       } finally {
         if (!cancelled) setMoldBusy(false);
       }
@@ -301,7 +304,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [moldActive, moldInputs, moldSnapshot]);
+  }, [moldActive, moldInputs, moldSnapshot, moldAttempt]);
 
   // exploded view: merge parts with display offsets (B up / ±z apart)
   const moldDisplay: Mesh | null = useMemo(() => {
@@ -391,11 +394,10 @@ export function App() {
   }, [saved]);
 
   const doExportStl = () => {
-    if (!mesh) return;
-    const res = toBinaryStl(mesh, `form-${profileMode}`);
+    if (!formMesh) return;
+    const res = toBinaryStl(formMesh, `form-${profileMode}`);
     if (!res.ok) { alert(`خروجی نامعتبر: ${res.error}`); return; }
     download(res.filename, res.bytes!);
-    markDirty();
   };
 
   const exportMoldPart = (index: number) => {
@@ -610,13 +612,17 @@ export function App() {
           {projectLoading ? 'در حال خواندن…' : 'بازکردن پروژه'}</button>
         <button className="btn" onClick={saveProjectFile}>ذخیرهٔ فایل پروژه</button>
         <button className="btn" onClick={doExportSvg}>خروجی SVG الگو</button>
-        <button className="btn primary" onClick={doExportStl}>⬇ خروجی STL</button>
+        <button className="btn primary" onClick={doExportStl}>⬇ خروجی STL فرم</button>
       </header>
 
       {deliveryStatus.message && <div className="hint file-delivery" role={deliveryStatus.error ? 'alert' : 'status'}>
         {deliveryStatus.message}
         {deliveryStatus.pending && <span> تا پایان یا لغو ذخیره، درخواست خروجی دیگری پذیرفته نمی‌شود.</span>}
         {deliveryStatus.error && <button className="btn" onClick={retryDelivery}>تلاش دوبارهٔ همان خروجی</button>}
+      </div>}
+      {moldActive && moldError && <div className="hint" role="alert">
+        ساخت قالب ناموفق بود؛ اعتبار فرم اصلی مستقل است و تنظیمات پروژه تغییر نکرده‌اند: {moldError}
+        <button className="btn" disabled={moldBusy} onClick={() => setMoldAttempt((n) => n + 1)}>تلاش دوبارهٔ ساخت قالب</button>
       </div>}
       {projectError && <div className="hint" role="alert">⚠️ {projectError}</div>}
       {autosaveError && <div className="hint" role="alert">

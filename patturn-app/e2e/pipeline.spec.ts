@@ -80,3 +80,23 @@ test('form to mold to ZIP uses local assets only and exports coherent manufactur
   expect(Object.keys(changedFiles).filter((n)=>n.startsWith('mother-box/'))).toHaveLength(0);
   expect(external).toEqual([]);
 });
+
+test('failed WASM load does not invalidate the form and explicit mold retry recovers',async({page})=>{
+  let aborted=false, allowWasm=false;
+  await page.route('**/*.wasm',async(route)=>{
+    if(!allowWasm){aborted=true;await route.abort('failed');}
+    else await route.continue();
+  });
+  await page.goto('/');
+  await page.getByText('🧱 قالب',{exact:true}).click();
+  const error=page.getByRole('alert').filter({hasText:'ساخت قالب ناموفق بود'});
+  await expect(error).toBeVisible();expect(aborted).toBe(true);
+  await expect(page.locator('footer')).not.toContainText('⚠');
+  const downloaded=page.waitForEvent('download');
+  await page.getByRole('button',{name:'⬇ خروجی STL فرم',exact:true}).click();
+  expect((await downloaded).suggestedFilename()).toMatch(/\.stl$/);
+  allowWasm=true;
+  await page.getByRole('button',{name:'تلاش دوبارهٔ ساخت قالب',exact:true}).click();
+  await expect(page.getByText('✅ قالب سه‌بعدی ساخته شد — در viewport ببینید',{exact:false})).toBeVisible({timeout:60_000});
+  await expect(error).toHaveCount(0);
+});
