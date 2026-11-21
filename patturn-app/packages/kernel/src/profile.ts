@@ -103,3 +103,36 @@ export function validateProfile(p: Profile): string | null {
   }
   return null;
 }
+
+/**
+ * Capacity cavity for a y-monotone radial silhouette. Uses the maximum radius
+ * at duplicate heights (discarding horizontal base/rim closures), raises the
+ * floor by wall mm and subtracts wall radially. This is NOT a surface-normal
+ * offset or a hollow printable solid. Coordinates and outer silhouette stay fixed.
+ */
+export function radialCavityProfile(outer: Profile, wall: number): Profile {
+  if (!Number.isFinite(wall) || wall <= 0 || outer.length < 2) throw new Error('CAVITY_INVALID_INPUT');
+  const envelope: Profile = [];
+  for (const point of outer) {
+    if (!Number.isFinite(point.r) || !Number.isFinite(point.y) || point.r < 0) throw new Error('CAVITY_INVALID_PROFILE');
+    const last = envelope.at(-1);
+    if (last && point.y < last.y) throw new Error('CAVITY_PROFILE_NOT_MONOTONE');
+    if (last && point.y === last.y) last.r = Math.max(last.r, point.r);
+    else envelope.push({ ...point });
+  }
+  const bottom = envelope[0]!.y + wall;
+  const top = envelope.at(-1)!.y;
+  if (bottom >= top) throw new Error('WALL_CLOSES_CAVITY');
+  const cavity: Profile = [];
+  for (let i = 1; i < envelope.length; i++) {
+    const a = envelope[i - 1]!, b = envelope[i]!;
+    if (b.y < bottom) continue;
+    if (!cavity.length) {
+      const t = (bottom - a.y) / (b.y - a.y);
+      cavity.push({ r: a.r + t * (b.r - a.r) - wall, y: bottom });
+    }
+    if (b.y > bottom) cavity.push({ r: b.r - wall, y: b.y });
+  }
+  if (cavity.length < 2 || cavity.some((p) => p.r <= 0)) throw new Error('WALL_CLOSES_CAVITY');
+  return cavity;
+}

@@ -1,13 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   referenceOuterProfile,
-  referenceProfile,
+  radialCavityProfile,
   capacityMl,
   filledMl,
   shrinkDim,
   revolve,
   validateMesh,
-  plasterMix,
   catmullRom,
   type Mesh,
   type Profile,
@@ -285,11 +284,17 @@ export function App() {
   const mesh: Mesh | null = part === 'mold' ? moldDisplay : formMesh;
 
   // metrics
-  const innerProfile = useMemo(() => referenceProfile(128), []);
+  const innerProfile = useMemo(() => radialCavityProfile(profile, wall), [profile, wall]);
   const capMl = useMemo(() => capacityMl(innerProfile), [innerProfile]);
   const filled = useMemo(() => filledMl(innerProfile, fill / 100), [innerProfile, fill]);
-  const dryMm = shrinkDim(145, shrink / 100);
-  const mix = useMemo(() => plasterMix((capMl * 2) / 1000), [capMl]); // rough mold = 2× cavity
+  const dimensions = useMemo(() => ({
+    width: 2 * Math.max(...profile.map((p) => p.r)),
+    height: profile.at(-1)!.y - profile[0]!.y,
+  }), [profile]);
+  const dryMm = shrinkDim(dimensions.width, shrink / 100);
+  const mix = useMemo(() => !moldBusy && moldParts
+    ? plasterForCavity(moldParts.reduce((sum, p) => sum + (p.meta?.volumeMm3 ?? 0), 0)) : null,
+  [moldParts, moldBusy]);
   const undercut = useMemo(() => analyzeUndercut(profile), [profile]);
 
   // pattern canvas paths (SVG preview)
@@ -398,6 +403,8 @@ export function App() {
       { label: 'تعداد قطعات قالب', value: String(splitPlan?.parts ?? '-') },
       { label: 'جبران انقباض قالب ـ درصد', value: String(shrink) },
       { label: 'تقسیمات مش', value: String(segments) },
+      { label: 'ضخامت شعاعی محاسبهٔ ظرفیت', value: `${wall} mm` },
+      { label: 'ظرفیت تقریبی داخل فرم', value: `${capMl.toFixed(1)} ml` },
     ],
   });
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -452,7 +459,7 @@ export function App() {
       files.push({ path: `pattern/${pattern.filename}`, bytes: pattern.bytes! });
       files.push({ path: 'parameters.json', bytes: new TextEncoder().encode(JSON.stringify({
         kind: 'manufacturing-export-snapshot', version: 1, units: 'mm', profileMode,
-        profile, segments, shrinkPercent: shrink, splitPlan, pattern: { id: patternId, tileSize, canvasMm: [300, 300] },
+        profile, segments, wallMm: wall, capacityMl: capMl, capacityMethod: 'radial-inset-raised-floor', shrinkPercent: shrink, splitPlan, pattern: { id: patternId, tileSize, canvasMm: [300, 300] },
         motherBoxPartsIncluded: motherResults?.length ?? 0,
         motherOffsetPartsIncluded: barrierResult ? [barrierResult.index + 1] : [],
       }, null, 2)) });
@@ -461,6 +468,7 @@ export function App() {
         `فرم: ${profileMode}؛ تعداد قطعات گچی: ${moldParts.length}؛ جبران انقباض: ${shrink}%`,
         'form/: فرم اصلی بدون جبران انقباض. parts/: قالب گچی با جبران انقباض؛ فاصله‌گذاری نمایشی صادر نشده است.',
         'obj/: فرم و مجموعهٔ قطعات قالب با نام و رنگ رأس؛ واحد mm. رنگ از افزونهٔ رایج RGB استفاده می‌کند و ممکن است در برخی نرم‌افزارها نمایش داده نشود. فایل MTL ندارد.',
+        'ظرفیت برآوردی با کم‌کردن شعاعی ضخامت و بالابردن کف محاسبه می‌شود؛ پوستهٔ یکنواخت عمود بر سطح نیست. STL فرم، مدل بیرونی توپر برای قالب‌سازی است.',
         'BOM.txt: برآورد گچ و آب، بدون پرت. pattern/: الگوی تخت ۳۰۰×۳۰۰mm؛ نگاشت برجسته روی STL اعمال نشده است.',
         'dimensions/: برگهٔ ابعاد PDF آ۴؛ چاپ اندازهٔ واقعی ۱۰۰٪، خاموش‌کردن Fit to page و اندازه‌گیری خط‌کش ۱۰۰mm الزامی است.',
         'فایل .patturn: پروژهٔ فشردهٔ قابل بازکردن از دکمهٔ بازکردن پروژه؛ مش‌ها دوباره محاسبه می‌شوند. مادرقالب‌ها و نتایج مشتق‌شده ذخیره نمی‌شوند.',
@@ -502,13 +510,13 @@ export function App() {
           {value} {unit}
           <input
             className="num" type="number" value={value} min={min} max={max} step={step}
-            onChange={(e) => { set(Number(e.target.value)); markDirty(); }}
+            onChange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) { set(Math.min(max, Math.max(min, Math.round(n / step) * step))); markDirty(); } }}
             style={{ marginRight: 6 }}
           />
         </span>
       </label>
       <input type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => { set(Number(e.target.value)); markDirty(); }} />
+        onChange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) { set(Math.min(max, Math.max(min, Math.round(n / step) * step))); markDirty(); } }} />
     </div>
   );
 
@@ -635,10 +643,10 @@ export function App() {
                   </>
                 )}
               </div>
-              <h3 className="sec">مواد (مراجعه به فرم مرجع)</h3>
+              <h3 className="sec">مواد برای حجم خالص قطعات قالب</h3>
               <div className="hint">
-                گچ: <b>{mix.plasterKg.toFixed(2)} kg</b> · آب: <b>{mix.waterKg.toFixed(2)} kg</b>
-                <br />حجم مخلوط: {((capMl * 2) / 1000).toFixed(2)} L
+                {mix ? <>گچ: <b>{mix.plasterKg.toFixed(2)} kg</b> · آب: <b>{mix.waterKg.toFixed(2)} kg</b>
+                  <br />حجم خالص: {mix.volumeL.toFixed(3)} L؛ بدون پرت و راهگاه</> : 'پس از ساخت معتبر قالب محاسبه می‌شود.'}
               </div>
             </>
           )}
@@ -802,16 +810,17 @@ export function App() {
             <>
               <h3 className="sec">⚙️ پارامترهای فرم</h3>
               {numCtl('تعداد سگمنت', segments, setSegments, 12, 256, 4, '')}
-              {numCtl('ضخامت دیواره', wall, setWall, 1, 20)}
+              {numCtl('ضخامت شعاعی برای ظرفیت', wall, setWall, 1, 20)}
               {numCtl('شیرینک', shrink, setShrink, 0, 20, 0.5, '%')}
               {numCtl('سطح پرشدگی', fill, setFill, 0, 100, 5, '%')}
-              <h3 className="sec">📐 ابعاد مرجع</h3>
+              <h3 className="sec">📐 ابعاد فرم انتخاب‌شده</h3>
               <div className="hint" style={{ direction: 'ltr', textAlign: 'left' }}>
-                w 145 · h 148 · wall {wall} mm
+                w {dimensions.width.toFixed(1)} · h {dimensions.height.toFixed(1)} · wall {wall} mm
                 <br />Capacity: <b>{capMl.toFixed(0)} ml</b>
                 <br />Filled {fill}%: <b>{filled.toFixed(0)} ml</b>
                 <br />Dry @ {shrink}%: <b>{dryMm.toFixed(1)} mm</b>
-                <br />Shrink 145 → 127.6 ✓
+                <br />ظرفیت: تقریب شعاعی با کفِ بالاآمده.
+                <br />STL فرم بیرونی توپر است؛ ضخامت در محاسبهٔ ظرفیت استفاده می‌شود، نه ساخت پوستهٔ توخالی.
               </div>
             </>
           )}
@@ -834,10 +843,9 @@ export function App() {
                 <b>دیواره ۲۵mm · کف ۲۰mm · شیب ۱.۵°</b>
                 <br />کلید: مخروطی Ø16×10، taper 4°
                 <br />تلورانس: 0.20 mm
-                <br />گچ (۲× حجم فرم): {mix.plasterKg.toFixed(2)} kg
-                <br />آب: {mix.waterKg.toFixed(2)} kg
+                <br />{mix ? `گچ: ${mix.plasterKg.toFixed(2)} kg · آب: ${mix.waterKg.toFixed(2)} kg (حجم واقعی قطعات، بدون پرت)` : 'مواد پس از ساخت قالب محاسبه می‌شود.'}
                 <br />
-                {undercut.dropOutSafe ? '✅ تک‌تکه مجاز' : `⚠️ چندتکه (${undercut.suggestedParts})`}
+                {splitPlan ? `طرح انتخاب‌شده: ${splitPlan.parts} قطعه — ${splitPlan.reason}` : 'در انتظار انتخاب طرح تقسیم'}
               </div>
             </>
           )}
