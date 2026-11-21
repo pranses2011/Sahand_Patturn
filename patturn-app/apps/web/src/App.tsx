@@ -1,3 +1,4 @@
+import { SlabTool } from './SlabTool';
 import { FootRingTool } from './FootRingTool';
 import { FeatureRequests } from './FeatureRequests';
 import { JigsawTool } from './JigsawTool';
@@ -1219,6 +1220,7 @@ export function App() {
               <RounderTool onExport={download} />
               <HorizontalSplitTool mesh={formMesh} onExport={download} />
               <JigsawTool onExport={download} />
+              <SlabTool onExport={download} />
               <FootRingTool mesh={formMesh} onExport={download} />
               <div className="ctl">
                 <button

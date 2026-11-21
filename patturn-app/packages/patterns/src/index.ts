@@ -387,3 +387,5 @@ export function isSeamlessX(def: PatternDef, tileW = 40, tileH = 40): boolean {
 }
 
 export * from './jigsaw.js';
+
+export * from './slab.js';

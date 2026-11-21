@@ -1909,3 +1909,37 @@ test('foot ring unions each edge style with the body and invalidates stale downl
   ).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('developable slab exports real mm SVG and DXF and stays separate from project history', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('اسلب‌تمپلیت — استوانه و مخروط ناقص', { exact: true }).click();
+  const preview = page.getByRole('img', { name: 'پیش‌نمایش اسلب تخت', exact: true });
+  await expect(preview.locator('path')).toHaveCount(8);
+  const initial = await preview.locator('path').first().getAttribute('d');
+  const top = page.getByRole('spinbutton', { name: 'شعاع بالای اسلب', exact: true });
+  await top.fill('40');
+  await top.press('Enter');
+  await expect(preview.locator('path').first()).not.toHaveAttribute('d', initial!);
+  for (const format of ['SVG', 'DXF']) {
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: `دانلود ${format} اسلب`, exact: true }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe(
+      `slab_developed_B40-T40-H100-G8mm.${format.toLowerCase()}`,
+    );
+    const path = await file.path();
+    expect(path).not.toBeNull();
+    const text = await readFile(path!, 'utf8');
+    if (format === 'SVG') {
+      expect(text).toContain('width="251.32741228718345mm"');
+      expect(text).toContain('height="100mm"');
+    } else {
+      expect(text).toContain('AC1009');
+      expect(text).toContain('LINE');
+    }
+  }
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
