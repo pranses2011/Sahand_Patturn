@@ -1,3 +1,4 @@
+import { preserveNativeUndo } from './native-undo';
 import { zipErrorMessage } from './export-error';
 import { createPatternCanvas } from './pattern-canvas';
 import { useEditorMode } from './useEditorMode';
@@ -137,7 +138,8 @@ export function App() {
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target;
       // Preserve native text-input undo while editing a field.
-      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (event.isComposing) return;
+      if (target instanceof HTMLElement && preserveNativeUndo(target.tagName, target.getAttribute('type'), target.isContentEditable)) return;
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       const key = event.key.toLowerCase();
       if (key === 'z' || key === 'y') {

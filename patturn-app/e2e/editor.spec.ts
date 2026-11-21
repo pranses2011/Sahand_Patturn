@@ -423,3 +423,16 @@ test('a net-zero slider gesture after undo preserves the existing redo branch',a
   const redo=page.getByRole('button',{name:/^ازنو/});await expect(redo).toBeEnabled();
   await redo.click();await expect(wall).toHaveValue('6');
 });
+
+test('project undo and redo shortcuts work on a focused slider but leave numeric drafts alone',async({page})=>{
+  await page.goto('/');
+  const slider=page.getByRole('slider',{name:'ضخامت شعاعی برای ظرفیت',exact:true});await slider.focus();
+  await page.keyboard.press('ArrowUp');await expect(slider).toHaveValue('5');
+  await page.keyboard.press('Control+z');await expect(slider).toHaveValue('4');
+  await page.keyboard.press('Control+Shift+z');await expect(slider).toHaveValue('5');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('12');await wall.press('Control+z');
+  // Native draft undo must not invoke project undo while the number field is focused.
+  await expect(slider).toHaveValue('5');
+  await wall.press('Escape');await expect(wall).toHaveValue('5');
+});
