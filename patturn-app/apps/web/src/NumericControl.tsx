@@ -16,7 +16,12 @@ export function NumericControl({label,value,onChange,min,max,step=1,unit='mm',he
   const id=useId();
   const [draft,setDraft]=useState(String(value));
   const [notice,setNotice]=useState({value,text:''});
-  useEffect(()=>setDraft(String(value)),[value]);
+  useEffect(()=>{
+    setDraft(String(value));
+    // Expire notices, rather than merely hiding them: redo must not resurrect
+    // feedback from a previous editing interaction with the same numeric value.
+    setNotice((previous)=>previous.value===value ? previous : {value,text:''});
+  },[value]);
   const commit=(input:HTMLInputElement)=>{
     const n=input.valueAsNumber;
     if(Number.isFinite(n)){

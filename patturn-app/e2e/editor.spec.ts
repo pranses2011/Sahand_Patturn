@@ -544,4 +544,7 @@ test('numeric corrections report clamping and invalid drafts without adding empt
   await expect(number).toHaveValue('4');
   await expect(control.getByRole('status')).toBeEmpty();
   await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
+  await page.getByRole('button',{name:/^ازنو/}).click();
+  await expect(number).toHaveValue('20');
+  await expect(control.getByRole('status')).toBeEmpty();
 });

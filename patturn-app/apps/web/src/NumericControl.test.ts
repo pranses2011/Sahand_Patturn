@@ -37,6 +37,19 @@ describe('Numeric draft editing',()=>{
     expect(normalizeControlValue(input,min,max,step)).toBe(expected);
     expect(normalizeControlValue(expected,min,max,step)).toBe(expected);
   });
+  it('expires correction feedback across external changes, even when the old value returns',()=>{
+    let tree!:ReturnType<typeof create>;
+    const props={label:'ضخامت',min:1,max:20,onChange:vi.fn(),onBeginEdit:()=>{},onEndEdit:()=>{}};
+    act(()=>{tree=create(createElement(NumericControl,{...props,value:4}));});
+    act(()=>tree.root.findByProps({type:'number'}).props.onBlur({currentTarget:{valueAsNumber:100}}));
+    act(()=>tree.update(createElement(NumericControl,{...props,value:20})));
+    expect(tree.root.findByProps({role:'status'}).children.join('')).toContain('۲۰');
+    act(()=>tree.update(createElement(NumericControl,{...props,value:4})));
+    expect(tree.root.findByProps({role:'status'}).children).toEqual([]);
+    act(()=>tree.update(createElement(NumericControl,{...props,value:20})));
+    expect(tree.root.findByProps({role:'status'}).children).toEqual([]);
+    act(()=>tree.unmount());
+  });
   it('reflects external undo or project loads in the draft',()=>{
     let tree!:ReturnType<typeof create>;
     const props={label:'ضخامت',min:1,max:20,onChange:()=>{},onBeginEdit:()=>{},onEndEdit:()=>{}};
