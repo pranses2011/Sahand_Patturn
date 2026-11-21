@@ -1,3 +1,4 @@
+import { requestBrowserDownload } from './browser-download';
 import { historyShortcut } from './history-shortcut';
 import { preserveNativeUndo } from './native-undo';
 import { zipErrorMessage } from './export-error';
@@ -56,12 +57,7 @@ const PRESETS: Record<ProfileMode, Profile> = {
 
 async function writeOutput(name: string, bytes: Uint8Array): Promise<DeliveryOutcome> {
   if (isDesktop()) return (await (await desktopFiles()).save(name,bytes)) ? 'saved' : 'cancelled';
-  const blob = new Blob([bytes.slice().buffer], { type: 'application/octet-stream' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  requestBrowserDownload(name, bytes);
   return 'requested';
 }
 
