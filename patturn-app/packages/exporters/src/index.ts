@@ -59,14 +59,30 @@ export function toBinaryStl(mesh: Mesh, solidName = 'patturn'): ExportResult {
 }
 
 /** SVG with explicit mm units (site contract: 100mm line = 100 user units). */
-export function toSvg(paths: { d: string; fill?: boolean }[], widthMm: number, heightMm: number): ExportResult {
+export function toSvg(paths: { d: string; fill?: boolean }[], widthMm: number, heightMm: number,
+  options: { strokeMm?: number } = {}): ExportResult {
+  const stroke = options.strokeMm ?? 0.5;
+  const filename = exportName('pattern', 'flat', `${Math.round(widthMm)}x${Math.round(heightMm)}`, 'svg');
+  if (![widthMm, heightMm, stroke].every((n) => Number.isFinite(n) && n > 0))
+    return { ok: false, filename, error: 'SVG_INVALID_DIMENSIONS_OR_STROKE' };
+  // Only SVG path commands, numeric literals and separators may enter the attribute.
+  // This is an output safety check, not a complete SVG path grammar parser.
+  for (const p of paths) {
+    const numbers = p.d.match(/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g) ?? [];
+    const commands = p.d.replace(/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g, '');
+    if (!/^[\s,]*[Mm]/.test(p.d) || !/^[MmZzLlHhVvCcSsQqTtAa\s,]*$/.test(commands) ||
+        numbers.some((n) => !Number.isFinite(Number(n))))
+      return { ok: false, filename, error: 'SVG_UNSAFE_OR_NONFINITE_PATH' };
+  }
   const body = paths
-    .map((p) => `<path d="${p.d}" ${p.fill ? 'fill="#1C1917"' : 'fill="none" stroke="#1C1917" stroke-width="0.5"'}/>`)
+    .map((p) => `<path d="${p.d}" ${p.fill ? 'fill="#1C1917"' : `fill="none" stroke="#1C1917" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round"`}/>`)
     .join('\n  ');
   const svg =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${widthMm}mm" height="${heightMm}mm" viewBox="0 0 ${widthMm} ${heightMm}">\n  ${body}\n</svg>\n`;
-  return { ok: true, filename: exportName('pattern', 'flat', `${Math.round(widthMm)}x${Math.round(heightMm)}`, 'svg'), bytes: new TextEncoder().encode(svg) };
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${widthMm}mm" height="${heightMm}mm" viewBox="0 0 ${widthMm} ${heightMm}" overflow="hidden">\n` +
+    `  <defs><clipPath id="canvas" clipPathUnits="userSpaceOnUse"><rect width="${widthMm}" height="${heightMm}"/></clipPath></defs>\n` +
+    `  <g clip-path="url(#canvas)">\n  ${body}\n  </g>\n</svg>\n`;
+  return { ok: true, filename, bytes: new TextEncoder().encode(svg) };
 }
 
 /** Minimal DXF R12 (ENTITIES with LINE/CIRCLE) — layers: 0=outline,1=detail. */

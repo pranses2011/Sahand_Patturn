@@ -339,6 +339,7 @@ export function App() {
 
   // pattern canvas paths (SVG preview)
   const patternDef = useMemo(() => PATTERNS.find((p) => p.id === patternId) ?? PATTERNS[0]!, [patternId]);
+  const patternStrokeMm = typeof patternDef.defaults['stroke'] === 'number' ? patternDef.defaults['stroke'] : 1.5;
   const patternPaths = useMemo(() => {
     const def = patternDef;
     const ctx: PatternContext = {
@@ -495,11 +496,12 @@ export function App() {
       const dimensionPdf = await makeDimensionPdf();
       if (!dimensionPdf.ok) throw new Error(dimensionPdf.error);
       files.push({ path: `dimensions/${dimensionPdf.filename}`, bytes: dimensionPdf.bytes! });
-      const pattern = toSvg(patternPaths, 300, 300);
+      const pattern = toSvg(patternPaths, 300, 300, { strokeMm: patternStrokeMm });
+      if (!pattern.ok) throw new Error(pattern.error);
       files.push({ path: `pattern/${pattern.filename}`, bytes: pattern.bytes! });
       files.push({ path: 'parameters.json', bytes: new TextEncoder().encode(JSON.stringify({
         kind: 'manufacturing-export-snapshot', version: 1, units: 'mm', profileMode,
-        profile, segments, wallMm: wall, capacityMl: capMl, capacityMethod: 'radial-inset-raised-floor', shrinkPercent: shrink, splitPlan, pattern: { id: patternId, tileSize, canvasMm: [300, 300] },
+        profile, segments, wallMm: wall, capacityMl: capMl, capacityMethod: 'radial-inset-raised-floor', shrinkPercent: shrink, splitPlan, pattern: { id: patternId, tileSize, strokeMm: patternStrokeMm, canvasMm: [300, 300] },
         motherBoxPartsIncluded: motherResults?.length ?? 0,
         motherOffsetPartsIncluded: barrierResult ? [barrierResult.index + 1] : [],
       }, null, 2)) });
@@ -538,8 +540,10 @@ export function App() {
   };
 
   const doExportSvg = () => {
-    const res = toSvg(patternPaths, 300, 300);
+    const res = toSvg(patternPaths, 300, 300, { strokeMm: patternStrokeMm });
+    if (!res.ok) { setProjectError(`خروجی SVG ناموفق بود: ${res.error}`); return; }
     download(res.filename, res.bytes!);
+    setProjectError(null);
   };
 
   const numCtl = (label: string, value: number, set: (n: number) => void, min: number, max: number, step = 1, unit = 'mm', help?: HelpTopic) => (
@@ -812,7 +816,7 @@ export function App() {
             mesh={mesh}
             mode={part === 'mold' ? 'mold' : 'form'}
             pattern={part === 'pattern' && patternDef
-              ? { paths: patternPaths, tileW: tileSize, strokeMm: typeof patternDef.defaults['stroke'] === 'number' ? patternDef.defaults['stroke'] : 1.5 }
+              ? { paths: patternPaths, tileW: tileSize, strokeMm: patternStrokeMm }
               : null}
           />
           </Suspense>
@@ -823,7 +827,7 @@ export function App() {
                 {patternPaths.map((p, i) => (
                   <path key={i} d={p.d}
                     fill={p.fill ? '#1c1917' : 'none'}
-                    stroke={p.fill ? 'none' : '#c4622d'} strokeWidth={1.5} />
+                    stroke={p.fill ? 'none' : '#c4622d'} strokeWidth={patternStrokeMm} strokeLinecap="round" strokeLinejoin="round" />
                 ))}
               </svg>
             </div>
