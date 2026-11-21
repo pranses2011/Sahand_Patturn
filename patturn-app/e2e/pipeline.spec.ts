@@ -22,6 +22,13 @@ test('form to mold to ZIP uses local assets only and exports coherent manufactur
   await page.getByText('🧱 قالب',{exact:true}).click();
   await expect(page.getByText('✅ قالب سه‌بعدی ساخته شد — در viewport ببینید',{exact:false})).toBeVisible({timeout:90_000});
   await page.getByText('📤 خروجی',{exact:true}).click();
+  await page.getByRole('button',{name:'ساخت محفظه برای قطعات گچی',exact:true}).click();
+  const boxHalves=page.getByRole('button',{name:/^⬇ نیمهٔ [۱۲12] محفظه$/});
+  await expect(boxHalves).toHaveCount(4,{timeout:90_000});
+  // Switching related tabs must not rebuild the mold and discard derived mother boxes.
+  await page.getByText('🧱 قالب',{exact:true}).click();
+  await page.getByText('📤 خروجی',{exact:true}).click();
+  await expect(boxHalves).toHaveCount(4);
   const zipButton=page.getByRole('button',{name:'⬇ ZIP ساخت: قطعات، مواد و راهنما',exact:true});
   await expect(zipButton).toBeEnabled({timeout:90_000});
   const downloaded=page.waitForEvent('download',{timeout:90_000});
@@ -36,6 +43,8 @@ test('form to mold to ZIP uses local assets only and exports coherent manufactur
   for(const item of manifest.files)expect(files[item.path]?.length,item.path).toBe(item.bytes);
   const params=JSON.parse(strFromU8(files['parameters.json']!));
   expect(params.segments).toBe(24);expect(params.pattern.id).toBe('wave');
+  expect(params.motherBoxPartsIncluded).toBe(2);
+  expect(names.filter((n)=>n.startsWith('mother-box/')&&n.endsWith('.stl'))).toHaveLength(4);
   expect(params.pattern.dxf).toMatchObject({clippedToCanvas:true,bezierToleranceMm:.05});
   const stls=names.filter((n)=>n.endsWith('.stl'));
   expect(stls.some((n)=>n.startsWith('parts/'))).toBe(true);

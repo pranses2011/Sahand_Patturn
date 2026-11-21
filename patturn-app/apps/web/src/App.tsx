@@ -214,6 +214,7 @@ export function App() {
   }, [profile, segments, profileMode]);
 
   // real boolean mold (block − form, split by plan) when Mold tab is active
+  const moldActive = part === 'mold' || part === 'export';
   const [moldParts, setMoldParts] = useState<Mesh[] | null>(null);
   const [splitPlan, setSplitPlan] = useState<SplitPlan | null>(null);
   const [moldBusy, setMoldBusy] = useState(false);
@@ -269,7 +270,7 @@ export function App() {
     return () => { cancelled = true; };
   }, [motherBusy, moldParts]);
   useEffect(() => {
-    if ((part !== 'mold' && part !== 'export') || !formMesh) {
+    if (!moldActive || !formMesh) {
       setMoldParts(null);
       setSplitPlan(null);
       return;
@@ -297,7 +298,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [part, formMesh, shrink, profile]);
+  }, [moldActive, formMesh, shrink, profile]);
 
   // exploded view: merge parts with display offsets (B up / ±z apart)
   const moldDisplay: Mesh | null = useMemo(() => {
