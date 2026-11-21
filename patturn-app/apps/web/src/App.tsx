@@ -1,3 +1,4 @@
+import { PrivacyNotice } from './PrivacyNotice';
 import { requestBrowserDownload } from './browser-download';
 import { historyShortcut } from './history-shortcut';
 import { preserveNativeUndo } from './native-undo';
@@ -943,6 +944,7 @@ export function App() {
             </>
           )}
 
+          <PrivacyNotice />
           <h3 className="sec">👤 پشتیبانی</h3>
           <div className="hint" style={{ fontSize: 11.5 }}>
             {AUTHOR.name} — {AUTHOR.company}

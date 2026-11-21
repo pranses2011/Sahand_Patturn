@@ -880,3 +880,18 @@ test('empty saved library guidance is distinct from a search with no matches',as
   await expect(page.getByRole('alert').filter({hasText:'کتابخانه خوانده یا ذخیره نشد'})).toBeVisible();
   await expect(empty).toHaveCount(0);await expect(noMatch).toHaveCount(0);
 });
+
+test('privacy notice opens by keyboard using packaged text and preserves project history',async({page})=>{
+  await page.goto('/');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('7');await wall.press('Enter');
+  const undo=page.getByRole('button',{name:/^واگرد/});const title=await undo.getAttribute('title');
+  const summary=page.getByText('حریم خصوصی و داده‌های محلی',{exact:true});
+  await summary.focus();await page.keyboard.press('Enter');
+  const notice=page.getByRole('region',{name:'اطلاعیهٔ حریم خصوصی',exact:true});
+  await expect(notice).toBeVisible();await expect(notice).toContainText('localStorage');
+  await expect(notice).toContainText('رمزگذاری اختصاصی برنامه محافظت نمی‌شوند');
+  await expect(notice).toContainText('اجرای کاملاً آفلاین نسخهٔ نصب‌شده هنوز تأیید عملی نشده است');
+  await expect(wall).toHaveValue('7');await expect(undo).toHaveAttribute('title',title!);
+  await summary.focus();await page.keyboard.press('Enter');await expect(notice).not.toBeVisible();
+});

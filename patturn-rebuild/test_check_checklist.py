@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 from check_checklist import check_checklist
@@ -15,7 +16,15 @@ class ChecklistArithmeticTests(unittest.TestCase):
             check_checklist(self.text.replace('| 12.5 | [ ]', '| 12.5 | [x]'))
 
     def test_headline_and_footer_are_checked(self):
-        for old, new in [('✅ 70 از 122', '✅ 71 از 122'), ('**122** | **70**', '**122** | **71**')]:
+        headline = re.search(r'✅ (\d+) از (\d+)', self.text)
+        footer = re.search(r'\*\*(\d+)\*\* \| \*\*(\d+)\*\*', self.text)
+        self.assertIsNotNone(headline)
+        self.assertIsNotNone(footer)
+        replacements = [
+            (headline.group(0), f'✅ {int(headline.group(1)) + 1} از {headline.group(2)}'),
+            (footer.group(0), f'**{footer.group(1)}** | **{int(footer.group(2)) + 1}**'),
+        ]
+        for old, new in replacements:
             with self.subTest(old=old), self.assertRaisesRegex(ValueError, 'TOTAL_MISMATCH'):
                 check_checklist(self.text.replace(old, new))
 
