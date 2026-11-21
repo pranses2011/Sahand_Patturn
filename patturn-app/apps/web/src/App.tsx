@@ -377,6 +377,9 @@ export function App() {
   );
 
   const markDirty = useCallback(() => setSaved(false), []);
+  const selectPattern = useCallback((id: string) => {
+    setPatternId(id); markDirty();
+  }, [markDirty]);
 
   const saveLocalState = () => {
     try {
@@ -688,7 +691,7 @@ export function App() {
             <>
               <h3 className="sec">کتابخانهٔ الگو</h3>
               <PatternViewSwitch value={patternView} onChange={setPatternView} />
-              <PatternLibrary selectedId={patternId} onSelect={(id) => { setPatternId(id); markDirty(); }} />
+              <PatternLibrary selectedId={patternId} onSelect={selectPattern} />
               <SavedPatterns onExport={download} patternId={patternId} tileSize={tileSize} onApply={(recipe) => {
                 parameterHistory.endGroup(); setPatternId(recipe.patternId); setTileSize(recipe.tileSize); markDirty();
               }} />

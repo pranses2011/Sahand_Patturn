@@ -29,7 +29,7 @@ export function filterPatterns(query: string): PatternDef[] {
   });
 }
 
-export function PatternLibrary({ selectedId, onSelect }: { selectedId: string; onSelect: (id: string) => void }) {
+export const PatternLibrary = memo(function PatternLibrary({ selectedId, onSelect }: { selectedId: string; onSelect: (id: string) => void }) {
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const visible = useMemo(() => filterPatterns(query), [query]);
@@ -43,4 +43,4 @@ export function PatternLibrary({ selectedId, onSelect }: { selectedId: string; o
     <div className="pattern-cards">{visible.map((pattern) => <PatternCard key={pattern.id}
       pattern={pattern} selected={selectedId === pattern.id} onSelect={onSelect} />)}</div>
   </fieldset>;
-}
+});
