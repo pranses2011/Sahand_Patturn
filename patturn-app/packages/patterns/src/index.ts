@@ -195,6 +195,25 @@ export const scalePattern: PatternDef = {
   },
 };
 
+/** Periodic cubic wave: endpoints and tangents match on adjacent tiles. */
+export const wave: PatternDef = {
+  id: 'wave', label: 'Wave', defaults: { stroke: 1.5 },
+  build: (ctx) => tile(ctx, (x, y) => {
+    const w = ctx.tileW, h = ctx.tileH, mid = y + h / 2;
+    return [{ d: `M${f(x)} ${f(mid)}C${f(x + w / 6)} ${f(y)} ${f(x + w / 3)} ${f(y)} ${f(x + w / 2)} ${f(mid)}` +
+      `C${f(x + 2 * w / 3)} ${f(y + h)} ${f(x + 5 * w / 6)} ${f(y + h)} ${f(x + w)} ${f(mid)}`, fill: false }];
+  }),
+};
+
+/** Mid-edge vertices meet neighboring cells without overlapping duplicate edges. */
+export const diamond: PatternDef = {
+  id: 'diamond', label: 'Diamond', defaults: { stroke: 1.5 },
+  build: (ctx) => tile(ctx, (x, y) => {
+    const w = ctx.tileW, h = ctx.tileH;
+    return [{ d: `M${f(x + w / 2)} ${f(y)}L${f(x + w)} ${f(y + h / 2)}L${f(x + w / 2)} ${f(y + h)}L${f(x)} ${f(y + h / 2)}z`, fill: false }];
+  }),
+};
+
 /** 12 base patterns (roadmap 2.3) — subset implemented here, rest follow same shape. */
 export const PATTERNS: PatternDef[] = [
   dotGrid,
@@ -203,6 +222,8 @@ export const PATTERNS: PatternDef[] = [
   chevron,
   hexDots,
   scalePattern,
+  wave,
+  diamond,
 ];
 
 /**

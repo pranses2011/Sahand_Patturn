@@ -3,7 +3,7 @@ import { PATTERNS, type PatternDef } from '@patturn/patterns';
 
 const NAMES: Record<string, string> = {
   'dot-grid': 'شبکهٔ نقطه‌ای', stripes: 'راه‌راه', grid: 'شبکهٔ مربعی',
-  chevron: 'زیگزاگ', hex: 'شش‌ضلعی', scale: 'فلس',
+  chevron: 'زیگزاگ', hex: 'شش‌ضلعی', scale: 'فلس', wave: 'موج', diamond: 'لوزی',
 };
 
 const PatternCard = memo(function PatternCard({ pattern, selected, onSelect }: {
