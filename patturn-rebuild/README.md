@@ -103,3 +103,17 @@ flowchart LR
 ---
 
 *نسخهٔ بسته: 1.0 — تاریخ تحلیل: 2026-11-20*
+
+## بازتولید و بررسی راهنما
+
+```sh
+python3 -m pip install -r patturn-rebuild/requirements.txt
+python3 -m unittest discover -s patturn-rebuild -p 'test_*.py'
+python3 patturn-rebuild/check_checklist.py
+python3 patturn-rebuild/build_handbook.py
+```
+
+دستورها از ریشهٔ مخزن اجرا می‌شوند. نسخهٔ Markdown برای بازتولید یکسان قفل شده است.
+workflow مستقل `Handbook consistency` در تغییر اسناد، شمارش چک‌لیست و تطابق `index.html` با منابع را بررسی می‌کند؛
+پس از تغییر Markdown، HTML را هم بازتولید و همراه آن ثبت کنید. تغییر صرف اسناد، ساخت ویندوز را فعال نمی‌کند.
+این بررسی صحت حساب و همگامی فایل تولیدی است، نه تأیید شواهد انجام هر قابلیت یا تست نصب ویندوز.

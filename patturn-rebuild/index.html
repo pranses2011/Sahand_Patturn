@@ -380,7 +380,17 @@ try{
 <p><strong>Patturn Studio</strong> = «Figma + CAD پارامتریک برای سفال». کاربر بدون دانش طراحی، با اسلایدر و نود، فرم چرخشی می‌سازد، الگوی بی‌درز روی آن می‌نشاند، قالب سیلیپ‌کستینگ چندتکه با کلیدهای ثبت و مادرقالب تولید می‌کند و همه را به‌صورت STL/SVG/DXF/PDF آمادهٔ پرینت سه‌بعدی، برش لیزر یا چرخ سفالگری دانلود می‌کند — با محاسبهٔ خودکار شیرینک، حجم، و نسبت گچ/آب.</p>
 </blockquote>
 <hr />
-<p><em>نسخهٔ بسته: 1.0 — تاریخ تحلیل: 2026-11-20</em></p></section><section class="doc" id="doc-00ANALYSIS"><h1 id="patturn-studio">🔍 فایل ۰۰ — تحلیل کامل سایت و محصول Patturn Studio</h1>
+<p><em>نسخهٔ بسته: 1.0 — تاریخ تحلیل: 2026-11-20</em></p>
+<h2 id="_7">بازتولید و بررسی راهنما</h2>
+<pre><code class="language-sh">python3 -m pip install -r patturn-rebuild/requirements.txt
+python3 -m unittest discover -s patturn-rebuild -p 'test_*.py'
+python3 patturn-rebuild/check_checklist.py
+python3 patturn-rebuild/build_handbook.py
+</code></pre>
+<p>دستورها از ریشهٔ مخزن اجرا می‌شوند. نسخهٔ Markdown برای بازتولید یکسان قفل شده است.
+workflow مستقل <code>Handbook consistency</code> در تغییر اسناد، شمارش چک‌لیست و تطابق <code>index.html</code> با منابع را بررسی می‌کند؛
+پس از تغییر Markdown، HTML را هم بازتولید و همراه آن ثبت کنید. تغییر صرف اسناد، ساخت ویندوز را فعال نمی‌کند.
+این بررسی صحت حساب و همگامی فایل تولیدی است، نه تأیید شواهد انجام هر قابلیت یا تست نصب ویندوز.</p></section><section class="doc" id="doc-00ANALYSIS"><h1 id="patturn-studio">🔍 فایل ۰۰ — تحلیل کامل سایت و محصول Patturn Studio</h1>
 <blockquote>
 <p><strong>آدرس:</strong> <code>https://patturn.studio</code> · <strong>سازنده:</strong> Sinsi Labs · <strong>وضعیت:</strong> Pre-launch (Coming soon + Closed Beta)
 <strong>تاریخ تحلیل:</strong> ۲۰۲۶-۱۱-۲۰ · <strong>روش:</strong> استخراج محتوای کامل صفحات عمومی + تحلیل رفتاری/فنی</p>

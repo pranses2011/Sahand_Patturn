@@ -1,3 +1,7 @@
 
 # Generated CI bundle report
 /patturn-app/bundle-report.json
+
+# Generated Python bytecode
+__pycache__/
+*.py[cod]
