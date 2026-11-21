@@ -54,3 +54,41 @@ test('actual software WebGL context loss shows recovery and retry preserves para
   await page.getByRole('button',{name:'تلاش دوباره برای نمایش سه‌بعدی',exact:true}).click();
   await expect(canvas).toBeVisible();await expect(wall).toHaveValue('6');
 });
+
+test('visibility lifecycle suspends software draws during geometry edits and resumes with current state',async({page})=>{
+  await page.addInitScript(()=>{
+    const proto=WebGL2RenderingContext.prototype;
+    const draw=proto.drawElements;
+    (window as unknown as {testDraws:number}).testDraws=0;
+    proto.drawElements=function(...args:Parameters<WebGL2RenderingContext['drawElements']>){
+      (window as unknown as {testDraws:number}).testDraws++;
+      return draw.apply(this,args);
+    };
+  });
+  const errors:string[]=[];page.on('pageerror',(error)=>errors.push(error.message));
+  await page.goto('/');
+  const draws=()=>page.evaluate(()=>(window as unknown as {testDraws:number}).testDraws);
+  await expect.poll(draws).toBeGreaterThan(0);
+  // Headless Chromium has no OS tab switch: exercise the real listener with a synthetic visibility state.
+  await page.evaluate(()=>{
+    Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.getByRole('radio',{name:'حرفه‌ای',exact:true}).check();
+  const before=await draws();
+  const segments=page.getByRole('spinbutton',{name:'تعداد سگمنت',exact:true});
+  await segments.fill('32');await segments.press('Enter');
+  await expect(page.locator('footer')).toContainText('Segments 32');
+  // Include a resize invalidation while paused, not just a geometry update.
+  await page.setViewportSize({width:1100,height:800});
+  await page.evaluate(()=>new Promise((resolve)=>setTimeout(resolve,200)));
+  expect(await draws()).toBe(before);
+  await page.evaluate(()=>{
+    Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(draws).toBeGreaterThan(before);
+  await expect(segments).toHaveValue('32');
+  await expect(page.locator('.viewport canvas')).toBeVisible();
+  expect(errors).toEqual([]);
+});
