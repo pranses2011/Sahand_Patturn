@@ -591,3 +591,25 @@ test('saved recipe summaries distinguish pattern types and applying a reloaded i
   await grid.getByRole('button',{name:'اعمال نمونه مربع',exact:true}).click();
   await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
 });
+
+test('saved recipe search filters Persian names and pattern types without applying or deleting entries',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await page.getByLabel('نام تنظیمات',{exact:true}).fill('کاشی اول');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  await page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true}).check();
+  await page.getByLabel('نام تنظیمات',{exact:true}).fill('نمونه دوم');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  const search=page.getByLabel('جست‌وجوی تنظیمات ذخیره‌شده',{exact:true});
+  const list=page.locator('.saved-patterns li');
+  await search.fill('كَاشي');await expect(list).toHaveCount(1);await expect(list).toContainText('کاشی اول');
+  await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
+  await search.fill('مربعی');await expect(list).toHaveCount(1);await expect(list).toContainText('نمونه دوم');
+  await search.fill('ناشناخته');await expect(list).toHaveCount(0);
+  await expect(page.getByText('تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'پاک‌کردن جست‌وجوی تنظیمات',exact:true}).click();
+  await expect(list).toHaveCount(2);
+  await page.reload();await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await expect(list).toHaveCount(2);
+});

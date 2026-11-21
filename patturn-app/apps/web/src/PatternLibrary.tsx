@@ -1,3 +1,5 @@
+import { normalizePatternSearch } from './pattern-search';
+export { normalizePatternSearch } from './pattern-search';
 import { PATTERN_NAMES_FA as NAMES } from '@patturn/config';
 import { memo, useMemo, useState } from 'react';
 import { PATTERNS, type PatternDef } from '@patturn/patterns';
@@ -18,11 +20,6 @@ const PatternCard = memo(function PatternCard({ pattern, selected, onSelect }: {
     </svg>
   </label>;
 });
-
-export function normalizePatternSearch(value: string): string {
-  return value.normalize('NFKC').toLowerCase().replace(/ي/g, 'ی').replace(/ك/g, 'ک')
-    .replace(/[\u064b-\u065f\u0670\u0640]/g, '').replace(/[\s\u200c-]+/g, ' ').trim();
-}
 
 export function filterPatterns(query: string): PatternDef[] {
   const words = normalizePatternSearch(query).split(' ').filter(Boolean);

@@ -1,3 +1,4 @@
+import { normalizePatternSearch } from './pattern-search';
 import { PATTERN_NAMES_FA } from '@patturn/config';
 import { useEffect, useRef, useState } from 'react';
 import { PatternLibraryRepo, PATTERN_LIBRARY_KEY, MAX_PATTERN_BACKUP_BYTES, type PatternRecipe } from '@patturn/storage';
@@ -9,6 +10,12 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
   const [entries, setEntries] = useState<PatternRecipe[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [query, setQuery] = useState('');
+  const words = normalizePatternSearch(query).split(' ').filter(Boolean);
+  const visible = entries.filter((entry) => {
+    const text = normalizePatternSearch(`${entry.name} ${PATTERN_NAMES_FA[entry.patternId] ?? ''} ${entry.patternId}`);
+    return words.every((word) => text.includes(word));
+  });
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const importToken = useRef(0);
@@ -86,7 +93,11 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
       importToken.current++; setImporting(false); setImportMessage('ورود پشتیبان لغو شد؛ کتابخانه تغییر نکرد.');
     }}>لغو خواندن پشتیبان</button>}
     {importMessage && <p role="status" className="hint">{importMessage}</p>}
-    <ul>{entries.map((entry) => <li key={entry.name}>
+    <label>جست‌وجوی تنظیمات ذخیره‌شده<input type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} /></label>
+    {query && <button className="btn" onClick={() => setQuery('')}>پاک‌کردن جست‌وجوی تنظیمات</button>}
+    <p role="status">{new Intl.NumberFormat('fa-IR').format(visible.length)} مورد از {new Intl.NumberFormat('fa-IR').format(entries.length)} — جست‌وجو پروژه و کتابخانه را تغییر نمی‌دهد.</p>
+    {visible.length === 0 && <p className="hint">تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.</p>}
+    <ul>{visible.map((entry) => <li key={entry.name}>
       <b>{entry.name}</b> — {PATTERN_NAMES_FA[entry.patternId] ?? entry.patternId} — {new Intl.NumberFormat('fa-IR').format(entry.tileSize)} میلی‌متر
       <button className="btn" onClick={() => onApply(entry)} aria-label={`اعمال ${entry.name}`}>اعمال</button>
       <button className="btn" onClick={() => {
