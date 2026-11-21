@@ -398,3 +398,15 @@ test('backup read can be cancelled explicitly and a new import survives the old 
   await expect(page.getByRole('button',{name:'اعمال جدید',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'اعمال قدیمی',exact:true})).toHaveCount(0);expect(dialogs).toBe(1);
 });
+
+test('a grouped slider gesture returning to its initial value leaves no empty undo step',async({page})=>{
+  await page.goto('/');
+  const undo=page.getByRole('button',{name:/^واگرد/});await expect(undo).toBeDisabled();
+  const slider=page.getByRole('slider',{name:'ضخامت شعاعی برای ظرفیت',exact:true});await slider.focus();
+  await page.keyboard.down('ArrowUp');await expect(slider).toHaveValue('5');
+  await page.keyboard.down('ArrowDown');await expect(slider).toHaveValue('4');
+  await page.keyboard.up('ArrowDown');await page.keyboard.up('ArrowUp');
+  await expect(undo).toBeDisabled();
+  await page.keyboard.press('ArrowUp');await expect(slider).toHaveValue('5');
+  await undo.click();await expect(slider).toHaveValue('4');await expect(undo).toBeDisabled();
+});

@@ -34,4 +34,20 @@ describe('Named parameter undo/redo',()=>{
     expect(()=>h.record({...state,wall:NaN})).toThrow();expect(h.canUndo).toBe(false);
     h.beginGroup();h.endGroup();expect(h.undo()).toBeNull();
   });
+  it('drops a completed group that returns to its full starting snapshot',()=>{
+    const h=new ParameterHistory(state);h.beginGroup();h.record({...state,wall:8});h.record(state);h.endGroup();
+    expect(h.current).toEqual(state);expect(h.canUndo).toBe(false);expect(h.canRedo).toBe(false);
+    expect(h.undoTitle).toBeNull();expect(h.undo()).toBeNull();
+  });
+  it('repeated group start is idempotent and retains a single undo step',()=>{
+    const h=new ParameterHistory(state);h.beginGroup();h.record({...state,wall:6});
+    h.beginGroup();h.record({...state,wall:8});h.endGroup();
+    expect(h.undo()).toEqual(state);expect(h.canUndo).toBe(false);expect(h.redo()!.wall).toBe(8);
+  });
+  it('removes only the net-zero group and preserves earlier meaningful edits',()=>{
+    const h=new ParameterHistory(state);h.record({...state,fill:50});h.beginGroup();
+    h.record({...state,fill:50,wall:6});h.record({...state,fill:50});h.endGroup();
+    expect(h.undo()).toEqual(state);expect(h.redo()!.fill).toBe(50);expect(h.canRedo).toBe(false);
+  });
+
 });

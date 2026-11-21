@@ -21,8 +21,21 @@ export class ParameterHistory {
   get undoTitle() { return this.canUndo ? this.entries[this.cursor]!.title : null; }
   get redoTitle() { return this.canRedo ? this.entries[this.cursor + 1]!.title : null; }
   get current() { return EditorState.parse(this.entries[this.cursor]!.state); }
-  beginGroup() { this.grouping = true; this.groupHasEntry = false; }
-  endGroup() { this.grouping = false; this.groupHasEntry = false; }
+  beginGroup() {
+    if (this.grouping) return;
+    this.grouping = true; this.groupHasEntry = false;
+  }
+  endGroup() {
+    if (this.grouping && this.groupHasEntry && this.cursor > 0) {
+      const previous = this.entries[this.cursor - 1]!.state;
+      const current = this.entries[this.cursor]!.state;
+      if ((Object.keys(LABELS) as (keyof State)[]).every((key) => previous[key] === current[key])) {
+        this.entries.splice(this.cursor, 1);
+        this.cursor--;
+      }
+    }
+    this.grouping = false; this.groupHasEntry = false;
+  }
   record(input: State): boolean {
     const state = EditorState.parse(input);
     const current = this.entries[this.cursor]!.state;
