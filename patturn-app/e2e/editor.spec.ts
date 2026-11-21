@@ -163,3 +163,18 @@ test('invalid or oversized project imports preserve edits; cancelling replacemen
   await input.setInputFiles(validPath!);await expect(wall).toHaveValue('6');
   await expect(error).toHaveCount(0);
 });
+
+test('pattern search filters locally without changing the selected project pattern',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  const library=page.getByRole('group',{name:'الگوهای آماده',exact:true});
+  const search=library.getByRole('searchbox',{name:'جست‌وجوی الگو'});
+  await expect(library.getByRole('radio')).toHaveCount(12);
+  await search.fill('كوميكو');await expect(library.getByRole('radio')).toHaveCount(1);
+  await library.getByRole('radio').check();
+  await search.fill('not-found');await expect(library.getByRole('radio')).toHaveCount(0);
+  await expect(library.getByRole('status')).toContainText('0 الگو از 12');
+  await library.getByRole('button',{name:'پاک‌کردن جست‌وجو',exact:true}).click();
+  await expect(library.getByRole('radio')).toHaveCount(12);
+  await expect(library.getByRole('radio',{name:'الهام از کومیکو',exact:true})).toBeChecked();
+  await expect(page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true})).toHaveValue('40');
+});
