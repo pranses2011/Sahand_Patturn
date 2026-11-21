@@ -74,3 +74,50 @@ test('section navigation works with Tab, Enter and Space and reports the current
   await expect(mold).toHaveAttribute('aria-current','page');
   await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
 });
+
+test('autosave quota failure preserves previous history and retry persists across reload',async({page})=>{
+  await page.addInitScript(()=>{
+    const key='patturn:editor-history:v1';
+    if(localStorage.getItem(key)===null)localStorage.setItem(key,JSON.stringify({version:1,entries:[{
+      id:'initial',savedAt:'2026-11-20T00:00:00.000Z',state:{profileMode:'reference',segments:96,wall:4,shrink:12,fill:80,patternId:'dot-grid',tileSize:40},
+    }]}));
+    (window as unknown as {testDenyHistoryWrites:boolean}).testDenyHistoryWrites=true;
+    const original=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(name,value){
+      if(name===key&&(window as unknown as {testDenyHistoryWrites:boolean}).testDenyHistoryWrites)
+        throw new DOMException('Synthetic quota limit','QuotaExceededError');
+      return original.call(this,name,value);
+    };
+  });
+  await page.goto('/');
+  const previous=await page.evaluate(()=>localStorage.getItem('patturn:editor-history:v1'));
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('6');await wall.press('Enter');
+  const error=page.getByRole('alert').filter({hasText:/^ذخیرهٔ محلی ناموفق بود/});
+  await expect(error).toBeVisible({timeout:10_000});
+  expect(await page.evaluate(()=>localStorage.getItem('patturn:editor-history:v1'))).toBe(previous);
+  await expect(page.locator('header')).not.toContainText('✓ ذخیره شد');
+  await page.evaluate(()=>{(window as unknown as {testDenyHistoryWrites:boolean}).testDenyHistoryWrites=false;});
+  await error.getByRole('button',{name:'تلاش دوباره',exact:true}).click();
+  await expect(error).toHaveCount(0);
+  await expect(page.locator('header')).toContainText('✓ ذخیره شد');
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('patturn:editor-history:v1')!));
+  expect(saved.entries[0].state.wall).toBe(6);expect(saved.entries[1].state.wall).toBe(4);
+  await page.reload();await expect(wall).toHaveValue('6');
+});
+
+test('corrupted autosave is not silently overwritten and portable export remains available',async({page})=>{
+  await page.addInitScript(()=>{localStorage.setItem('patturn:editor-history:v1','{broken');});
+  await page.goto('/');
+  await expect(page.getByRole('alert').filter({hasText:'بازیابی ذخیرهٔ محلی ناموفق بود'})).toBeVisible();
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('7');await wall.press('Enter');
+  const error=page.getByRole('alert').filter({hasText:/^ذخیرهٔ محلی ناموفق بود/});
+  await expect(error).toBeVisible({timeout:10_000});
+  await error.getByRole('button',{name:'تلاش دوباره',exact:true}).click();
+  expect(await page.evaluate(()=>localStorage.getItem('patturn:editor-history:v1'))).toBe('{broken');
+  const downloaded=page.waitForEvent('download');
+  await page.getByRole('button',{name:'ذخیرهٔ فایل پروژه',exact:true}).click();
+  expect((await downloaded).suggestedFilename()).toMatch(/\.patturn$/);
+  await expect(wall).toHaveValue('7');
+});
