@@ -1,0 +1,12 @@
+node_modules/
+**/dist/
+**/target/
+**/gen/
+.cache/
+test-results/
+playwright-report/
+package-lock.json
+bundle-report.json
+# Release notes and prose are maintained in their existing Persian layout.
+**/*.md
+# Binary assets and native formats have no Prettier parser.

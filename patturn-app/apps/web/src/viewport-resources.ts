@@ -6,9 +6,16 @@ export function disposeViewportObject(root: Object3D): void {
   const materials = new Set<Material>();
   const textures = new Set<Texture>();
   root.traverse((node) => {
-    const renderable = node as Object3D & { geometry?: BufferGeometry; material?: Material | Material[] };
+    const renderable = node as Object3D & {
+      geometry?: BufferGeometry;
+      material?: Material | Material[];
+    };
     if (renderable.geometry) geometries.add(renderable.geometry);
-    const mats = renderable.material ? (Array.isArray(renderable.material) ? renderable.material : [renderable.material]) : [];
+    const mats = renderable.material
+      ? Array.isArray(renderable.material)
+        ? renderable.material
+        : [renderable.material]
+      : [];
     for (const mat of mats) {
       materials.add(mat);
       const map = (mat as Material & { map?: Texture | null }).map;

@@ -12,7 +12,8 @@ const ML_PER_MM3 = 1 / 1000;
 export function capacityMl(profile: Profile): number {
   let mm3 = 0;
   for (let i = 0; i < profile.length - 1; i++) {
-    const a = profile[i]!, b = profile[i + 1]!;
+    const a = profile[i]!,
+      b = profile[i + 1]!;
     const h = b.y - a.y;
     if (h <= 0) continue;
     mm3 += (Math.PI * h * (a.r * a.r + a.r * b.r + b.r * b.r)) / 3;
@@ -27,7 +28,8 @@ export function filledMl(profile: Profile, fill: number): number {
   const yFill = y0 + fill * (y1 - y0);
   let mm3 = 0;
   for (let i = 0; i < profile.length - 1; i++) {
-    const a = profile[i]!, b = profile[i + 1]!;
+    const a = profile[i]!,
+      b = profile[i + 1]!;
     if (b.y <= y0) continue;
     if (a.y >= yFill) break;
     // clip segment to [.., yFill]

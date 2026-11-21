@@ -1,11 +1,24 @@
 import { normalizePatternSearch } from './pattern-search';
 import { PATTERN_NAMES_FA } from '@patturn/config';
 import { useEffect, useRef, useState } from 'react';
-import { PatternLibraryRepo, PATTERN_LIBRARY_KEY, MAX_PATTERN_BACKUP_BYTES, type PatternRecipe } from '@patturn/storage';
+import {
+  PatternLibraryRepo,
+  PATTERN_LIBRARY_KEY,
+  MAX_PATTERN_BACKUP_BYTES,
+  type PatternRecipe,
+} from '@patturn/storage';
 import { PATTERNS } from '@patturn/patterns';
 
-export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
-  patternId: string; tileSize: number; onApply: (recipe: PatternRecipe) => void; onExport: (name: string, bytes: Uint8Array) => void;
+export function SavedPatterns({
+  patternId,
+  tileSize,
+  onApply,
+  onExport,
+}: {
+  patternId: string;
+  tileSize: number;
+  onApply: (recipe: PatternRecipe) => void;
+  onExport: (name: string, bytes: Uint8Array) => void;
 }) {
   const [entries, setEntries] = useState<PatternRecipe[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +27,9 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
   const searchRef = useRef<HTMLInputElement>(null);
   const words = normalizePatternSearch(query).split(' ').filter(Boolean);
   const visible = entries.filter((entry) => {
-    const text = normalizePatternSearch(`${entry.name} ${PATTERN_NAMES_FA[entry.patternId] ?? ''} ${entry.patternId}`);
+    const text = normalizePatternSearch(
+      `${entry.name} ${PATTERN_NAMES_FA[entry.patternId] ?? ''} ${entry.patternId}`,
+    );
     return words.every((word) => text.includes(word));
   });
   const [importMessage, setImportMessage] = useState<string | null>(null);
@@ -23,13 +38,19 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
   const [importing, setImporting] = useState(false);
   const importFile = async (file: File) => {
     const token = ++importToken.current;
-    setImporting(true); setError(null); setImportMessage(null);
+    setImporting(true);
+    setError(null);
+    setImportMessage(null);
     try {
       if (file.size > MAX_PATTERN_BACKUP_BYTES) throw new Error('LIBRARY_BACKUP_TOO_LARGE');
       const bytes = new Uint8Array(await file.arrayBuffer());
       if (token !== importToken.current) return;
       const preview = repo().previewImport(bytes);
-      if (window.confirm(`${preview.added} تنظیمات جدید افزوده شود؟ مجموع پس از ادغام: ${preview.total}. موارد یکسان تکرار نمی‌شوند و پروژهٔ باز تغییر نمی‌کند.`)) {
+      if (
+        window.confirm(
+          `${preview.added} تنظیمات جدید افزوده شود؟ مجموع پس از ادغام: ${preview.total}. موارد یکسان تکرار نمی‌شوند و پروژهٔ باز تغییر نمی‌کند.`,
+        )
+      ) {
         let added = 0;
         const ok = perform(() => {
           const library = repo();
@@ -40,25 +61,40 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
         });
         if (ok) setImportMessage(`ورود پشتیبان انجام شد؛ ${added} تنظیمات جدید افزوده شد.`);
       } else setImportMessage('ورود پشتیبان لغو شد؛ کتابخانه تغییر نکرد.');
-    } catch (e) { if (token === importToken.current) perform(() => { throw e; }); }
-    finally { if (token === importToken.current) setImporting(false); }
+    } catch (e) {
+      if (token === importToken.current)
+        perform(() => {
+          throw e;
+        });
+    } finally {
+      if (token === importToken.current) setImporting(false);
+    }
   };
-  const repo = () => new PatternLibraryRepo(window.localStorage, PATTERNS.map((p) => p.id));
+  const repo = () =>
+    new PatternLibraryRepo(
+      window.localStorage,
+      PATTERNS.map((p) => p.id),
+    );
   const perform = (action: () => PatternRecipe[]) => {
-    try { setEntries(action()); setError(null); return true; }
-    catch (e) {
+    try {
+      setEntries(action());
+      setError(null);
+      return true;
+    } catch (e) {
       const code = e instanceof Error ? e.message : '';
-      setError(code === 'LIBRARY_NAME_EXISTS'
-        ? 'این نام قبلاً ذخیره شده است؛ نام دیگری انتخاب کنید. تنظیمات قبلی تغییر نکرد.'
-        : code === 'LIBRARY_IMPORT_CONFLICT'
-          ? 'نام یکی از موارد پشتیبان با مقادیر متفاوت در کتابخانه وجود دارد؛ ابتدا نام مورد قبلی را تغییر دهید. چیزی وارد نشد.'
-        : code === 'LIBRARY_BACKUP_TOO_LARGE'
-          ? 'فایل پشتیبان باید حداکثر ۶۴ KiB باشد؛ چیزی وارد نشد.'
-        : code === 'LIBRARY_NOT_FOUND'
-          ? 'این تنظیمات دیگر در کتابخانه نیست؛ فهرست را بازخوانی کنید.'
-        : code === 'LIBRARY_FULL'
-          ? 'کتابخانه به سقف ۳۰ تنظیمات رسیده است؛ برای ذخیرهٔ جدید، ابتدا یکی از موارد قبلی را حذف کنید.'
-          : `کتابخانه خوانده یا ذخیره نشد؛ دادهٔ قبلی پاک نشده است: ${String(e).slice(0, 120)}`);
+      setError(
+        code === 'LIBRARY_NAME_EXISTS'
+          ? 'این نام قبلاً ذخیره شده است؛ نام دیگری انتخاب کنید. تنظیمات قبلی تغییر نکرد.'
+          : code === 'LIBRARY_IMPORT_CONFLICT'
+            ? 'نام یکی از موارد پشتیبان با مقادیر متفاوت در کتابخانه وجود دارد؛ ابتدا نام مورد قبلی را تغییر دهید. چیزی وارد نشد.'
+            : code === 'LIBRARY_BACKUP_TOO_LARGE'
+              ? 'فایل پشتیبان باید حداکثر ۶۴ KiB باشد؛ چیزی وارد نشد.'
+              : code === 'LIBRARY_NOT_FOUND'
+                ? 'این تنظیمات دیگر در کتابخانه نیست؛ فهرست را بازخوانی کنید.'
+                : code === 'LIBRARY_FULL'
+                  ? 'کتابخانه به سقف ۳۰ تنظیمات رسیده است؛ برای ذخیرهٔ جدید، ابتدا یکی از موارد قبلی را حذف کنید.'
+                  : `کتابخانه خوانده یا ذخیره نشد؛ دادهٔ قبلی پاک نشده است: ${String(e).slice(0, 120)}`,
+      );
       return false;
     }
   };
@@ -73,54 +109,189 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
       window.removeEventListener('storage', refresh);
     };
   }, []);
-  return <details className="saved-patterns" onToggle={(e) => { if (e.currentTarget.open) perform(() => repo().list()); }}>
-    <summary>تنظیمات الگوی ذخیره‌شده</summary>
-    <p className="hint">حداکثر ۳۰ ترکیب نام‌دار، فقط در همین دستگاه؛ شامل نوع الگو و اندازهٔ کاشی، نه مسیر سفارشی. فایل پروژه فقط تنظیمات فعال را دارد؛ پشتیبان JSON تمام موارد این کتابخانه را نگه می‌دارد. فیلتر جست‌وجو روی محتوای پشتیبان اثر ندارد؛ موارد پنهان هم در فایل هستند. ورود JSON فقط موارد جدید را ادغام می‌کند؛ برخورد نام با مقادیر متفاوت رد می‌شود.</p>
-    <form onSubmit={(e) => { e.preventDefault(); if (perform(() => repo().save({ name, patternId, tileSize }))) setName(''); }}>
-      <label>نام تنظیمات<input value={name} maxLength={60} required onChange={(e) => setName(e.currentTarget.value)} /></label>
-      <button className="btn" type="submit" disabled={!name.trim()}>ذخیرهٔ تنظیمات فعلی</button>
-    </form>
-    {error && <p className="hint" role="alert">{error}</p>}
-    <button className="btn" onClick={() => perform(() => repo().list())}>بازخوانی / تلاش دوباره</button>
-    <button className="btn" onClick={() => perform(() => {
-      const library = repo();
-      onExport('patturn-pattern-library-v1.json', library.exportDocument());
-      return library.list();
-    })}>دانلود پشتیبان کتابخانهٔ الگو</button>
-    <input ref={inputRef} type="file" accept=".json" hidden aria-label="انتخاب پشتیبان کتابخانهٔ الگو" disabled={importing}
-      onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void importFile(file); }} />
-    <button className="btn" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? 'در حال خواندن پشتیبان…' : 'ورود پشتیبان کتابخانهٔ الگو'}</button>
-    {importing && <button className="btn" onClick={() => {
-      importToken.current++; setImporting(false); setImportMessage('ورود پشتیبان لغو شد؛ کتابخانه تغییر نکرد.');
-    }}>لغو خواندن پشتیبان</button>}
-    {importMessage && <p role="status" className="hint">{importMessage}</p>}
-    <label>جست‌وجوی تنظیمات ذخیره‌شده<input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} /></label>
-    {query && <button className="btn" onClick={() => { setQuery(''); searchRef.current?.focus(); }}>پاک‌کردن جست‌وجوی تنظیمات</button>}
-    <p role="status">{new Intl.NumberFormat('fa-IR').format(visible.length)} مورد از {new Intl.NumberFormat('fa-IR').format(entries.length)} — جست‌وجو پروژه و کتابخانه را تغییر نمی‌دهد.</p>
-    {!error && entries.length === 0 && <p className="hint">هنوز تنظیماتی در این کتابخانه نیست؛ به تنظیمات فعلی نام بدهید و آن را ذخیره کنید، یا پشتیبان کتابخانه را وارد کنید.</p>}
-    {!error && entries.length > 0 && visible.length === 0 && <p className="hint">تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.</p>}
-    <ul>{visible.map((entry) => <li key={entry.name}>
-      <b>{entry.name}</b> — {PATTERN_NAMES_FA[entry.patternId] ?? entry.patternId} — {new Intl.NumberFormat('fa-IR').format(entry.tileSize)} میلی‌متر
-      {entry.patternId === patternId && entry.tileSize === tileSize && <span className="hint"> — مطابق تنظیمات فعلی</span>}
-      <button className="btn" onClick={() => perform(() => {
-        const current = repo().list();
-        const selected = current.find((item) => item.name === entry.name);
-        if (!selected) throw new Error('LIBRARY_NOT_FOUND');
-        onApply(selected);
-        return current;
-      })} aria-label={`اعمال ${entry.name}`}>اعمال</button>
-      <button className="btn" onClick={() => {
-        if (window.confirm(`نوع الگو و اندازهٔ کاشی فعلی جایگزین تنظیمات «${entry.name}» شود؟`)) {
-          perform(() => repo().update(entry.name, { patternId, tileSize }));
+  return (
+    <details
+      className="saved-patterns"
+      onToggle={(e) => {
+        if (e.currentTarget.open) perform(() => repo().list());
+      }}
+    >
+      <summary>تنظیمات الگوی ذخیره‌شده</summary>
+      <p className="hint">
+        حداکثر ۳۰ ترکیب نام‌دار، فقط در همین دستگاه؛ شامل نوع الگو و اندازهٔ کاشی، نه مسیر سفارشی.
+        فایل پروژه فقط تنظیمات فعال را دارد؛ پشتیبان JSON تمام موارد این کتابخانه را نگه می‌دارد.
+        فیلتر جست‌وجو روی محتوای پشتیبان اثر ندارد؛ موارد پنهان هم در فایل هستند. ورود JSON فقط
+        موارد جدید را ادغام می‌کند؛ برخورد نام با مقادیر متفاوت رد می‌شود.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (perform(() => repo().save({ name, patternId, tileSize }))) setName('');
+        }}
+      >
+        <label>
+          نام تنظیمات
+          <input
+            value={name}
+            maxLength={60}
+            required
+            onChange={(e) => setName(e.currentTarget.value)}
+          />
+        </label>
+        <button className="btn" type="submit" disabled={!name.trim()}>
+          ذخیرهٔ تنظیمات فعلی
+        </button>
+      </form>
+      {error && (
+        <p className="hint" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="btn" onClick={() => perform(() => repo().list())}>
+        بازخوانی / تلاش دوباره
+      </button>
+      <button
+        className="btn"
+        onClick={() =>
+          perform(() => {
+            const library = repo();
+            onExport('patturn-pattern-library-v1.json', library.exportDocument());
+            return library.list();
+          })
         }
-      }} aria-label={`به‌روزرسانی ${entry.name} با مقادیر فعلی`}>به‌روزرسانی با مقادیر فعلی</button>
-      <button className="btn" onClick={() => {
-        const nextName = window.prompt('نام جدید تنظیمات:', entry.name);
-        if (nextName !== null && perform(() => repo().rename(entry.name, nextName))) searchRef.current?.focus();
-      }} aria-label={`تغییر نام ${entry.name}`}>تغییر نام</button>
-      <button className="btn" onClick={() => {
-        if (window.confirm(`تنظیمات «${entry.name}» حذف شود؟`) && perform(() => repo().delete(entry.name))) searchRef.current?.focus();
-      }} aria-label={`حذف ${entry.name}`}>حذف</button>
-    </li>)}</ul>
-  </details>;
+      >
+        دانلود پشتیبان کتابخانهٔ الگو
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".json"
+        hidden
+        aria-label="انتخاب پشتیبان کتابخانهٔ الگو"
+        disabled={importing}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file) void importFile(file);
+        }}
+      />
+      <button className="btn" disabled={importing} onClick={() => inputRef.current?.click()}>
+        {importing ? 'در حال خواندن پشتیبان…' : 'ورود پشتیبان کتابخانهٔ الگو'}
+      </button>
+      {importing && (
+        <button
+          className="btn"
+          onClick={() => {
+            importToken.current++;
+            setImporting(false);
+            setImportMessage('ورود پشتیبان لغو شد؛ کتابخانه تغییر نکرد.');
+          }}
+        >
+          لغو خواندن پشتیبان
+        </button>
+      )}
+      {importMessage && (
+        <p role="status" className="hint">
+          {importMessage}
+        </p>
+      )}
+      <label>
+        جست‌وجوی تنظیمات ذخیره‌شده
+        <input
+          ref={searchRef}
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+        />
+      </label>
+      {query && (
+        <button
+          className="btn"
+          onClick={() => {
+            setQuery('');
+            searchRef.current?.focus();
+          }}
+        >
+          پاک‌کردن جست‌وجوی تنظیمات
+        </button>
+      )}
+      <p role="status">
+        {new Intl.NumberFormat('fa-IR').format(visible.length)} مورد از{' '}
+        {new Intl.NumberFormat('fa-IR').format(entries.length)} — جست‌وجو پروژه و کتابخانه را تغییر
+        نمی‌دهد.
+      </p>
+      {!error && entries.length === 0 && (
+        <p className="hint">
+          هنوز تنظیماتی در این کتابخانه نیست؛ به تنظیمات فعلی نام بدهید و آن را ذخیره کنید، یا
+          پشتیبان کتابخانه را وارد کنید.
+        </p>
+      )}
+      {!error && entries.length > 0 && visible.length === 0 && (
+        <p className="hint">تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.</p>
+      )}
+      <ul>
+        {visible.map((entry) => (
+          <li key={entry.name}>
+            <b>{entry.name}</b> — {PATTERN_NAMES_FA[entry.patternId] ?? entry.patternId} —{' '}
+            {new Intl.NumberFormat('fa-IR').format(entry.tileSize)} میلی‌متر
+            {entry.patternId === patternId && entry.tileSize === tileSize && (
+              <span className="hint"> — مطابق تنظیمات فعلی</span>
+            )}
+            <button
+              className="btn"
+              onClick={() =>
+                perform(() => {
+                  const current = repo().list();
+                  const selected = current.find((item) => item.name === entry.name);
+                  if (!selected) throw new Error('LIBRARY_NOT_FOUND');
+                  onApply(selected);
+                  return current;
+                })
+              }
+              aria-label={`اعمال ${entry.name}`}
+            >
+              اعمال
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                if (
+                  window.confirm(`نوع الگو و اندازهٔ کاشی فعلی جایگزین تنظیمات «${entry.name}» شود؟`)
+                ) {
+                  perform(() => repo().update(entry.name, { patternId, tileSize }));
+                }
+              }}
+              aria-label={`به‌روزرسانی ${entry.name} با مقادیر فعلی`}
+            >
+              به‌روزرسانی با مقادیر فعلی
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                const nextName = window.prompt('نام جدید تنظیمات:', entry.name);
+                if (nextName !== null && perform(() => repo().rename(entry.name, nextName)))
+                  searchRef.current?.focus();
+              }}
+              aria-label={`تغییر نام ${entry.name}`}
+            >
+              تغییر نام
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                if (
+                  window.confirm(`تنظیمات «${entry.name}» حذف شود؟`) &&
+                  perform(() => repo().delete(entry.name))
+                )
+                  searchRef.current?.focus();
+              }}
+              aria-label={`حذف ${entry.name}`}
+            >
+              حذف
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }

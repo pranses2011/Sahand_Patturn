@@ -33,15 +33,22 @@ export class LocalRepo implements ProjectRepo {
   private write(list: ProjectRecord[]) {
     localStorage.setItem(this.key, JSON.stringify(list));
   }
-  async list() { return this.read().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)); }
-  async get(id: string) { return this.read().find((r) => r.id === id) ?? null; }
+  async list() {
+    return this.read().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+  async get(id: string) {
+    return this.read().find((r) => r.id === id) ?? null;
+  }
   async save(rec: ProjectRecord) {
     const list = this.read();
     const i = list.findIndex((r) => r.id === rec.id);
-    if (i >= 0) list[i] = rec; else list.push(rec);
+    if (i >= 0) list[i] = rec;
+    else list.push(rec);
     this.write(list);
   }
-  async delete(id: string) { this.write(this.read().filter((r) => r.id !== id)); }
+  async delete(id: string) {
+    this.write(this.read().filter((r) => r.id !== id));
+  }
   async duplicate(id: string, newName: string) {
     const src = await this.get(id);
     if (!src) throw new Error('NOT_FOUND');

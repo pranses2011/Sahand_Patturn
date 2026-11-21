@@ -107,8 +107,12 @@ export function Viewport({ mesh, mode, pattern }: Props) {
 
     const scheduler = createRenderScheduler(() => {
       controls.update(); // change events schedule any remaining damping frames
-      try { renderer.render(scene, camera); }
-      catch { scheduler.dispose(); setRenderError(true); }
+      try {
+        renderer.render(scene, camera);
+      } catch {
+        scheduler.dispose();
+        setRenderError(true);
+      }
     });
     const invalidate = () => scheduler.invalidate();
     st.invalidate = invalidate;
@@ -118,7 +122,8 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     onVisibilityChange();
 
     const onResize = () => {
-      const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
+      const w = Math.max(1, host.clientWidth),
+        h = Math.max(1, host.clientHeight);
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
@@ -127,7 +132,6 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     onResize();
     const ro = new ResizeObserver(onResize);
     ro.observe(host);
-
 
     return () => {
       scheduler.dispose();
@@ -140,7 +144,11 @@ export function Viewport({ mesh, mode, pattern }: Props) {
       disposeViewportObject(axes);
       renderer.dispose();
       if (st.renderer === renderer) {
-        st.renderer = undefined; st.scene = undefined; st.camera = undefined; st.controls = undefined; st.invalidate = undefined;
+        st.renderer = undefined;
+        st.scene = undefined;
+        st.camera = undefined;
+        st.controls = undefined;
+        st.invalidate = undefined;
       }
       host.removeChild(renderer.domElement);
     };
@@ -209,7 +217,10 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     const offset = orbitOffset(camera.position.clone().sub(controls.target), angle, pitch);
     const distance = offset.length();
     if (distance > 0) {
-      const next = factor === 1 ? distance : Math.min(camera.far / 2, Math.max(camera.near * 2, distance * factor));
+      const next =
+        factor === 1
+          ? distance
+          : Math.min(camera.far / 2, Math.max(camera.near * 2, distance * factor));
       camera.position.copy(controls.target).addScaledVector(offset, next / distance);
       controls.update();
     }
@@ -218,46 +229,81 @@ export function Viewport({ mesh, mode, pattern }: Props) {
   };
 
   if (renderError) throw new Error('VIEWPORT_GRAPHICS_UNAVAILABLE');
-  return <>
-    <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />
-    <div className="viewport-reset" role="group" aria-label="کنترل دوربین">
-    <button className="btn" type="button" onClick={() => moveCamera(0.8)}>نزدیک‌تر</button>
-    <button className="btn" type="button" onClick={() => moveCamera(1.25)}>دورتر</button>
-    <button className="btn" type="button" onClick={() => moveCamera(1, -Math.PI / 12)}>چرخش به چپ</button>
-    <button className="btn" type="button" onClick={() => moveCamera(1, Math.PI / 12)}>چرخش به راست</button>
-    <button className="btn" type="button" onClick={() => moveCamera(1, 0, -Math.PI / 12)}>دید بالاتر</button>
-    <button className="btn" type="button" onClick={() => moveCamera(1, 0, Math.PI / 12)}>دید پایین‌تر</button>
-    <button className="btn" type="button" onClick={() => {
-      const { controls, invalidate } = stateRef.current;
-      if (!controls) return;
-      // Flush residual damping before resetting so the saved pose stays stationary.
-      const damping = controls.enableDamping;
-      controls.enableDamping = false;
-      controls.update();
-      controls.reset();
-      const camera = stateRef.current.camera;
-      if (camera) { camera.near = 1; camera.far = 5000; camera.updateProjectionMatrix(); }
-      controls.enableDamping = damping;
-      invalidate?.();
-    }}>بازنشانی دوربین</button>
-    <button className="btn" type="button" onClick={() => {
-      const { camera, controls, current, invalidate } = stateRef.current;
-      if (!camera || !controls || !current) return;
-      const fit = cameraFit(new THREE.Box3().setFromObject(current), camera.fov, camera.aspect);
-      if (!fit) return;
-      const damping = controls.enableDamping;
-      controls.enableDamping = false;
-      controls.update();
-      const direction = camera.position.clone().sub(controls.target).normalize();
-      if (direction.lengthSq() === 0) direction.set(1, 1, 1).normalize();
-      controls.target.copy(fit.center);
-      camera.position.copy(fit.center).addScaledVector(direction, fit.distance);
-      camera.near = fit.near; camera.far = fit.far;
-      camera.updateProjectionMatrix();
-      controls.update();
-      controls.enableDamping = damping;
-      invalidate?.();
-    }}>جا دادن مدل در نما</button>
-    </div>
-  </>;
+  return (
+    <>
+      <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />
+      <div className="viewport-reset" role="group" aria-label="کنترل دوربین">
+        <button className="btn" type="button" onClick={() => moveCamera(0.8)}>
+          نزدیک‌تر
+        </button>
+        <button className="btn" type="button" onClick={() => moveCamera(1.25)}>
+          دورتر
+        </button>
+        <button className="btn" type="button" onClick={() => moveCamera(1, -Math.PI / 12)}>
+          چرخش به چپ
+        </button>
+        <button className="btn" type="button" onClick={() => moveCamera(1, Math.PI / 12)}>
+          چرخش به راست
+        </button>
+        <button className="btn" type="button" onClick={() => moveCamera(1, 0, -Math.PI / 12)}>
+          دید بالاتر
+        </button>
+        <button className="btn" type="button" onClick={() => moveCamera(1, 0, Math.PI / 12)}>
+          دید پایین‌تر
+        </button>
+        <button
+          className="btn"
+          type="button"
+          onClick={() => {
+            const { controls, invalidate } = stateRef.current;
+            if (!controls) return;
+            // Flush residual damping before resetting so the saved pose stays stationary.
+            const damping = controls.enableDamping;
+            controls.enableDamping = false;
+            controls.update();
+            controls.reset();
+            const camera = stateRef.current.camera;
+            if (camera) {
+              camera.near = 1;
+              camera.far = 5000;
+              camera.updateProjectionMatrix();
+            }
+            controls.enableDamping = damping;
+            invalidate?.();
+          }}
+        >
+          بازنشانی دوربین
+        </button>
+        <button
+          className="btn"
+          type="button"
+          onClick={() => {
+            const { camera, controls, current, invalidate } = stateRef.current;
+            if (!camera || !controls || !current) return;
+            const fit = cameraFit(
+              new THREE.Box3().setFromObject(current),
+              camera.fov,
+              camera.aspect,
+            );
+            if (!fit) return;
+            const damping = controls.enableDamping;
+            controls.enableDamping = false;
+            controls.update();
+            const direction = camera.position.clone().sub(controls.target).normalize();
+            if (direction.lengthSq() === 0) direction.set(1, 1, 1).normalize();
+            controls.target.copy(fit.center);
+            camera.position.copy(fit.center).addScaledVector(direction, fit.distance);
+            camera.near = fit.near;
+            camera.far = fit.far;
+            camera.updateProjectionMatrix();
+            controls.update();
+            controls.enableDamping = damping;
+            invalidate?.();
+          }}
+        >
+          جا دادن مدل در نما
+        </button>
+      </div>
+    </>
+  );
 }

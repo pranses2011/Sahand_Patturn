@@ -32,6 +32,7 @@ jobs:
       - run: npm ci
       - run: npm run release:check
       - run: npm run lint
+      - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -83,6 +84,7 @@ jobs:
       - run: npm ci
       - run: npm run release:check
       - run: npm run lint
+      - run: npm run format:check
       - run: npm run typecheck
       - name: Compile desktop executable, without installer or signing
         run: npm run desktop:check

@@ -11,7 +11,7 @@ export type Vec2 = z.infer<typeof Vec2>;
 
 export const ProfileNode = z.object({
   x: z.number().min(0), // radius mm (>=0: profile is mirrored around Y axis)
-  y: z.number(),        // height mm
+  y: z.number(), // height mm
   hIn: z.tuple([z.number(), z.number()]).optional(),
   hOut: z.tuple([z.number(), z.number()]).optional(),
 });
@@ -103,7 +103,9 @@ export function migrate(doc: { schemaVersion: number }): ProjectDoc {
     d = { ...d, schemaVersion: 2, settings: { unit: 'mm', shrink: 0.12, wallThickness: 4 } };
   }
   if (d.schemaVersion < 3) {
-    const mold = d.mold ? { ...d.mold, keys: { ...d.mold.keys, count: d.mold.keys.count ?? 4 } } : undefined;
+    const mold = d.mold
+      ? { ...d.mold, keys: { ...d.mold.keys, count: d.mold.keys.count ?? 4 } }
+      : undefined;
     d = { ...d, schemaVersion: 3, mold };
   }
   if (d.schemaVersion > SCHEMA_VERSION) {
@@ -113,22 +115,26 @@ export function migrate(doc: { schemaVersion: number }): ProjectDoc {
 }
 
 /** Versioned snapshot of the currently implemented preset editor (not ProjectDoc). */
-export const EditorState = z.object({
-  profileMode: z.enum(['reference', 'bucket', 'vase']),
-  segments: z.number().int().min(12).max(256),
-  wall: z.number().finite().min(1).max(20),
-  shrink: z.number().finite().min(0).max(20),
-  fill: z.number().finite().min(0).max(100),
-  patternId: z.string().min(1).max(80),
-  tileSize: z.number().finite().min(8).max(120),
-}).strict();
+export const EditorState = z
+  .object({
+    profileMode: z.enum(['reference', 'bucket', 'vase']),
+    segments: z.number().int().min(12).max(256),
+    wall: z.number().finite().min(1).max(20),
+    shrink: z.number().finite().min(0).max(20),
+    fill: z.number().finite().min(0).max(100),
+    patternId: z.string().min(1).max(80),
+    tileSize: z.number().finite().min(8).max(120),
+  })
+  .strict();
 export type EditorState = z.infer<typeof EditorState>;
 
-export const PortableEditorProject = z.object({
-  format: z.literal('patturn-editor'),
-  version: z.literal(1),
-  schemaVersion: z.literal(SCHEMA_VERSION),
-  unit: z.literal('mm'),
-  state: EditorState,
-}).strict();
+export const PortableEditorProject = z
+  .object({
+    format: z.literal('patturn-editor'),
+    version: z.literal(1),
+    schemaVersion: z.literal(SCHEMA_VERSION),
+    unit: z.literal('mm'),
+    state: EditorState,
+  })
+  .strict();
 export type PortableEditorProject = z.infer<typeof PortableEditorProject>;

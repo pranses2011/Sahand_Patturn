@@ -1,13 +1,19 @@
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
-  svg: 'image/svg+xml', pdf: 'application/pdf', json: 'application/json',
-  zip: 'application/zip', stl: 'model/stl', obj: 'text/plain', dxf: 'image/vnd.dxf',
+  svg: 'image/svg+xml',
+  pdf: 'application/pdf',
+  json: 'application/json',
+  zip: 'application/zip',
+  stl: 'model/stl',
+  obj: 'text/plain',
+  dxf: 'image/vnd.dxf',
 };
 
 /** Unknown/project formats remain opaque binary; never infer from payload contents. */
 export function downloadContentType(name: string): string {
   const extension = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase();
   return extension && Object.hasOwn(CONTENT_TYPES, extension)
-    ? CONTENT_TYPES[extension]! : 'application/octet-stream';
+    ? CONTENT_TYPES[extension]!
+    : 'application/octet-stream';
 }
 
 /** Request only: browsers do not acknowledge the final filesystem write. */

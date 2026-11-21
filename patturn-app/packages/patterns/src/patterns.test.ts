@@ -27,7 +27,8 @@ describe('P — patterns', () => {
   });
 
   it('P3: rng is deterministic and in [0,1)', () => {
-    const r1 = rng(7), r2 = rng(7);
+    const r1 = rng(7),
+      r2 = rng(7);
     for (let i = 0; i < 100; i++) {
       const v = r1();
       expect(v).toBeGreaterThanOrEqual(0);

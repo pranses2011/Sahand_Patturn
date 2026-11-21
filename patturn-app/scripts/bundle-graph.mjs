@@ -8,8 +8,14 @@ export function staticGraph(manifest, key, found = new Set()) {
 }
 
 export function graphFiles(manifest, graph) {
-  return [...new Set([...graph].map((key) => {
-    if (!Object.hasOwn(manifest, key)) throw new Error(`BUILD_CHUNK_MISSING:${key}`);
-    return manifest[key].file;
-  }).filter((name) => typeof name === 'string' && name.endsWith('.js')))];
+  return [
+    ...new Set(
+      [...graph]
+        .map((key) => {
+          if (!Object.hasOwn(manifest, key)) throw new Error(`BUILD_CHUNK_MISSING:${key}`);
+          return manifest[key].file;
+        })
+        .filter((name) => typeof name === 'string' && name.endsWith('.js')),
+    ),
+  ];
 }

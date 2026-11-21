@@ -20,7 +20,8 @@ export function analyzeUndercut(profile: Profile, tolerance = 0.001): UndercutRe
   const bands: [number, number][] = [];
   let bandStart: number | null = null;
   for (let i = 0; i < profile.length - 1; i++) {
-    const a = profile[i]!, b = profile[i + 1]!;
+    const a = profile[i]!,
+      b = profile[i + 1]!;
     const dy = b.y - a.y;
     if (dy <= 0) continue;
     const slope = (b.r - a.r) / dy;
@@ -64,14 +65,21 @@ export function chooseSplitPlanes(profile: Profile, tolerance = 0.001): SplitPla
   const rep = analyzeUndercut(profile, tolerance);
   if (rep.dropOutSafe) {
     return {
-      kind: 'none', y: 0, normal: [0, 1, 0], offset: 0, parts: 1, score: 10,
-      balance: 0, reason: 'drop-out safe — قالب تک‌تکه',
+      kind: 'none',
+      y: 0,
+      normal: [0, 1, 0],
+      offset: 0,
+      parts: 1,
+      score: 10,
+      balance: 0,
+      reason: 'drop-out safe — قالب تک‌تکه',
     };
   }
   // per-segment slopes (null for zero-height segments)
   const slopes: (number | null)[] = [];
   for (let i = 0; i < profile.length - 1; i++) {
-    const a = profile[i]!, b = profile[i + 1]!;
+    const a = profile[i]!,
+      b = profile[i + 1]!;
     const dy = b.y - a.y;
     slopes.push(dy > 0 ? (b.r - a.r) / dy : null);
   }
@@ -88,9 +96,11 @@ export function chooseSplitPlanes(profile: Profile, tolerance = 0.001): SplitPla
   }
   if (bestY !== null) {
     // balance = min-side fraction of ∫ r² dy (volume proxy)
-    let total = 0, below = 0;
+    let total = 0,
+      below = 0;
     for (let i = 0; i < profile.length - 1; i++) {
-      const a = profile[i]!, b = profile[i + 1]!;
+      const a = profile[i]!,
+        b = profile[i + 1]!;
       const dy = b.y - a.y;
       if (dy <= 0) continue;
       const seg = ((a.r * a.r + b.r * b.r) / 2) * dy;
@@ -100,13 +110,25 @@ export function chooseSplitPlanes(profile: Profile, tolerance = 0.001): SplitPla
     }
     const balance = total > 0 ? Math.min(below, total - below) / total : 0;
     return {
-      kind: 'horizontal', y: bestY, normal: [0, 1, 0], offset: bestY, parts: 2, score: 20,
-      balance, reason: `افقی در y=${bestY.toFixed(1)}mm`,
+      kind: 'horizontal',
+      y: bestY,
+      normal: [0, 1, 0],
+      offset: bestY,
+      parts: 2,
+      score: 20,
+      balance,
+      reason: `افقی در y=${bestY.toFixed(1)}mm`,
     };
   }
   return {
-    kind: 'vertical', y: 0, normal: [0, 0, 1], offset: 0, parts: 2, score: 21,
-    balance: 0.5, reason: 'عمودی از محور (z=0)',
+    kind: 'vertical',
+    y: 0,
+    normal: [0, 0, 1],
+    offset: 0,
+    parts: 2,
+    score: 21,
+    balance: 0.5,
+    reason: 'عمودی از محور (z=0)',
   };
 }
 
@@ -142,19 +164,26 @@ export function socketRadius(k: KeySpec = DEFAULT_KEY): number {
 
 /** Key volume (frustum) in mm³ → material estimate. */
 export function keyVolumeMm3(k: KeySpec = DEFAULT_KEY): number {
-  const r1 = k.r, r2 = keyTopRadius(k);
+  const r1 = k.r,
+    r2 = keyTopRadius(k);
   return (Math.PI * k.h * (r1 * r1 + r1 * r2 + r2 * r2)) / 3;
 }
 
 export interface MoldBlock {
   /** outer block size */
-  w: number; d: number; h: number;
+  w: number;
+  d: number;
+  h: number;
   wall: number; // site default 25
   base: number; // site default 20
   draftDeg: number; // site default 1.5
 }
 
-export function moldBlockFor(bbox: { min: [number, number, number]; max: [number, number, number] }, wall = 25, base = 20): MoldBlock {
+export function moldBlockFor(
+  bbox: { min: [number, number, number]; max: [number, number, number] },
+  wall = 25,
+  base = 20,
+): MoldBlock {
   const w = bbox.max[0] - bbox.min[0];
   const d = bbox.max[2] - bbox.min[2];
   const h = bbox.max[1] - bbox.min[1];

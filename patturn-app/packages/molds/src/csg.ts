@@ -31,11 +31,21 @@ type Wasm = {
   setup(): void;
   Manifold: {
     cube(size: [number, number, number], center: boolean): ManifoldT;
-    cylinder(height: number, radiusLow: number, radiusHigh: number, segments: number, center: boolean): ManifoldT;
+    cylinder(
+      height: number,
+      radiusLow: number,
+      radiusHigh: number,
+      segments: number,
+      center: boolean,
+    ): ManifoldT;
     sphere(radius: number, circularSegments: number): ManifoldT;
     new (mesh?: unknown): ManifoldT;
   };
-  Mesh: new (m: { numProp?: number; triVerts: Uint32Array; vertProperties: Float32Array }) => unknown;
+  Mesh: new (m: {
+    numProp?: number;
+    triVerts: Uint32Array;
+    vertProperties: Float32Array;
+  }) => unknown;
 };
 
 let wasm: Wasm | null = null;
@@ -112,7 +122,8 @@ export function buildBlock(opts: BlockOptions): ManifoldT {
   let block = box.translate([cx - bw / 2, ybot, cz - bd / 2]);
   const t = Math.tan((draftDeg * Math.PI) / 180);
   if (t > 0) {
-    const hx = bw / 2, hz = bd / 2;
+    const hx = bw / 2,
+      hz = bd / 2;
     block = trimKeepLE(block, 1, t, 0, cx + hx + t * ybot); // +x face
     block = trimKeepLE(block, -1, t, 0, -(cx - hx) + t * ybot); // −x face
     block = trimKeepLE(block, 0, t, 1, cz + hz + t * ybot); // +z face
@@ -130,7 +141,11 @@ export function subtractForm(block: ManifoldT, formMesh: Mesh): ManifoldT {
 }
 
 /** Split mold solid by plane (normal pointing to keep-side). Returns 2 pieces. */
-export function splitMold(mold: ManifoldT, normal: [number, number, number], offset: number): ManifoldT[] {
+export function splitMold(
+  mold: ManifoldT,
+  normal: [number, number, number],
+  offset: number,
+): ManifoldT[] {
   return mold.splitByPlane(normal, offset);
 }
 
@@ -148,7 +163,13 @@ export function makeKeyMale(r = 8, h = 10, taperDeg = 4, axis: 'y' | 'z' = 'y'):
 }
 
 /** Female socket = male + clearance (site default 0.2mm radial). */
-export function makeKeyFemale(r = 8, h = 10, taperDeg = 4, clearance = 0.2, axis: 'y' | 'z' = 'y'): ManifoldT {
+export function makeKeyFemale(
+  r = 8,
+  h = 10,
+  taperDeg = 4,
+  clearance = 0.2,
+  axis: 'y' | 'z' = 'y',
+): ManifoldT {
   return makeKeyMale(r + clearance, h + clearance, taperDeg, axis);
 }
 
@@ -183,7 +204,10 @@ export function toValidatedMesh(man: ManifoldT): Mesh {
 }
 
 /** Convenience: full single-part mold pipeline → Mesh (validated). */
-export async function buildSingleMold(formMesh: Mesh, opts?: Partial<BlockOptions> & { shrink?: number }): Promise<Mesh> {
+export async function buildSingleMold(
+  formMesh: Mesh,
+  opts?: Partial<BlockOptions> & { shrink?: number },
+): Promise<Mesh> {
   await initCsg();
   const shrink = opts?.shrink ?? 0;
   // scale form up by 1/(1−s) so fired piece hits final size
@@ -194,7 +218,13 @@ export async function buildSingleMold(formMesh: Mesh, opts?: Partial<BlockOption
   };
   const man = toManifold(scaled);
   const bb = man.boundingBox();
-  const block = buildBlock({ min: bb.min, max: bb.max, wall: opts?.wall, base: opts?.base, draftDeg: opts?.draftDeg });
+  const block = buildBlock({
+    min: bb.min,
+    max: bb.max,
+    wall: opts?.wall,
+    base: opts?.base,
+    draftDeg: opts?.draftDeg,
+  });
   const mold = block.subtract(man); // man is already a ManifoldT
   return toValidatedMesh(mold);
 }
@@ -214,7 +244,11 @@ export interface SplitMoldOptions {
  * negative side (gets male keys) and B the positive side (female sockets).
  * plan.kind 'none' → single piece, identical to buildSingleMold.
  */
-export async function buildSplitMold(formMesh: Mesh, plan: SplitPlan, opts?: SplitMoldOptions): Promise<Mesh[]> {
+export async function buildSplitMold(
+  formMesh: Mesh,
+  plan: SplitPlan,
+  opts?: SplitMoldOptions,
+): Promise<Mesh[]> {
   await initCsg();
   if (plan.kind === 'none') return [await buildSingleMold(formMesh, opts)];
   const shrink = opts?.shrink ?? 0;
@@ -244,7 +278,8 @@ export async function buildSplitMold(formMesh: Mesh, plan: SplitPlan, opts?: Spl
     if (!profile || profile.length < 2) return 0;
     const py = y / s;
     for (let i = 0; i < profile.length - 1; i++) {
-      const a = profile[i]!, b = profile[i + 1]!;
+      const a = profile[i]!,
+        b = profile[i + 1]!;
       if (py >= a.y && py <= b.y && b.y > a.y) {
         return (a.r + ((b.r - a.r) * (py - a.y)) / (b.y - a.y)) * s;
       }
@@ -263,10 +298,16 @@ export async function buildSplitMold(formMesh: Mesh, plan: SplitPlan, opts?: Spl
     const y0 = plan.y * s;
     const r0 = radiusAt(y0);
     const rk = Math.min(r0 + wall / 2, edge(y0) - 9);
-    positions = [[rk, y0, 0], [0, y0, rk], [-rk, y0, 0], [0, y0, -rk]];
+    positions = [
+      [rk, y0, 0],
+      [0, y0, rk],
+      [-rk, y0, 0],
+      [0, y0, -rk],
+    ];
     axis = 'y';
   } else {
-    const yMin = bb.min[1], yMax = bb.max[1];
+    const yMin = bb.min[1],
+      yMax = bb.max[1];
     const ys = [yMin + (yMax - yMin) / 3, yMin + (2 * (yMax - yMin)) / 3];
     for (const y of ys) {
       const xk = Math.min(maxRadiusOver(y - 9, y + 9) + wall / 2, edge(y) - 9);
@@ -304,9 +345,15 @@ export interface MotherMoldResult {
  * two top vents. barrierMm is minimum bbox clearance, NOT a uniform offset.
  * The silicone estimate excludes feed/vent channels and process waste.
  */
-export async function buildMotherMold(master: Mesh, opts: MotherMoldOptions = {}): Promise<MotherMoldResult> {
-  const wall = opts.wallMm ?? 10, flange = opts.flangeMm ?? 15;
-  const gap = opts.barrierMm ?? 2, sprue = opts.sprueDia ?? 12, vent = opts.ventDia ?? 4;
+export async function buildMotherMold(
+  master: Mesh,
+  opts: MotherMoldOptions = {},
+): Promise<MotherMoldResult> {
+  const wall = opts.wallMm ?? 10,
+    flange = opts.flangeMm ?? 15;
+  const gap = opts.barrierMm ?? 2,
+    sprue = opts.sprueDia ?? 12,
+    vent = opts.ventDia ?? 4;
   const density = opts.siliconeDensity ?? 1.15;
   if (![wall, flange, gap, sprue, vent, density].every((n) => Number.isFinite(n) && n > 0)) {
     throw new Error('MOTHER_INVALID_OPTIONS');
@@ -325,25 +372,33 @@ export async function buildMotherMold(master: Mesh, opts: MotherMoldOptions = {}
     throw new Error('MOTHER_PORTS_DO_NOT_FIT');
   }
   const cavity = w.Manifold.cube(size, false).translate(min);
-  const outside = w.Manifold.cube(size.map((v) => v + 2 * wall) as [number, number, number], false)
-    .translate(min.map((v) => v - wall) as [number, number, number]);
+  const outside = w.Manifold.cube(
+    size.map((v) => v + 2 * wall) as [number, number, number],
+    false,
+  ).translate(min.map((v) => v - wall) as [number, number, number]);
   const midZ = (min[2] + max[2]) / 2;
   // A rectangular ring around the splitting plane forms matching clamp flanges.
-  const flangeOuter = w.Manifold.cube([size[0] + 2 * (wall + flange), size[1] + 2 * (wall + flange), 2 * wall], false)
-    .translate([min[0] - wall - flange, min[1] - wall - flange, midZ - wall]);
+  const flangeOuter = w.Manifold.cube(
+    [size[0] + 2 * (wall + flange), size[1] + 2 * (wall + flange), 2 * wall],
+    false,
+  ).translate([min[0] - wall - flange, min[1] - wall - flange, midZ - wall]);
   let jacket = outside.add(flangeOuter).subtract(cavity);
   const cx = (min[0] + max[0]) / 2;
-  const port = (x: number, diameter: number) => w.Manifold.cylinder(wall + flange + 2, diameter / 2, diameter / 2, 32, false)
-    .rotate([-90, 0, 0]).translate([x, max[1] - 1, midZ]);
+  const port = (x: number, diameter: number) =>
+    w.Manifold.cylinder(wall + flange + 2, diameter / 2, diameter / 2, 32, false)
+      .rotate([-90, 0, 0])
+      .translate([x, max[1] - 1, midZ]);
   jacket = jacket.subtract(port(cx, sprue));
   const ventX = size[0] / 2 - wall - vent / 2;
   jacket = jacket.subtract(port(cx - ventX, vent)).subtract(port(cx + ventX, vent));
   const [positive, negative] = jacket.splitByPlane([0, 0, 1], midZ);
   const siliconeVolumeMm3 = cavity.volume() - man.volume();
   return {
-    master, castingSpace: toValidatedMesh(cavity),
+    master,
+    castingSpace: toValidatedMesh(cavity),
     jacket: [toValidatedMesh(negative!), toValidatedMesh(positive!)],
-    siliconeVolumeMm3, siliconeKg: siliconeVolumeMm3 / 1e6 * density,
+    siliconeVolumeMm3,
+    siliconeKg: (siliconeVolumeMm3 / 1e6) * density,
     cavityBounds: { min, max },
   };
 }
@@ -357,11 +412,18 @@ function barrierMesh(man: ManifoldT): Mesh {
   const points: number[][] = [];
   const parents: number[] = [];
   for (let i = 0; i < mesh.positions.length; i += 3) {
-    points.push([mesh.positions[i]!, mesh.positions[i + 1]!, mesh.positions[i + 2]!].map((v) => Math.round(v * 10000) / 10000));
+    points.push(
+      [mesh.positions[i]!, mesh.positions[i + 1]!, mesh.positions[i + 2]!].map(
+        (v) => Math.round(v * 10000) / 10000,
+      ),
+    );
     parents.push(i / 3);
   }
   const root = (i: number): number => {
-    while (parents[i] !== i) { parents[i] = parents[parents[i]!]!; i = parents[i]!; }
+    while (parents[i] !== i) {
+      parents[i] = parents[parents[i]!]!;
+      i = parents[i]!;
+    }
     return i;
   };
   // Only weld collapsed mesh EDGES. Coincident but topologically separate
@@ -369,7 +431,8 @@ function barrierMesh(man: ManifoldT): Mesh {
   for (let i = 0; i < mesh.indices.length; i += 3) {
     const tri = [mesh.indices[i]!, mesh.indices[i + 1]!, mesh.indices[i + 2]!];
     for (let k = 0; k < 3; k++) {
-      const a = tri[k]!, b = tri[(k + 1) % 3]!;
+      const a = tri[k]!,
+        b = tri[(k + 1) % 3]!;
       if (points[a]!.every((v, j) => v === points[b]![j])) parents[root(b)] = root(a);
     }
   }
@@ -378,21 +441,32 @@ function barrierMesh(man: ManifoldT): Mesh {
   const remap = points.map((_, i) => {
     const key = root(i);
     let index = unique.get(key);
-    if (index === undefined) { index = vertices.length / 3; unique.set(key, index); vertices.push(...points[key]!); }
+    if (index === undefined) {
+      index = vertices.length / 3;
+      unique.set(key, index);
+      vertices.push(...points[key]!);
+    }
     return index;
   });
   const indices: number[] = [];
   const faces = new Map<string, [number, number, number]>();
   for (let i = 0; i < mesh.indices.length; i += 3) {
-    const a = remap[mesh.indices[i]!]!, b = remap[mesh.indices[i + 1]!]!, c = remap[mesh.indices[i + 2]!]!;
+    const a = remap[mesh.indices[i]!]!,
+      b = remap[mesh.indices[i + 1]!]!,
+      c = remap[mesh.indices[i + 2]!]!;
     if (a !== b && b !== c && c !== a) {
       const key = [a, b, c].sort((x, y) => x - y).join(',');
-      if (faces.has(key)) faces.delete(key); // collapsed zero-thickness face pair
+      if (faces.has(key))
+        faces.delete(key); // collapsed zero-thickness face pair
       else faces.set(key, [a, b, c]);
     }
   }
   for (const face of faces.values()) indices.push(...face);
-  const result: Mesh = { ...mesh, positions: new Float32Array(vertices), indices: new Uint32Array(indices) };
+  const result: Mesh = {
+    ...mesh,
+    positions: new Float32Array(vertices),
+    indices: new Uint32Array(indices),
+  };
   const report = validateMesh(result);
   if (!report.ok) throw new Error(`BARRIER_MESH_INVALID: ${report.problems.join(',')}`);
   return result;
@@ -436,20 +510,37 @@ export interface OffsetBarrierResult {
  * than twice the offset. Optional casting adds a flange and top ports;
  * mechanical release is NOT guaranteed by the split or mesh validation.
  */
-export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOptions = {}): Promise<OffsetBarrierResult> {
+export async function buildOffsetBarrier(
+  master: Mesh,
+  opts: OffsetBarrierOptions = {},
+): Promise<OffsetBarrierResult> {
   const clearance = opts.clearanceMm ?? 2;
   const thickness = opts.thicknessMm ?? 2;
   const segments = opts.segments ?? 32;
-  if (![clearance, thickness].every((v) => Number.isFinite(v) && v > 0) ||
-      !Number.isInteger(segments) || segments < 16 || segments > 64 || segments % 4 !== 0) {
+  if (
+    ![clearance, thickness].every((v) => Number.isFinite(v) && v > 0) ||
+    !Number.isInteger(segments) ||
+    segments < 16 ||
+    segments > 64 ||
+    segments % 4 !== 0
+  ) {
     throw new Error('BARRIER_INVALID_OPTIONS');
   }
   // Angular span in each of the two spherical directions ≤ 2π/segments.
   // cos²(pi/segments) bounds the inscribed facets' radial loss conservatively.
-  const offsetErrorBoundMm = (clearance + thickness) * (1 - Math.cos(Math.PI / segments) ** 2) + 0.0011;
+  const offsetErrorBoundMm =
+    (clearance + thickness) * (1 - Math.cos(Math.PI / segments) ** 2) + 0.0011;
   if (offsetErrorBoundMm > 0.2) throw new Error('BARRIER_OFFSET_TOLERANCE');
-  if (opts.casting && ![opts.casting.flangeMm ?? 15, opts.casting.sprueDia ?? 12, opts.casting.ventDia ?? 4, opts.casting.boltHoleDia ?? 4.5]
-    .every((n) => Number.isFinite(n) && n > 0)) throw new Error('BARRIER_INVALID_CASTING');
+  if (
+    opts.casting &&
+    ![
+      opts.casting.flangeMm ?? 15,
+      opts.casting.sprueDia ?? 12,
+      opts.casting.ventDia ?? 4,
+      opts.casting.boltHoleDia ?? 4.5,
+    ].every((n) => Number.isFinite(n) && n > 0)
+  )
+    throw new Error('BARRIER_INVALID_CASTING');
   if (opts.casting && (opts.casting.flangeMm ?? 15) < 2 * ((opts.casting.boltHoleDia ?? 4.5) + 2)) {
     throw new Error('BARRIER_FLANGE_TOO_NARROW_FOR_BOLTS');
   }
@@ -458,7 +549,10 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
   await initCsg();
   const w = requireWasm();
   const owned: ManifoldT[] = [];
-  const own = (m: ManifoldT) => { owned.push(m); return m; };
+  const own = (m: ManifoldT) => {
+    owned.push(m);
+    return m;
+  };
   try {
     const man = own(toManifold(master));
     const innerSphere = own(w.Manifold.sphere(clearance, segments));
@@ -474,12 +568,15 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
       const vent = opts.casting.ventDia ?? 4;
       const midZ = (bb.min[2] + bb.max[2]) / 2;
       const reach = clearance + thickness + flange;
-      const slab = own(w.Manifold.cube([
-        bb.max[0] - bb.min[0] + 2 * reach,
-        bb.max[1] - bb.min[1] + 2 * reach,
-        2 * thickness,
-      ], false));
-      const flangeSolid = own(slab.translate([bb.min[0] - reach, bb.min[1] - reach, midZ - thickness]));
+      const slab = own(
+        w.Manifold.cube(
+          [bb.max[0] - bb.min[0] + 2 * reach, bb.max[1] - bb.min[1] + 2 * reach, 2 * thickness],
+          false,
+        ),
+      );
+      const flangeSolid = own(
+        slab.translate([bb.min[0] - reach, bb.min[1] - reach, midZ - thickness]),
+      );
       const ring = own(flangeSolid.subtract(inner));
       shell = own(shell.add(ring));
       // Select well-separated actual top vertices, never bbox points over empty space.
@@ -493,12 +590,17 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
       const chosen: [number, number, number][] = [];
       if (candidates.length) chosen.push(candidates[0]!);
       while (chosen.length < 3) {
-        let best: [number, number, number] | undefined, bestDistance = -1;
+        let best: [number, number, number] | undefined,
+          bestDistance = -1;
         for (const candidate of candidates) {
           const d = Math.min(...chosen.map((p) => distance(p, candidate)));
-          if (d > bestDistance) { best = candidate; bestDistance = d; }
+          if (d > bestDistance) {
+            best = candidate;
+            bestDistance = d;
+          }
         }
-        if (!best || bestDistance < (sprue + vent) / 2 + thickness) throw new Error('BARRIER_TOP_PORTS_DO_NOT_FIT');
+        if (!best || bestDistance < (sprue + vent) / 2 + thickness)
+          throw new Error('BARRIER_TOP_PORTS_DO_NOT_FIT');
         chosen.push(best);
       }
       const ports: NonNullable<OffsetBarrierResult['casting']>['ports'] = [];
@@ -521,7 +623,9 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
       for (const x of [bb.min[0] - reach + inset, bb.max[0] + reach - inset]) {
         for (const y of [bb.min[1] - reach + inset, bb.max[1] + reach - inset]) {
           const center: [number, number, number] = [x, y, midZ];
-          const cyl = own(w.Manifold.cylinder(2 * thickness + 2, holeDia / 2, holeDia / 2, 32, false));
+          const cyl = own(
+            w.Manifold.cylinder(2 * thickness + 2, holeDia / 2, holeDia / 2, 32, false),
+          );
           const tool = own(cyl.translate([x, y, midZ - thickness - 1]));
           const material = own(shell.intersect(tool)).volume();
           const expected = Math.PI * (holeDia / 2) ** 2 * 2 * thickness;
@@ -531,15 +635,28 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
         }
       }
       casting = {
-        flangeMm: flange, ports,
-        fasteners: { holeDia, axis: 'z', centers, gripMm: 2 * thickness, edgeClearanceMm: inset - holeDia / 2 },
+        flangeMm: flange,
+        ports,
+        fasteners: {
+          holeDia,
+          axis: 'z',
+          centers,
+          gripMm: 2 * thickness,
+          edgeClearanceMm: inset - holeDia / 2,
+        },
       };
     }
     const pieces = shell.splitByPlane([0, 0, 1], (bb.min[2] + bb.max[2]) / 2);
     pieces.forEach(own);
     return {
-      halves: [barrierMesh(own(pieces[1]!.simplify(0.001))), barrierMesh(own(pieces[0]!.simplify(0.001)))],
-      clearanceMm: clearance, thicknessMm: thickness, offsetErrorBoundMm, casting,
+      halves: [
+        barrierMesh(own(pieces[1]!.simplify(0.001))),
+        barrierMesh(own(pieces[0]!.simplify(0.001))),
+      ],
+      clearanceMm: clearance,
+      thicknessMm: thickness,
+      offsetErrorBoundMm,
+      casting,
     };
   } finally {
     // Minkowski operations create large native allocations; release even on validation failure.
@@ -558,13 +675,20 @@ export function motherAssemblyGuide(result: OffsetBarrierResult): string {
     'اعتبار مش به معنی تأیید جدایش مکانیکی نیست. گیرکردن قطعه و جزئیات باریک را بررسی کنید.',
   ];
   if (result.release) {
-    lines.push('بررسی نمونه‌ای مسیر بازشدن در راستای Z — بدون تأیید پیوستهٔ جدایش',
+    lines.push(
+      'بررسی نمونه‌ای مسیر بازشدن در راستای Z — بدون تأیید پیوستهٔ جدایش',
       `فاصله‌های بررسی‌شده: ${result.release.samplesMm.map((n) => n.toFixed(3)).join(', ')}`,
-      `آستانهٔ حجم برخورد: ${result.release.volumeToleranceMm3} mm³`);
-    result.release.halves.forEach((half, i) => lines.push(
-      `نیمهٔ ${i + 1} (${half.direction}): ${half.status === 'collision-detected' ? `برخورد در فاصلهٔ ${half.firstCollisionMm}mm` : 'در نمونه‌ها برخوردی دیده نشد؛ تضمین جدایش نیست'} | حداکثر همپوشانی با قطعه ${half.maxMasterOverlapMm3.toFixed(3)} و نیمهٔ مقابل ${half.maxOtherHalfOverlapMm3.toFixed(3)} mm³`,
-    ));
-  } else lines.push(`مسیر بازشدن برای این خروجی بررسی نشده است.${result.releaseError ? ` خطا: ${result.releaseError}` : ''}`);
+      `آستانهٔ حجم برخورد: ${result.release.volumeToleranceMm3} mm³`,
+    );
+    result.release.halves.forEach((half, i) =>
+      lines.push(
+        `نیمهٔ ${i + 1} (${half.direction}): ${half.status === 'collision-detected' ? `برخورد در فاصلهٔ ${half.firstCollisionMm}mm` : 'در نمونه‌ها برخوردی دیده نشد؛ تضمین جدایش نیست'} | حداکثر همپوشانی با قطعه ${half.maxMasterOverlapMm3.toFixed(3)} و نیمهٔ مقابل ${half.maxOtherHalfOverlapMm3.toFixed(3)} mm³`,
+      ),
+    );
+  } else
+    lines.push(
+      `مسیر بازشدن برای این خروجی بررسی نشده است.${result.releaseError ? ` خطا: ${result.releaseError}` : ''}`,
+    );
   const casting = result.casting;
   if (casting) {
     const bolts = casting.fasteners;
@@ -575,10 +699,14 @@ export function motherAssemblyGuide(result: OffsetBarrierResult): string {
       'پیچ، مهره و واشر جزو STL نیستند؛ قطر و طول پیچ را با تلرانس پرینت، واشر و مهره انتخاب کنید.',
       'سوراخ‌ها رزوه ندارند. از واشر استفاده کنید؛ سفت‌کردن بیش از حد می‌تواند فلنج را بشکند.',
     );
-    bolts.centers.forEach((p, i) => lines.push(`پیچ ${i + 1}: (${p.map((v) => v.toFixed(3)).join(', ')})`));
-    casting.ports.forEach((port, i) => lines.push(
-      `${i === 0 ? 'دهانهٔ ریختن' : `هواکش ${i}`}: قطر ${port.diameter} | مبدأ (${port.center.map((v) => v.toFixed(3)).join(', ')}) | راستای +Y`,
-    ));
+    bolts.centers.forEach((p, i) =>
+      lines.push(`پیچ ${i + 1}: (${p.map((v) => v.toFixed(3)).join(', ')})`),
+    );
+    casting.ports.forEach((port, i) =>
+      lines.push(
+        `${i === 0 ? 'دهانهٔ ریختن' : `هواکش ${i}`}: قطر ${port.diameter} | مبدأ (${port.center.map((v) => v.toFixed(3)).join(', ')}) | راستای +Y`,
+      ),
+    );
   }
   lines.push(
     'پیش از ریختن: دو نیمه را خشک مونتاژ و هم‌راستایی سوراخ‌ها و بازبودن راهگاه‌ها را بررسی کنید.',
@@ -616,8 +744,13 @@ export async function analyzeMotherRelease(
 ): Promise<ReleaseReport> {
   const tolerance = opts.volumeToleranceMm3 ?? 0.01;
   if (!Number.isFinite(tolerance) || tolerance < 0) throw new Error('RELEASE_INVALID_OPTIONS');
-  if (opts.samplesMm && (opts.samplesMm.length < 2 || opts.samplesMm.length > 128 ||
-      !opts.samplesMm.every((n) => Number.isFinite(n) && n >= 0))) throw new Error('RELEASE_INVALID_OPTIONS');
+  if (
+    opts.samplesMm &&
+    (opts.samplesMm.length < 2 ||
+      opts.samplesMm.length > 128 ||
+      !opts.samplesMm.every((n) => Number.isFinite(n) && n >= 0))
+  )
+    throw new Error('RELEASE_INVALID_OPTIONS');
   for (const mesh of [master, ...halves]) {
     const report = validateMesh(mesh);
     if (!report.ok) throw new Error(`RELEASE_INVALID_MESH: ${report.problems.join(',')}`);
@@ -628,13 +761,20 @@ export async function analyzeMotherRelease(
     for (const mesh of [master, ...halves]) solids.push(toManifold(mesh));
     const boxes = solids.map((s) => s.boundingBox());
     const span = Math.max(...boxes.map((b) => b.max[2])) - Math.min(...boxes.map((b) => b.min[2]));
-    const samplesMm = [...new Set([0, ...(opts.samplesMm ?? [0.25, 0.5, 1, 2, 4, 8, span / 4, span / 2]), span + 1])].sort((a, b) => a - b);
+    const samplesMm = [
+      ...new Set([0, ...(opts.samplesMm ?? [0.25, 0.5, 1, 2, 4, 8, span / 4, span / 2]), span + 1]),
+    ].sort((a, b) => a - b);
     const result: ReleaseReport = {
-      method: 'sampled-rigid-translation-z', certified: false,
-      samplesMm, volumeToleranceMm3: tolerance, halves: [],
+      method: 'sampled-rigid-translation-z',
+      certified: false,
+      samplesMm,
+      volumeToleranceMm3: tolerance,
+      halves: [],
     };
     for (let i = 0; i < 2; i++) {
-      let firstCollisionMm: number | null = null, maxMasterOverlapMm3 = 0, maxOtherHalfOverlapMm3 = 0;
+      let firstCollisionMm: number | null = null,
+        maxMasterOverlapMm3 = 0,
+        maxOtherHalfOverlapMm3 = 0;
       for (const distance of samplesMm) {
         const temporaries: ManifoldT[] = [];
         try {
@@ -644,18 +784,22 @@ export async function analyzeMotherRelease(
           temporaries.push(masterOverlap);
           const otherOverlap = moving.intersect(solids[2 - i]!);
           temporaries.push(otherOverlap);
-          const mv = Math.max(0, masterOverlap.volume()), ov = Math.max(0, otherOverlap.volume());
+          const mv = Math.max(0, masterOverlap.volume()),
+            ov = Math.max(0, otherOverlap.volume());
           maxMasterOverlapMm3 = Math.max(maxMasterOverlapMm3, mv);
           maxOtherHalfOverlapMm3 = Math.max(maxOtherHalfOverlapMm3, ov);
-          if ((mv > tolerance || ov > tolerance) && firstCollisionMm === null) firstCollisionMm = distance;
+          if ((mv > tolerance || ov > tolerance) && firstCollisionMm === null)
+            firstCollisionMm = distance;
         } finally {
           temporaries.reverse().forEach((s) => s.delete?.());
         }
       }
       result.halves.push({
-        direction: i === 0 ? '-z' : '+z', firstCollisionMm,
+        direction: i === 0 ? '-z' : '+z',
+        firstCollisionMm,
         status: firstCollisionMm === null ? 'no-collision-at-samples' : 'collision-detected',
-        maxMasterOverlapMm3, maxOtherHalfOverlapMm3,
+        maxMasterOverlapMm3,
+        maxOtherHalfOverlapMm3,
       });
     }
     return result;
@@ -667,48 +811,78 @@ export async function analyzeMotherRelease(
 /** Flat Y-plane split of an already closed form. Coordinates are preserved in mm.
  * The operation adds planar caps, not alignment keys or fabrication clearance.
  */
-export function splitHorizontal(mesh: Mesh, height: number): {lower:Mesh;upper:Mesh} {
-  if(!Number.isFinite(height))throw Error('INVALID_SPLIT_HEIGHT');
-  if(!mesh.positions.length || mesh.positions.length%3 || mesh.indices.length%3 ||
-    mesh.positions.some((v)=>!Number.isFinite(v)) || mesh.indices.some((i)=>i>=mesh.positions.length/3))throw Error('INVALID_SPLIT_MESH');
-  const report=validateMesh(mesh);
-  if(!report.ok)throw Error('INVALID_SPLIT_MESH');
-  let min=Infinity,max=-Infinity;
-  for(let i=1;i<mesh.positions.length;i+=3){min=Math.min(min,mesh.positions[i]!);max=Math.max(max,mesh.positions[i]!);}
-  if(height<=min+0.01 || height>=max-0.01)throw Error('SPLIT_HEIGHT_OUTSIDE');
-  const owned:ManifoldT[]=[];
+export function splitHorizontal(mesh: Mesh, height: number): { lower: Mesh; upper: Mesh } {
+  if (!Number.isFinite(height)) throw Error('INVALID_SPLIT_HEIGHT');
+  if (
+    !mesh.positions.length ||
+    mesh.positions.length % 3 ||
+    mesh.indices.length % 3 ||
+    mesh.positions.some((v) => !Number.isFinite(v)) ||
+    mesh.indices.some((i) => i >= mesh.positions.length / 3)
+  )
+    throw Error('INVALID_SPLIT_MESH');
+  const report = validateMesh(mesh);
+  if (!report.ok) throw Error('INVALID_SPLIT_MESH');
+  let min = Infinity,
+    max = -Infinity;
+  for (let i = 1; i < mesh.positions.length; i += 3) {
+    min = Math.min(min, mesh.positions[i]!);
+    max = Math.max(max, mesh.positions[i]!);
+  }
+  if (height <= min + 0.01 || height >= max - 0.01) throw Error('SPLIT_HEIGHT_OUTSIDE');
+  const owned: ManifoldT[] = [];
   try {
-    const source=toManifold(mesh);owned.push(source);
-    const parts=source.splitByPlane([0,1,0],height);owned.push(...parts);
-    if(parts.length!==2 || parts.some((part)=>part.numTri()===0))throw Error('SPLIT_EMPTY_PART');
-    parts.sort((a,b)=>a.boundingBox().min[1]-b.boundingBox().min[1]);
-    const lower=fromManifold(parts[0]!),upper=fromManifold(parts[1]!);
-    const reports=[validateMesh(lower),validateMesh(upper)];
-    if(reports.some((result)=>!result.ok))throw Error('SPLIT_INVALID_RESULT');
-    const total=reports.reduce((sum,result)=>sum+result.signedVolumeMm3,0);
-    if(Math.abs(total-report.signedVolumeMm3)>Math.max(0.01,report.signedVolumeMm3*1e-4))throw Error('SPLIT_VOLUME_MISMATCH');
-    return {lower,upper};
-  } finally { for(const part of new Set(owned))part.delete?.(); }
+    const source = toManifold(mesh);
+    owned.push(source);
+    const parts = source.splitByPlane([0, 1, 0], height);
+    owned.push(...parts);
+    if (parts.length !== 2 || parts.some((part) => part.numTri() === 0))
+      throw Error('SPLIT_EMPTY_PART');
+    parts.sort((a, b) => a.boundingBox().min[1] - b.boundingBox().min[1]);
+    const lower = fromManifold(parts[0]!),
+      upper = fromManifold(parts[1]!);
+    const reports = [validateMesh(lower), validateMesh(upper)];
+    if (reports.some((result) => !result.ok)) throw Error('SPLIT_INVALID_RESULT');
+    const total = reports.reduce((sum, result) => sum + result.signedVolumeMm3, 0);
+    if (Math.abs(total - report.signedVolumeMm3) > Math.max(0.01, report.signedVolumeMm3 * 1e-4))
+      throw Error('SPLIT_VOLUME_MISMATCH');
+    return { lower, upper };
+  } finally {
+    for (const part of new Set(owned)) part.delete?.();
+  }
 }
-
 
 /** Union a radial foot ring to a closed form with a planar base centered on Y.
  * The addition is constrained inside the sampled base footprint, with 0.5mm overlap.
  */
-export function unionFootRing(form:Mesh,ring:Mesh):Mesh{
-  for(const mesh of [form,ring]){
-    if(mesh.positions.some((v)=>!Number.isFinite(v))||mesh.indices.some((i)=>i>=mesh.positions.length/3)||!validateMesh(mesh).ok)throw Error('INVALID_FOOT_UNION_MESH');
+export function unionFootRing(form: Mesh, ring: Mesh): Mesh {
+  for (const mesh of [form, ring]) {
+    if (
+      mesh.positions.some((v) => !Number.isFinite(v)) ||
+      mesh.indices.some((i) => i >= mesh.positions.length / 3) ||
+      !validateMesh(mesh).ok
+    )
+      throw Error('INVALID_FOOT_UNION_MESH');
   }
-  const owned:ManifoldT[]=[];
+  const owned: ManifoldT[] = [];
   try {
-    const body=toManifold(form);owned.push(body);
-    const foot=toManifold(ring);owned.push(foot);
-    const united=body.add(foot);owned.push(united);
-    const volume=united.volume(),bodyVolume=body.volume(),footVolume=foot.volume();
+    const body = toManifold(form);
+    owned.push(body);
+    const foot = toManifold(ring);
+    owned.push(foot);
+    const united = body.add(foot);
+    owned.push(united);
+    const volume = united.volume(),
+      bodyVolume = body.volume(),
+      footVolume = foot.volume();
     // Reject disjoint/tangent additions and wholly buried rings, not just bad meshes.
-    const tolerance=Math.max(.001,footVolume*1e-5);
-    if(volume>=bodyVolume+footVolume-tolerance||volume<=bodyVolume+tolerance)throw Error('FOOT_RING_NOT_JOINED');
-    const mesh=fromManifold(united);if(!validateMesh(mesh).ok)throw Error('FOOT_UNION_INVALID_RESULT');
+    const tolerance = Math.max(0.001, footVolume * 1e-5);
+    if (volume >= bodyVolume + footVolume - tolerance || volume <= bodyVolume + tolerance)
+      throw Error('FOOT_RING_NOT_JOINED');
+    const mesh = fromManifold(united);
+    if (!validateMesh(mesh).ok) throw Error('FOOT_UNION_INVALID_RESULT');
     return mesh;
-  }finally{for(const part of new Set(owned))part.delete?.();}
+  } finally {
+    for (const part of new Set(owned)) part.delete?.();
+  }
 }

@@ -6,7 +6,11 @@ const tsExtensions = {
   name: 'ts-ext-resolver',
   enforce: 'pre' as const,
   resolveId(source: string, importer: string | undefined) {
-    if (importer && source.endsWith('.js') && (source.startsWith('./') || source.startsWith('../'))) {
+    if (
+      importer &&
+      source.endsWith('.js') &&
+      (source.startsWith('./') || source.startsWith('../'))
+    ) {
       const abs = path.resolve(path.dirname(importer), source.replace(/\.js$/, '.ts'));
       return abs;
     }

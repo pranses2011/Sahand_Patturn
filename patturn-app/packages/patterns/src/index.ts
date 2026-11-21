@@ -131,7 +131,8 @@ export const chevron: PatternDef = {
   build: (ctx) => {
     const s = num(ctx, 'stroke', 3);
     return tile(ctx, (x, y) => {
-      const w = ctx.tileW, h = ctx.tileH;
+      const w = ctx.tileW,
+        h = ctx.tileH;
       return [
         {
           d: `M${f(x)} ${f(y + h)}L${f(x + w / 2)} ${f(y)}L${f(x + w)} ${f(y + h)}`,
@@ -197,53 +198,85 @@ export const scalePattern: PatternDef = {
 
 /** Periodic cubic wave: endpoints and tangents match on adjacent tiles. */
 export const wave: PatternDef = {
-  id: 'wave', label: 'Wave', defaults: { stroke: 1.5 },
-  build: (ctx) => tile(ctx, (x, y) => {
-    const w = ctx.tileW, h = ctx.tileH, mid = y + h / 2;
-    return [{ d: `M${f(x)} ${f(mid)}C${f(x + w / 6)} ${f(y)} ${f(x + w / 3)} ${f(y)} ${f(x + w / 2)} ${f(mid)}` +
-      `C${f(x + 2 * w / 3)} ${f(y + h)} ${f(x + 5 * w / 6)} ${f(y + h)} ${f(x + w)} ${f(mid)}`, fill: false }];
-  }),
+  id: 'wave',
+  label: 'Wave',
+  defaults: { stroke: 1.5 },
+  build: (ctx) =>
+    tile(ctx, (x, y) => {
+      const w = ctx.tileW,
+        h = ctx.tileH,
+        mid = y + h / 2;
+      return [
+        {
+          d:
+            `M${f(x)} ${f(mid)}C${f(x + w / 6)} ${f(y)} ${f(x + w / 3)} ${f(y)} ${f(x + w / 2)} ${f(mid)}` +
+            `C${f(x + (2 * w) / 3)} ${f(y + h)} ${f(x + (5 * w) / 6)} ${f(y + h)} ${f(x + w)} ${f(mid)}`,
+          fill: false,
+        },
+      ];
+    }),
 };
 
 /** Mid-edge vertices meet neighboring cells without overlapping duplicate edges. */
 export const diamond: PatternDef = {
-  id: 'diamond', label: 'Diamond', defaults: { stroke: 1.5 },
-  build: (ctx) => tile(ctx, (x, y) => {
-    const w = ctx.tileW, h = ctx.tileH;
-    return [{ d: `M${f(x + w / 2)} ${f(y)}L${f(x + w)} ${f(y + h / 2)}L${f(x + w / 2)} ${f(y + h)}L${f(x)} ${f(y + h / 2)}z`, fill: false }];
-  }),
+  id: 'diamond',
+  label: 'Diamond',
+  defaults: { stroke: 1.5 },
+  build: (ctx) =>
+    tile(ctx, (x, y) => {
+      const w = ctx.tileW,
+        h = ctx.tileH;
+      return [
+        {
+          d: `M${f(x + w / 2)} ${f(y)}L${f(x + w)} ${f(y + h / 2)}L${f(x + w / 2)} ${f(y + h)}L${f(x)} ${f(y + h / 2)}z`,
+          fill: false,
+        },
+      ];
+    }),
 };
 
 /** Two-turn Archimedean spiral, sampled deterministically inside each tile. */
 export const spiral: PatternDef = {
-  id: 'spiral', label: 'Spiral', defaults: { stroke: 1.5 },
-  build: (ctx) => tile(ctx, (x, y) => {
-    const points: string[] = [];
-    for (let i = 0; i <= 96; i++) {
-      const t = i / 96, angle = 4 * Math.PI * t;
-      points.push(`${f(x + ctx.tileW / 2 + ctx.tileW * .42 * t * Math.cos(angle))} ${f(y + ctx.tileH / 2 + ctx.tileH * .42 * t * Math.sin(angle))}`);
-    }
-    return [{ d: `M${points.join('L')}`, fill: false }];
-  }),
+  id: 'spiral',
+  label: 'Spiral',
+  defaults: { stroke: 1.5 },
+  build: (ctx) =>
+    tile(ctx, (x, y) => {
+      const points: string[] = [];
+      for (let i = 0; i <= 96; i++) {
+        const t = i / 96,
+          angle = 4 * Math.PI * t;
+        points.push(
+          `${f(x + ctx.tileW / 2 + ctx.tileW * 0.42 * t * Math.cos(angle))} ${f(y + ctx.tileH / 2 + ctx.tileH * 0.42 * t * Math.sin(angle))}`,
+        );
+      }
+      return [{ d: `M${points.join('L')}`, fill: false }];
+    }),
 };
 
 /** Staggered three-ring semicircular fans. Full repeat is tileW × tileH.
  * Edge fans deliberately extend outside the canvas; SVG/texture clipping is required.
  */
 export const seigaiha: PatternDef = {
-  id: 'seigaiha', label: 'Seigaiha', defaults: { stroke: 1.5 },
+  id: 'seigaiha',
+  label: 'Seigaiha',
+  defaults: { stroke: 1.5 },
   build: (ctx) => {
     const out: Path[] = [];
     const rows = Math.ceil(ctx.canvasH / (ctx.tileH / 2));
     const cols = Math.ceil(ctx.canvasW / ctx.tileW);
     for (let row = 1; row <= rows + 1; row++) {
-      const cy = row * ctx.tileH / 2;
+      const cy = (row * ctx.tileH) / 2;
       const shift = row % 2 === 0 ? ctx.tileW / 2 : 0;
       for (let col = -1; col <= cols; col++) {
         const cx = col * ctx.tileW + shift;
         for (const ratio of [1, 2 / 3, 1 / 3]) {
-          const rx = ctx.tileW * ratio / 2, ry = ctx.tileH * ratio / 2;
-          out.push({ d: `M${f(cx - rx)} ${f(cy)}A${f(rx)} ${f(ry)} 0 0 1 ${f(cx + rx)} ${f(cy)}`, fill: false });
+          const rx = (ctx.tileW * ratio) / 2,
+            ry = (ctx.tileH * ratio) / 2;
+          out.push({
+            d: `M${f(cx - rx)} ${f(cy)}A${f(rx)} ${f(ry)} 0 0 1 ${f(cx + rx)} ${f(cy)}`,
+            fill: false,
+          });
         }
       }
     }
@@ -256,21 +289,35 @@ export const seigaiha: PatternDef = {
  * Like edge fans, polygons outside the canvas are retained for renderer clipping.
  */
 export const herringbone: PatternDef = {
-  id: 'herringbone', label: 'Herringbone', defaults: { stroke: 1.5 },
+  id: 'herringbone',
+  label: 'Herringbone',
+  defaults: { stroke: 1.5 },
   build: (ctx) => {
     const out: Path[] = [];
-    const nx = ctx.canvasW / ctx.tileW, ny = ctx.canvasH / ctx.tileH;
-    const map = (u: number, v: number) => `${f((u - v) * ctx.tileW / 4)} ${f((u + v) * ctx.tileH / 4)}`;
+    const nx = ctx.canvasW / ctx.tileW,
+      ny = ctx.canvasH / ctx.tileH;
+    const map = (u: number, v: number) =>
+      `${f(((u - v) * ctx.tileW) / 4)} ${f(((u + v) * ctx.tileH) / 4)}`;
     for (let u = -3; u <= Math.ceil(2 * (nx + ny)) + 3; u++) {
       for (let v = Math.floor(-2 * nx) - 3; v <= Math.ceil(2 * ny) + 3; v++) {
-        const phase = ((u - v) % 4 + 4) % 4;
+        const phase = (((u - v) % 4) + 4) % 4;
         if (phase !== 0 && phase !== 3) continue;
-        const du = phase === 0 ? 2 : 1, dv = phase === 0 ? 1 : 2;
+        const du = phase === 0 ? 2 : 1,
+          dv = phase === 0 ? 1 : 2;
         // Reject polygons whose bounding boxes cannot touch the canvas.
-        const xs = [u - v, u + du - v, u + du - v - dv, u - v - dv].map((n) => n * ctx.tileW / 4);
-        const ys = [u + v, u + du + v, u + du + v + dv, u + v + dv].map((n) => n * ctx.tileH / 4);
-        if (Math.max(...xs) < 0 || Math.min(...xs) > ctx.canvasW || Math.max(...ys) < 0 || Math.min(...ys) > ctx.canvasH) continue;
-        out.push({ d: `M${map(u, v)}L${map(u + du, v)}L${map(u + du, v + dv)}L${map(u, v + dv)}z`, fill: false });
+        const xs = [u - v, u + du - v, u + du - v - dv, u - v - dv].map((n) => (n * ctx.tileW) / 4);
+        const ys = [u + v, u + du + v, u + du + v + dv, u + v + dv].map((n) => (n * ctx.tileH) / 4);
+        if (
+          Math.max(...xs) < 0 ||
+          Math.min(...xs) > ctx.canvasW ||
+          Math.max(...ys) < 0 ||
+          Math.min(...ys) > ctx.canvasH
+        )
+          continue;
+        out.push({
+          d: `M${map(u, v)}L${map(u + du, v)}L${map(u + du, v + dv)}L${map(u, v + dv)}z`,
+          fill: false,
+        });
       }
     }
     return out;
@@ -279,15 +326,27 @@ export const herringbone: PatternDef = {
 
 /** Square geometric lattice inspired by kumiko, not a traditional joinery plan. */
 export const kumiko: PatternDef = {
-  id: 'kumiko', label: 'Kumiko-inspired', defaults: { stroke: 1.5 },
-  build: (ctx) => tile(ctx, (x, y) => {
-    const w = ctx.tileW, h = ctx.tileH, cx = x + w / 2, cy = y + h / 2;
-    return [
-      { d: `M${f(x)} ${f(y)}L${f(x + w)} ${f(y + h)}M${f(x + w)} ${f(y)}L${f(x)} ${f(y + h)}`, fill: false },
-      { d: `M${f(cx)} ${f(y)}L${f(x + w)} ${f(cy)}L${f(cx)} ${f(y + h)}L${f(x)} ${f(cy)}z`, fill: false },
-      { d: `M${f(cx)} ${f(y)}V${f(y + h)}M${f(x)} ${f(cy)}H${f(x + w)}`, fill: false },
-    ];
-  }),
+  id: 'kumiko',
+  label: 'Kumiko-inspired',
+  defaults: { stroke: 1.5 },
+  build: (ctx) =>
+    tile(ctx, (x, y) => {
+      const w = ctx.tileW,
+        h = ctx.tileH,
+        cx = x + w / 2,
+        cy = y + h / 2;
+      return [
+        {
+          d: `M${f(x)} ${f(y)}L${f(x + w)} ${f(y + h)}M${f(x + w)} ${f(y)}L${f(x)} ${f(y + h)}`,
+          fill: false,
+        },
+        {
+          d: `M${f(cx)} ${f(y)}L${f(x + w)} ${f(cy)}L${f(cx)} ${f(y + h)}L${f(x)} ${f(cy)}z`,
+          fill: false,
+        },
+        { d: `M${f(cx)} ${f(y)}V${f(y + h)}M${f(x)} ${f(cy)}H${f(x + w)}`, fill: false },
+      ];
+    }),
 };
 
 /** Twelve base patterns; stencil manufacturability is evaluated separately. */

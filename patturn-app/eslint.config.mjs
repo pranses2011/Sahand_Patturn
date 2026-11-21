@@ -1,3 +1,4 @@
+import boundaries from './scripts/import-boundaries.mjs';
 import tsParser from '@typescript-eslint/parser';
 
 // Correctness checks, not formatting. TypeScript remains responsible for types.
@@ -29,11 +30,22 @@ const correctnessRules = {
 };
 
 export default [
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/target/**', '**/gen/**', '**/.cache/**', 'test-results/**', 'playwright-report/**'] },
+  {
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/target/**',
+      '**/gen/**',
+      '**/.cache/**',
+      'test-results/**',
+      'playwright-report/**',
+    ],
+  },
   {
     files: ['**/*.{js,mjs,cjs,ts,tsx}'],
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },
-    rules: correctnessRules,
+    plugins: { architecture: { rules: { boundaries } } },
+    rules: { ...correctnessRules, 'architecture/boundaries': 'error' },
   },
   {
     files: ['**/*.{ts,tsx}'],

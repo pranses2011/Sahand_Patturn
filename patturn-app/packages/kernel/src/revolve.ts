@@ -52,12 +52,17 @@ export function revolve(profile: Profile, opts: RevolveOptions = {}): Mesh {
 
   // Side surfaces between consecutive entries
   for (let i = 0; i < layout.length - 1; i++) {
-    const A = layout[i]!, B = layout[i + 1]!;
+    const A = layout[i]!,
+      B = layout[i + 1]!;
     if (A.kind === 'ring' && B.kind === 'ring') {
-      const a0 = A.start, b0 = B.start;
+      const a0 = A.start,
+        b0 = B.start;
       for (let s = 0; s < seg; s++) {
         const s2 = (s + 1) % seg;
-        const a = a0 + s, b = a0 + s2, c = b0 + s2, d = b0 + s;
+        const a = a0 + s,
+          b = a0 + s2,
+          c = b0 + s2,
+          d = b0 + s;
         indices.push(a, c, b, a, d, c);
       }
     } else if (A.kind === 'apex' && B.kind === 'ring') {
@@ -113,13 +118,22 @@ export function revolve(profile: Profile, opts: RevolveOptions = {}): Mesh {
 
 /** Signed volume via divergence theorem (positive if outward normals). */
 export function signedVolume(m: Mesh): number {
-  const p = m.positions, idx = m.indices;
+  const p = m.positions,
+    idx = m.indices;
   let v = 0;
   for (let i = 0; i < idx.length; i += 3) {
-    const a = idx[i]! * 3, b = idx[i + 1]! * 3, c = idx[i + 2]! * 3;
-    const ax = p[a]!, ay = p[a + 1]!, az = p[a + 2]!;
-    const bx = p[b]!, by = p[b + 1]!, bz = p[b + 2]!;
-    const cx = p[c]!, cy = p[c + 1]!, cz = p[c + 2]!;
+    const a = idx[i]! * 3,
+      b = idx[i + 1]! * 3,
+      c = idx[i + 2]! * 3;
+    const ax = p[a]!,
+      ay = p[a + 1]!,
+      az = p[a + 2]!;
+    const bx = p[b]!,
+      by = p[b + 1]!,
+      bz = p[b + 2]!;
+    const cx = p[c]!,
+      cy = p[c + 1]!,
+      cz = p[c + 2]!;
     v += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
   }
   return v;

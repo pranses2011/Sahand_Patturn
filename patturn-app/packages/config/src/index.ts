@@ -39,9 +39,37 @@ export const AUTHOR = {
 
 /** Plans — single source of truth (used by quota enforcement). */
 export const PLANS = {
-  free: { name: 'Free', priceMonthly: 0, projects: 3, segments: 48, exportsPerMonth: 10, multiPartMold: false, mother: false, tools: 'core' },
-  maker: { name: 'Maker', priceMonthly: 9, projects: Infinity, segments: 96, exportsPerMonth: 200, multiPartMold: true, mother: true, tools: 'all' },
-  studio: { name: 'Studio', priceMonthly: 24, projects: Infinity, segments: 256, exportsPerMonth: Infinity, multiPartMold: true, mother: true, tools: 'all+beta', teamLibrary: true },
+  free: {
+    name: 'Free',
+    priceMonthly: 0,
+    projects: 3,
+    segments: 48,
+    exportsPerMonth: 10,
+    multiPartMold: false,
+    mother: false,
+    tools: 'core',
+  },
+  maker: {
+    name: 'Maker',
+    priceMonthly: 9,
+    projects: Infinity,
+    segments: 96,
+    exportsPerMonth: 200,
+    multiPartMold: true,
+    mother: true,
+    tools: 'all',
+  },
+  studio: {
+    name: 'Studio',
+    priceMonthly: 24,
+    projects: Infinity,
+    segments: 256,
+    exportsPerMonth: Infinity,
+    multiPartMold: true,
+    mother: true,
+    tools: 'all+beta',
+    teamLibrary: true,
+  },
 } as const;
 
 export type PlanId = keyof typeof PLANS;
@@ -56,6 +84,16 @@ export const UNITS = {
 
 /** User-facing names; persisted pattern IDs stay language independent. */
 export const PATTERN_NAMES_FA: Record<string, string> = {
-  'dot-grid': 'شبکهٔ نقطه‌ای', stripes: 'راه‌راه', grid: 'شبکهٔ مربعی',
-  chevron: 'زیگزاگ', hex: 'شش‌ضلعی', scale: 'فلس', wave: 'موج', diamond: 'لوزی', spiral: 'مارپیچ', seigaiha: 'موج ژاپنی', herringbone: 'جناغی', kumiko: 'الهام از کومیکو',
+  'dot-grid': 'شبکهٔ نقطه‌ای',
+  stripes: 'راه‌راه',
+  grid: 'شبکهٔ مربعی',
+  chevron: 'زیگزاگ',
+  hex: 'شش‌ضلعی',
+  scale: 'فلس',
+  wave: 'موج',
+  diamond: 'لوزی',
+  spiral: 'مارپیچ',
+  seigaiha: 'موج ژاپنی',
+  herringbone: 'جناغی',
+  kumiko: 'الهام از کومیکو',
 };

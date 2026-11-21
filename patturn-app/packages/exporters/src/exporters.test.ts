@@ -23,7 +23,11 @@ describe('X — exporters', () => {
   });
 
   it('X3: invalid mesh (open) is rejected', () => {
-    const openMesh = revolve(referenceOuterProfile(8), { segments: 8, closeBottom: false, closeTop: false });
+    const openMesh = revolve(referenceOuterProfile(8), {
+      segments: 8,
+      closeBottom: false,
+      closeTop: false,
+    });
     const res = toBinaryStl(openMesh, 'bad');
     expect(res.ok).toBe(false);
     expect(res.error).toContain('MESH_INVALID');
@@ -31,7 +35,12 @@ describe('X — exporters', () => {
 
   it('X4: SVG declares mm units and viewBox matches canvas', () => {
     const paths = dotGrid.build({
-      canvasW: 300, canvasH: 200, tileW: 40, tileH: 40, seed: 1, params: { radius: 2 },
+      canvasW: 300,
+      canvasH: 200,
+      tileW: 40,
+      tileH: 40,
+      seed: 1,
+      params: { radius: 2 },
     });
     const res = toSvg(paths, 300, 200);
     const text = new TextDecoder().decode(res.bytes!);
@@ -56,7 +65,9 @@ describe('X — exporters', () => {
   });
 
   it('X7: export naming contract — slug_target_dims.ext', () => {
-    expect(exportName('گلدان بلند', 'mold-part', '145x148', 'stl')).toBe('گلدان-بلند_mold-part_145x148.stl');
+    expect(exportName('گلدان بلند', 'mold-part', '145x148', 'stl')).toBe(
+      'گلدان-بلند_mold-part_145x148.stl',
+    );
     expect(exportName('  /// ', 'form', '0x0', 'stl')).toBe('project_form_0x0.stl');
   });
 });

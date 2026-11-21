@@ -1,0 +1,2 @@
+# Keep checked source/config formatting stable on Windows and Linux.
+patturn-app/** text=auto eol=lf

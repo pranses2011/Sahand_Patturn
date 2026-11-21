@@ -4,10 +4,15 @@ import type { Path, PatternDef } from '@patturn/patterns';
 export function createPatternCanvas(def: PatternDef, tileSize: number): () => Path[] {
   let cached: Path[] | undefined;
   return () => {
-    if (cached === undefined) cached = def.build({
-      canvasW: 300, canvasH: 300, tileW: tileSize, tileH: tileSize, seed: 42,
-      params: { ...def.defaults },
-    });
+    if (cached === undefined)
+      cached = def.build({
+        canvasW: 300,
+        canvasH: 300,
+        tileW: tileSize,
+        tileH: tileSize,
+        seed: 42,
+        params: { ...def.defaults },
+      });
     return cached;
   };
 }

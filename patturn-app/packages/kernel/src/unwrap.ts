@@ -108,9 +108,8 @@ export function unwrapCylinder(mesh: Mesh, opts: UnwrapOptions = {}): UnwrapResu
       cornerUvs[(t * 3 + k) * 2 + 1] = cv[k]!;
     }
     // UV area (shoelace, mm²)
-    const auv = Math.abs(
-      (cu[1]! - cu[0]!) * (cv[2]! - cv[0]!) - (cu[2]! - cu[0]!) * (cv[1]! - cv[0]!),
-    ) / 2;
+    const auv =
+      Math.abs((cu[1]! - cu[0]!) * (cv[2]! - cv[0]!) - (cu[2]! - cu[0]!) * (cv[1]! - cv[0]!)) / 2;
     if (auv < 1e-9) {
       skipped++; // caps & degenerate — excluded from metric
       continue;

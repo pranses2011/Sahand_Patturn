@@ -1,12 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import { validateMesh, referenceOuterProfile, revolve } from '@patturn/kernel';
-import { initCsg, buildBlock, toValidatedMesh, buildOffsetBarrier, buildSingleMold, buildSplitMold, motherAssemblyGuide, analyzeMotherRelease } from './csg.js';
+import {
+  initCsg,
+  buildBlock,
+  toValidatedMesh,
+  buildOffsetBarrier,
+  buildSingleMold,
+  buildSplitMold,
+  motherAssemblyGuide,
+  analyzeMotherRelease,
+} from './csg.js';
 import { chooseSplitPlanes } from './index.js';
 import { toBinaryStl } from '@patturn/exporters';
 
 async function cube() {
   await initCsg();
-  return toValidatedMesh(buildBlock({ min: [-15, 0, -25], max: [15, 40, 25], wall: 0, base: 0, draftDeg: 0 }));
+  return toValidatedMesh(
+    buildBlock({ min: [-15, 0, -25], max: [15, 40, 25], wall: 0, base: 0, draftDeg: 0 }),
+  );
 }
 
 function extent(values: Float32Array, axis: number, mode: 'min' | 'max') {
@@ -31,7 +42,8 @@ describe('Conformal offset barrier', () => {
     const xs: number[] = [];
     const p = result.halves[0].positions;
     for (let i = 0; i < p.length; i += 3) {
-      if (Math.abs(p[i + 2]!) < 1e-5 && p[i + 1]! >= 0 && p[i + 1]! <= 40 && p[i]! > 15) xs.push(p[i]!);
+      if (Math.abs(p[i + 2]!) < 1e-5 && p[i + 1]! >= 0 && p[i + 1]! <= 40 && p[i]! > 15)
+        xs.push(p[i]!);
     }
     expect(Math.min(...xs)).toBeCloseTo(17, 4);
     expect(Math.max(...xs)).toBeCloseTo(19, 4);
@@ -40,24 +52,36 @@ describe('Conformal offset barrier', () => {
 
   it('B2: rounded box offset volume agrees with analytic dilation within tessellation tolerance', async () => {
     const result = await buildOffsetBarrier(await cube());
-    const dilation = (r: number) => 2 * (30 * 40 + 30 * 50 + 40 * 50) * r + Math.PI * (30 + 40 + 50) * r * r + 4 / 3 * Math.PI * r ** 3;
+    const dilation = (r: number) =>
+      2 * (30 * 40 + 30 * 50 + 40 * 50) * r +
+      Math.PI * (30 + 40 + 50) * r * r +
+      (4 / 3) * Math.PI * r ** 3;
     const expected = dilation(4) - dilation(2);
     const actual = result.halves.reduce((sum, p) => sum + p.meta!.volumeMm3!, 0);
     expect(Math.abs(actual - expected) / expected).toBeLessThan(0.01);
   });
 
   it('B3: handles the real nonconvex plaster master', async () => {
-    const master = await buildSingleMold(revolve(referenceOuterProfile(8), { segments: 16, closeBottom: true, closeTop: true }));
+    const master = await buildSingleMold(
+      revolve(referenceOuterProfile(8), { segments: 16, closeBottom: true, closeTop: true }),
+    );
     const result = await buildOffsetBarrier(master, { segments: 16 });
     for (const half of result.halves) expect(validateMesh(half).ok).toBe(true);
   }, 30000);
 
   it('B4: rejects invalid dimensions and insufficient offset resolution', async () => {
     const master = await cube();
-    for (const opts of [{ clearanceMm: 0 }, { thicknessMm: NaN }, { segments: 15 }, { segments: 128 }]) {
+    for (const opts of [
+      { clearanceMm: 0 },
+      { thicknessMm: NaN },
+      { segments: 15 },
+      { segments: 128 },
+    ]) {
       await expect(buildOffsetBarrier(master, opts)).rejects.toThrow('BARRIER_INVALID_OPTIONS');
     }
-    await expect(buildOffsetBarrier(master, { thicknessMm: 100, segments: 16 })).rejects.toThrow('BARRIER_OFFSET_TOLERANCE');
+    await expect(buildOffsetBarrier(master, { thicknessMm: 100, segments: 16 })).rejects.toThrow(
+      'BARRIER_OFFSET_TOLERANCE',
+    );
   });
   it('B5: keyed mold parts retain closed exportable integrated jackets', async () => {
     const profile = referenceOuterProfile(8);
@@ -83,15 +107,21 @@ describe('Conformal offset barrier', () => {
     for (const port of result.casting!.ports) expect(port.removedVolumeMm3).toBeGreaterThan(1);
     for (const half of result.halves) expect(toBinaryStl(half).ok).toBe(true);
     expect(result.halves[0].meta!.volumeMm3!).toBeGreaterThan(bare.halves[0].meta!.volumeMm3!);
-    await expect(buildOffsetBarrier(master, { segments: 16, casting: { flangeMm: -1 } })).rejects.toThrow('BARRIER_INVALID_CASTING');
-    await expect(buildOffsetBarrier(master, { segments: 16, casting: { sprueDia: 500 } })).rejects.toThrow('BARRIER_TOP_PORTS_DO_NOT_FIT');
+    await expect(
+      buildOffsetBarrier(master, { segments: 16, casting: { flangeMm: -1 } }),
+    ).rejects.toThrow('BARRIER_INVALID_CASTING');
+    await expect(
+      buildOffsetBarrier(master, { segments: 16, casting: { sprueDia: 500 } }),
+    ).rejects.toThrow('BARRIER_TOP_PORTS_DO_NOT_FIT');
   });
 
   it('B7: fastener holes cross BOTH flanges at identical XY and reject unsafe edge clearance', async () => {
     const result = await buildOffsetBarrier(await cube(), { segments: 16, casting: {} });
     result.release = await analyzeMotherRelease(await cube(), result.halves);
     expect(result.release.halves).toHaveLength(2);
-    expect(result.release.halves.every((half) => half.status === 'no-collision-at-samples')).toBe(true);
+    expect(result.release.halves.every((half) => half.status === 'no-collision-at-samples')).toBe(
+      true,
+    );
     const guide = motherAssemblyGuide(result);
     expect(guide).toContain('بدون تأیید پیوستهٔ جدایش');
     expect(guide).toContain('تضمین جدایش نیست');
@@ -102,7 +132,8 @@ describe('Conformal offset barrier', () => {
     const { centers, holeDia } = result.casting!.fasteners;
     // A hole center must not lie inside any flange triangle on the splitting face.
     const insideTriangle = (x: number, y: number, a: number[], b: number[], c: number[]) => {
-      const cross = (p: number[], q: number[]) => (q[0]! - p[0]!) * (y - p[1]!) - (q[1]! - p[1]!) * (x - p[0]!);
+      const cross = (p: number[], q: number[]) =>
+        (q[0]! - p[0]!) * (y - p[1]!) - (q[1]! - p[1]!) * (x - p[0]!);
       const signs = [cross(a, b), cross(b, c), cross(c, a)];
       return signs.every((n) => n > 1e-6) || signs.every((n) => n < -1e-6);
     };
@@ -110,8 +141,11 @@ describe('Conformal offset barrier', () => {
       const p = half.positions;
       let splitTriangles = 0;
       for (let i = 0; i < half.indices.length; i += 3) {
-        const tri = [half.indices[i]!, half.indices[i + 1]!, half.indices[i + 2]!]
-          .map((v) => [p[v * 3]!, p[v * 3 + 1]!, p[v * 3 + 2]!]);
+        const tri = [half.indices[i]!, half.indices[i + 1]!, half.indices[i + 2]!].map((v) => [
+          p[v * 3]!,
+          p[v * 3 + 1]!,
+          p[v * 3 + 2]!,
+        ]);
         if (!tri.every((v) => Math.abs(v[2]!) < 1e-5)) continue;
         splitTriangles++;
         for (const [x, y] of centers) {
@@ -122,10 +156,11 @@ describe('Conformal offset barrier', () => {
       expect(splitTriangles).toBeGreaterThan(0);
       expect(toBinaryStl(half).ok).toBe(true);
     }
-    await expect(buildOffsetBarrier(await cube(), { casting: { flangeMm: 10 } }))
-      .rejects.toThrow('BARRIER_FLANGE_TOO_NARROW_FOR_BOLTS');
-    await expect(buildOffsetBarrier(await cube(), { casting: { boltHoleDia: NaN } }))
-      .rejects.toThrow('BARRIER_INVALID_CASTING');
+    await expect(buildOffsetBarrier(await cube(), { casting: { flangeMm: 10 } })).rejects.toThrow(
+      'BARRIER_FLANGE_TOO_NARROW_FOR_BOLTS',
+    );
+    await expect(
+      buildOffsetBarrier(await cube(), { casting: { boltHoleDia: NaN } }),
+    ).rejects.toThrow('BARRIER_INVALID_CASTING');
   });
-
 });

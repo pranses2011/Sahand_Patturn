@@ -22,7 +22,8 @@ export class ParamGraph {
 
   add(node: ParamNode): void {
     if (this.nodes.has(node.id)) throw new Error(`duplicate node: ${node.id}`);
-    if (node.type === 'derive' && !node.derive) throw new Error(`derive node without fn: ${node.id}`);
+    if (node.type === 'derive' && !node.derive)
+      throw new Error(`derive node without fn: ${node.id}`);
     this.nodes.set(node.id, node);
   }
 
@@ -79,7 +80,8 @@ export class ParamGraph {
   private invalidate(ids: Set<string>): void {
     for (const id of ids) {
       for (const key of [...this.cache.keys()]) {
-        if (key.startsWith(`${id}@`) || key === id || key.startsWith(`${id}=`)) this.cache.delete(key);
+        if (key.startsWith(`${id}@`) || key === id || key.startsWith(`${id}=`))
+          this.cache.delete(key);
       }
       // cache keys embed node id as prefix "<deriveId>@..." — drop all entries for dirty derive nodes
       for (const key of [...this.cache.keys()]) {

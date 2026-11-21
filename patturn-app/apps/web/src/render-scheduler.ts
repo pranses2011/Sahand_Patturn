@@ -1,9 +1,11 @@
 /** Coalesced on-demand frames. render() may invalidate again (OrbitControls damping).
  * Disposal prevents queued or stale callbacks from reviving an unmounted viewport.
  */
-export function createRenderScheduler(render: () => void,
+export function createRenderScheduler(
+  render: () => void,
   request: (callback: FrameRequestCallback) => number = requestAnimationFrame,
-  cancel: (id: number) => void = cancelAnimationFrame) {
+  cancel: (id: number) => void = cancelAnimationFrame,
+) {
   let pending: number | null = null;
   let disposed = false;
   let paused = false;

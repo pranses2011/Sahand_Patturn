@@ -2,7 +2,11 @@ import { EditorState, type EditorState as State } from '@patturn/schema';
 
 export const EDITOR_HISTORY_KEY = 'patturn:editor-history:v1';
 export const HISTORY_LIMIT = 10;
-export interface HistoryEntry { id: string; savedAt: string; state: State }
+export interface HistoryEntry {
+  id: string;
+  savedAt: string;
+  state: State;
+}
 export interface HistoryStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -10,7 +14,10 @@ export interface HistoryStorage {
 
 /** One atomic localStorage write contains current state and its bounded history. */
 export class EditorHistory {
-  constructor(private storage: HistoryStorage, private patterns: readonly string[]) {}
+  constructor(
+    private storage: HistoryStorage,
+    private patterns: readonly string[],
+  ) {}
   private state(input: unknown): State {
     const state = EditorState.parse(input);
     if (!this.patterns.includes(state.patternId)) throw new Error('HISTORY_UNKNOWN_PATTERN');
@@ -29,11 +36,23 @@ export class EditorHistory {
     }
     if (raw.length > 256 * 1024) throw new Error('HISTORY_TOO_LARGE');
     const document = JSON.parse(raw);
-    if (document?.version !== 1 || !Array.isArray(document.entries) || document.entries.length > HISTORY_LIMIT) throw new Error('HISTORY_INVALID_FORMAT');
+    if (
+      document?.version !== 1 ||
+      !Array.isArray(document.entries) ||
+      document.entries.length > HISTORY_LIMIT
+    )
+      throw new Error('HISTORY_INVALID_FORMAT');
     const ids = new Set<string>();
     return document.entries.map((entry: HistoryEntry) => {
-      if (!entry || typeof entry.id !== 'string' || !entry.id || ids.has(entry.id) ||
-          typeof entry.savedAt !== 'string' || !Number.isFinite(Date.parse(entry.savedAt))) throw new Error('HISTORY_INVALID_ENTRY');
+      if (
+        !entry ||
+        typeof entry.id !== 'string' ||
+        !entry.id ||
+        ids.has(entry.id) ||
+        typeof entry.savedAt !== 'string' ||
+        !Number.isFinite(Date.parse(entry.savedAt))
+      )
+        throw new Error('HISTORY_INVALID_ENTRY');
       ids.add(entry.id);
       return { id: entry.id, savedAt: entry.savedAt, state: this.state(entry.state) };
     });

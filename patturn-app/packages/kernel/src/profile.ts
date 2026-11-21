@@ -60,7 +60,10 @@ export function referenceProfile(samples = 64): Profile {
 export function referenceOuterProfile(samples = 64): Profile {
   const inner = referenceProfile(samples);
   const floorY = -REFERENCE.wall;
-  const outer: ProfilePoint[] = [{ r: 0, y: floorY }, { r: REFERENCE.RB + REFERENCE.wall, y: floorY }];
+  const outer: ProfilePoint[] = [
+    { r: 0, y: floorY },
+    { r: REFERENCE.RB + REFERENCE.wall, y: floorY },
+  ];
   for (const p of inner) outer.push({ r: p.r + REFERENCE.wall, y: p.y });
   // rim lip: close top from inner rim to outer rim
   const top = inner[inner.length - 1]!;
@@ -81,12 +84,17 @@ export function catmullRom(nodes: ProfilePoint[], samplesPerSeg = 12): Profile {
     },
   ];
   for (let i = 1; i < ext.length - 2; i++) {
-    const p0 = ext[i - 1]!, p1 = ext[i]!, p2 = ext[i + 1]!, p3 = ext[i + 2]!;
+    const p0 = ext[i - 1]!,
+      p1 = ext[i]!,
+      p2 = ext[i + 1]!,
+      p3 = ext[i + 2]!;
     for (let s = 0; s < samplesPerSeg; s++) {
       const t = s / samplesPerSeg;
-      const t2 = t * t, t3 = t2 * t;
+      const t2 = t * t,
+        t3 = t2 * t;
       const cr = (a: number, b: number, c: number, d: number) =>
-        0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+        0.5 *
+        (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
       pts.push({ r: Math.max(0, cr(p0.r, p1.r, p2.r, p3.r)), y: cr(p0.y, p1.y, p2.y, p3.y) });
     }
   }
@@ -111,10 +119,12 @@ export function validateProfile(p: Profile): string | null {
  * offset or a hollow printable solid. Coordinates and outer silhouette stay fixed.
  */
 export function radialCavityProfile(outer: Profile, wall: number): Profile {
-  if (!Number.isFinite(wall) || wall <= 0 || outer.length < 2) throw new Error('CAVITY_INVALID_INPUT');
+  if (!Number.isFinite(wall) || wall <= 0 || outer.length < 2)
+    throw new Error('CAVITY_INVALID_INPUT');
   const envelope: Profile = [];
   for (const point of outer) {
-    if (!Number.isFinite(point.r) || !Number.isFinite(point.y) || point.r < 0) throw new Error('CAVITY_INVALID_PROFILE');
+    if (!Number.isFinite(point.r) || !Number.isFinite(point.y) || point.r < 0)
+      throw new Error('CAVITY_INVALID_PROFILE');
     const last = envelope.at(-1);
     if (last && point.y < last.y) throw new Error('CAVITY_PROFILE_NOT_MONOTONE');
     if (last && point.y === last.y) last.r = Math.max(last.r, point.r);
@@ -125,7 +135,8 @@ export function radialCavityProfile(outer: Profile, wall: number): Profile {
   if (bottom >= top) throw new Error('WALL_CLOSES_CAVITY');
   const cavity: Profile = [];
   for (let i = 1; i < envelope.length; i++) {
-    const a = envelope[i - 1]!, b = envelope[i]!;
+    const a = envelope[i - 1]!,
+      b = envelope[i]!;
     if (b.y < bottom) continue;
     if (!cavity.length) {
       const t = (bottom - a.y) / (b.y - a.y);

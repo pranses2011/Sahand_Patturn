@@ -83,14 +83,19 @@ describe('M — molds', () => {
     const { plasterKg, waterKg } = plasterMix(1.84);
     expect(plasterKg).toBeGreaterThan(1.72 * 0.98);
     expect(plasterKg).toBeLessThan(1.72 * 1.02);
-    expect(waterKg).toBeGreaterThan(1.20 * 0.98);
-    expect(waterKg).toBeLessThan(1.20 * 1.02);
+    expect(waterKg).toBeGreaterThan(1.2 * 0.98);
+    expect(waterKg).toBeLessThan(1.2 * 1.02);
   });
 
   it('M10: bucket (narrows upward) → horizontal split at y≈0', () => {
     const profile = [
-      { r: 0, y: -4 }, { r: 72.5, y: -4 }, { r: 72.5, y: 0 },
-      { r: 66, y: 60 }, { r: 60, y: 120 }, { r: 58, y: 148 }, { r: 54, y: 148 },
+      { r: 0, y: -4 },
+      { r: 72.5, y: -4 },
+      { r: 72.5, y: 0 },
+      { r: 66, y: 60 },
+      { r: 60, y: 120 },
+      { r: 58, y: 148 },
+      { r: 54, y: 148 },
     ];
     const plan = chooseSplitPlanes(profile);
     expect(plan.kind).toBe('horizontal');
@@ -104,13 +109,20 @@ describe('M — molds', () => {
 
   it('M11: clean belly → horizontal at max-r y=70; cone → none', () => {
     const belly = [
-      { r: 30, y: 0 }, { r: 60, y: 50 }, { r: 65, y: 70 }, { r: 40, y: 130 },
+      { r: 30, y: 0 },
+      { r: 60, y: 50 },
+      { r: 65, y: 70 },
+      { r: 40, y: 130 },
     ];
     const p1 = chooseSplitPlanes(belly);
     expect(p1.kind).toBe('horizontal');
     expect(p1.y).toBeCloseTo(70, 6);
     expect(p1.balance).toBeGreaterThan(0.1);
-    const cone = [{ r: 20, y: 0 }, { r: 40, y: 60 }, { r: 60, y: 120 }];
+    const cone = [
+      { r: 20, y: 0 },
+      { r: 40, y: 60 },
+      { r: 60, y: 120 },
+    ];
     const p2 = chooseSplitPlanes(cone);
     expect(p2.kind).toBe('none');
     expect(p2.parts).toBe(1);
@@ -119,7 +131,11 @@ describe('M — molds', () => {
 
   it('M12: flare-top vase (M2 profile) → vertical split', () => {
     const profile = [
-      { r: 30, y: 0 }, { r: 60, y: 50 }, { r: 65, y: 70 }, { r: 40, y: 130 }, { r: 45, y: 150 },
+      { r: 30, y: 0 },
+      { r: 60, y: 50 },
+      { r: 65, y: 70 },
+      { r: 40, y: 130 },
+      { r: 45, y: 150 },
     ];
     const plan = chooseSplitPlanes(profile);
     expect(plan.kind).toBe('vertical');

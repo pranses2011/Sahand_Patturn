@@ -11,8 +11,12 @@ export interface BuildBundle {
   meshes: { path: string; mesh: Mesh }[];
   files?: { path: string; bytes: Uint8Array }[];
   instructions: string;
-  dxfPatterns?: { path: string; paths: { d: string; fill?: boolean }[];
-    bounds: { width: number; height: number }; bezierToleranceMm?: number }[];
+  dxfPatterns?: {
+    path: string;
+    paths: { d: string; fill?: boolean }[];
+    bounds: { width: number; height: number };
+    bezierToleranceMm?: number;
+  }[];
   assemblies?: { path: string; parts: ObjPart[] }[];
 }
 
@@ -27,8 +31,22 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
   const paths = new Set<string>(['readme.txt', 'manifest.json']);
   const reservePath = (path: string) => {
     // Reject traversal, Windows drive/ADS syntax, controls and unsafe segments.
-    if (!path || path.includes('\\') || /[:\x00-\x1f\x7f]/.test(path) ||
-        path.split('/').some((p) => !p || p === '.' || p === '..' || /[. ]$/.test(p) || /[<>"|?*]/.test(p) || /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)/i.test(p))) {
+    if (
+      !path ||
+      path.includes('\\') ||
+      /[:\x00-\x1f\x7f]/.test(path) ||
+      path
+        .split('/')
+        .some(
+          (p) =>
+            !p ||
+            p === '.' ||
+            p === '..' ||
+            /[. ]$/.test(p) ||
+            /[<>"|?*]/.test(p) ||
+            /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)/i.test(p),
+        )
+    ) {
       throw new Error(`BUNDLE_UNSAFE_PATH:${path}`);
     }
     const key = path.normalize('NFC').toLowerCase();
@@ -46,8 +64,12 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     entries.set(path, snapshot ? bytes.slice() : bytes);
   };
   try {
-    const fileCount = input.meshes.length + (input.assemblies?.length ?? 0)
-      + (input.dxfPatterns?.length ?? 0) + (input.files?.length ?? 0) + 2;
+    const fileCount =
+      input.meshes.length +
+      (input.assemblies?.length ?? 0) +
+      (input.dxfPatterns?.length ?? 0) +
+      (input.files?.length ?? 0) +
+      2;
     if (fileCount > BUNDLE_LIMITS.files) throw new Error('BUNDLE_TOO_MANY_FILES');
     for (const group of [input.meshes, input.assemblies, input.dxfPatterns, input.files]) {
       for (const item of group ?? []) reservePath(item.path);
@@ -75,25 +97,38 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     }
     for (const item of input.files ?? []) {
       // Extra files must not bypass STL validation or introduce arbitrary archives.
-      if (!/\.(txt|json|svg|pdf|patturn)$/i.test(item.path)) throw new Error('BUNDLE_EXTRA_EXTENSION');
+      if (!/\.(txt|json|svg|pdf|patturn)$/i.test(item.path))
+        throw new Error('BUNDLE_EXTRA_EXTENSION');
       // Compression may run in a worker; never expose caller-owned backing bytes.
       add(item.path, item.bytes, true);
     }
     const guide = strToU8('\uFEFF' + input.instructions);
     budget.add(guide.byteLength);
     entries.set('README.txt', guide);
-    const manifest = strToU8(JSON.stringify({
-      version: 1, project, units: 'mm',
-      stlValidated: true,
-      objValidated: true,
-      files: [...entries].map(([path, bytes]) => ({ path, bytes: bytes.length })).sort((a, b) => a.path < b.path ? -1 : 1),
-    }, null, 2));
+    const manifest = strToU8(
+      JSON.stringify(
+        {
+          version: 1,
+          project,
+          units: 'mm',
+          stlValidated: true,
+          objValidated: true,
+          files: [...entries]
+            .map(([path, bytes]) => ({ path, bytes: bytes.length }))
+            .sort((a, b) => (a.path < b.path ? -1 : 1)),
+        },
+        null,
+        2,
+      ),
+    );
     budget.add(manifest.byteLength);
     entries.set('manifest.json', manifest);
-  } catch (e) { return fail(String(e)); }
+  } catch (e) {
+    return fail(String(e));
+  }
   if (signal?.aborted) return fail('EXPORT_CANCELLED');
   const archive: Zippable = {};
-  for (const [path, bytes] of [...entries].sort(([a], [b]) => a < b ? -1 : 1)) {
+  for (const [path, bytes] of [...entries].sort(([a], [b]) => (a < b ? -1 : 1))) {
     archive[path] = [bytes, { mtime: new Date(2000, 0, 1), level: 6 }];
   }
   return new Promise((resolve) => {
@@ -105,7 +140,10 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
       signal?.removeEventListener('abort', abort);
       resolve(output);
     };
-    const abort = () => { cancel?.(); finish(fail('EXPORT_CANCELLED')); };
+    const abort = () => {
+      cancel?.();
+      finish(fail('EXPORT_CANCELLED'));
+    };
     signal?.addEventListener('abort', abort, { once: true });
     try {
       cancel = zip(archive, { level: 6 }, (error, bytes) => {
@@ -113,6 +151,8 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
         else finish({ ok: true, filename: exportName(project, 'build', 'mm', 'zip'), bytes });
       });
       if (signal?.aborted) abort();
-    } catch (e) { finish(fail(`ZIP_FAILED:${String(e)}`)); }
+    } catch (e) {
+      finish(fail(`ZIP_FAILED:${String(e)}`));
+    }
   });
 }

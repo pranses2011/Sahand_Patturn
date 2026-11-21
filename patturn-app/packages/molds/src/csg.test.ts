@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { initCsg, buildSingleMold, makeKeyMale, makeKeyFemale, csgReady, buildBlock, buildSplitMold } from './csg.js';
+import {
+  initCsg,
+  buildSingleMold,
+  makeKeyMale,
+  makeKeyFemale,
+  csgReady,
+  buildBlock,
+  buildSplitMold,
+} from './csg.js';
 import { chooseSplitPlanes } from './index.js';
 import { referenceOuterProfile, revolve, validateMesh, type Mesh } from '@patturn/kernel';
 
@@ -7,7 +15,8 @@ beforeAll(async () => {
   await initCsg();
 });
 
-const form = () => revolve(referenceOuterProfile(32), { segments: 32, closeBottom: true, closeTop: true });
+const form = () =>
+  revolve(referenceOuterProfile(32), { segments: 32, closeBottom: true, closeTop: true });
 
 const bboxOf = (m: Mesh) => {
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
@@ -122,7 +131,11 @@ describe('C — CSG boolean molds (manifold-3d)', () => {
 
   it('C10: vertical split → 2 valid parts, keys protrude +z from A', async () => {
     const profile = [
-      { r: 30, y: 0 }, { r: 60, y: 50 }, { r: 65, y: 70 }, { r: 40, y: 130 }, { r: 45, y: 150 },
+      { r: 30, y: 0 },
+      { r: 60, y: 50 },
+      { r: 65, y: 70 },
+      { r: 40, y: 130 },
+      { r: 45, y: 150 },
     ];
     const f = revolve(profile, { segments: 32, closeBottom: true, closeTop: true });
     const plan = chooseSplitPlanes(profile);
@@ -142,7 +155,11 @@ describe('C — CSG boolean molds (manifold-3d)', () => {
 
   it('C11: none plan → single part identical to buildSingleMold', async () => {
     const f = form();
-    const cone = [{ r: 20, y: 0 }, { r: 40, y: 60 }, { r: 60, y: 120 }];
+    const cone = [
+      { r: 20, y: 0 },
+      { r: 40, y: 60 },
+      { r: 60, y: 120 },
+    ];
     const plan = chooseSplitPlanes(cone);
     expect(plan.kind).toBe('none');
     const parts = await buildSplitMold(f, plan, {});
