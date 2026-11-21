@@ -1,3 +1,4 @@
+import { ImageTraceTool } from './ImageTraceTool';
 import { LoftSweepTool } from './LoftSweepTool';
 import { SlabTool } from './SlabTool';
 import { FootRingTool } from './FootRingTool';
@@ -1223,6 +1224,7 @@ export function App() {
               <JigsawTool onExport={download} />
               <SlabTool onExport={download} />
               <LoftSweepTool onExport={download} />
+              <ImageTraceTool onExport={download} />
               <FootRingTool mesh={formMesh} onExport={download} />
               <div className="ctl">
                 <button

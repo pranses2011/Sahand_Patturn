@@ -2001,3 +2001,59 @@ test('loft and arc sweep export closed-tool STL and leave project history unchan
   await expect(tube).toHaveValue('10');
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('local image trace decodes PNG and exports scaled contour files without editing the project', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ردیابی تصویر — Otsu و کانتور', { exact: true }).click();
+  const panel = page.locator('.image-trace-tool');
+  const base64 = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 16, 16);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(4, 4, 8, 8);
+    return canvas.toDataURL('image/png').split(',')[1]!;
+  });
+  await panel.getByLabel('تصویر ردیابی', { exact: true }).setInputFiles({
+    name: 'square.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(base64, 'base64'),
+  });
+  await expect(panel.getByRole('status').filter({ hasText: 'کانتور؛' })).toContainText('۱ کانتور');
+  await expect(
+    panel.getByRole('img', { name: 'پیش‌نمایش کانتور تصویر', exact: true }).locator('path'),
+  ).toHaveCount(1);
+  const width = panel.getByRole('spinbutton', { name: 'عرض مرجع تصویر', exact: true });
+  await width.fill('80');
+  await width.press('Enter');
+  for (const format of ['SVG', 'DXF']) {
+    const download = page.waitForEvent('download');
+    await panel.getByRole('button', { name: `دانلود ${format} ردیابی`, exact: true }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe(`trace_contours_W80-E0.2mm.${format.toLowerCase()}`);
+    const path = await file.path();
+    expect(path).not.toBeNull();
+    const text = await readFile(path!, 'utf8');
+    if (format === 'SVG') {
+      expect(text).toContain('width="80mm"');
+      expect(text).toContain('height="80mm"');
+    } else {
+      expect(text).toContain('AC1009');
+      expect(text).toContain('LINE');
+    }
+  }
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  await panel
+    .getByLabel('تصویر ردیابی', { exact: true })
+    .setInputFiles({ name: 'bad.png', mimeType: 'image/png', buffer: Buffer.from('not a png') });
+  await expect(panel.getByRole('alert')).toContainText('تصویر خوانده نشد');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود SVG ردیابی', exact: true }),
+  ).toBeDisabled();
+});
