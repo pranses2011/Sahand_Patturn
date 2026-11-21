@@ -14,7 +14,7 @@ import {
 } from '@patturn/kernel';
 import {
   analyzeUndercut, keyTopRadius, initCsg,
-  chooseSplitPlanes, buildSplitMold, buildMotherMold, plasterForCavity,
+  chooseSplitPlanes, buildSplitMold, buildMotherMold, plasterForCavity, motherAssemblyGuide,
   type SplitPlan, type MotherMoldResult, type OffsetBarrierResult,
 } from '@patturn/molds';
 import { unwrapCylinder } from '@patturn/kernel';
@@ -407,7 +407,7 @@ export function App() {
               <h3 className="sec">مادرقالب هم‌فاصلهٔ آزمایشی</h3>
               <div className="hint">فاصله از سطح ۲mm و ضخامت اسمی ۲mm؛ دو نیمهٔ مستقل.
                 فلنج ۱۵mm، دهانهٔ ریختن ۱۲mm و دو هواکش ۴mm به پوسته متصل‌اند.
-                مهار و آب‌بندی باید جداگانه طراحی شوند؛ جدایش مکانیکی تضمین نشده است.
+                چهار سوراخ عبوری پیچ Ø4.5 روی فلنج افزوده شده‌اند؛ آب‌بندی و جدایش مکانیکی تضمین نشده است.
                 جزئیات باریک ممکن است در offset بسته شوند. بررسی جدایش و ساخت لازم است.
                 محاسبهٔ فرم‌های پیچیده ممکن است طولانی شود.</div>
               {!moldBusy && moldParts?.map((_, i) => (
@@ -424,11 +424,18 @@ export function App() {
               {barrierResult && <div className="ctl">
                 <div className="hint">کران خطای تقریب offset: {barrierResult.result.offsetErrorBoundMm.toFixed(3)} mm</div>
                 {barrierResult.result.casting && <div className="hint">
+                  <div>مهار: {barrierResult.result.casting.fasteners.centers.length} سوراخ Ø{barrierResult.result.casting.fasteners.holeDia}؛
+                    ضخامت مجموع فلنج‌ها {barrierResult.result.casting.fasteners.gripMm}mm؛ پیچ و مهره جداگانه لازم است.</div>
                   {barrierResult.result.casting.ports.length} مسیر متصل به پوسته؛ موقعیت دهانه‌ها (mm):
                   {barrierResult.result.casting.ports.map((port, i) => <div key={i}>
                     {i === 0 ? 'ریختن' : 'هواکش'}: Ø{port.diameter} — ({port.center.map((n) => n.toFixed(1)).join(', ')})
                   </div>)}
                 </div>}
+                <button className="btn" onClick={() => {
+                  const text = motherAssemblyGuide(barrierResult.result);
+                  download(exportName(`mother-${profileMode}-part-${barrierResult.index + 1}`, 'assembly', 'mm', 'txt'),
+                    new TextEncoder().encode('\uFEFF' + text));
+                }}>⬇ راهنمای مونتاژ و مشخصات پیچ‌ها</button>
                 {barrierResult.result.halves.map((half, i) => (
                   <button className="btn" key={i} onClick={() => {
                     const output = toBinaryStl(half, `barrier-${profileMode}-part-${barrierResult.index + 1}-half-${i + 1}`);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateMesh, referenceOuterProfile, revolve } from '@patturn/kernel';
-import { initCsg, buildBlock, toValidatedMesh, buildOffsetBarrier, buildSingleMold, buildSplitMold } from './csg.js';
+import { initCsg, buildBlock, toValidatedMesh, buildOffsetBarrier, buildSingleMold, buildSplitMold, motherAssemblyGuide } from './csg.js';
 import { chooseSplitPlanes } from './index.js';
 import { toBinaryStl } from '@patturn/exporters';
 
@@ -74,12 +74,53 @@ describe('Conformal offset barrier', () => {
     const bare = await buildOffsetBarrier(master, { segments: 16 });
     const result = await buildOffsetBarrier(master, { segments: 16, casting: {} });
     expect(result.casting!.ports).toHaveLength(3);
+    expect(result.casting!.fasteners.centers).toHaveLength(4);
+    expect(result.casting!.fasteners.holeDia).toBe(4.5);
+    expect(result.casting!.fasteners.axis).toBe('z');
+    expect(result.casting!.fasteners.gripMm).toBe(4);
+    expect(result.casting!.fasteners.edgeClearanceMm).toBeGreaterThanOrEqual(1);
     expect(result.casting!.ports.map((p) => p.diameter)).toEqual([12, 4, 4]);
     for (const port of result.casting!.ports) expect(port.removedVolumeMm3).toBeGreaterThan(1);
     for (const half of result.halves) expect(toBinaryStl(half).ok).toBe(true);
     expect(result.halves[0].meta!.volumeMm3!).toBeGreaterThan(bare.halves[0].meta!.volumeMm3!);
     await expect(buildOffsetBarrier(master, { segments: 16, casting: { flangeMm: -1 } })).rejects.toThrow('BARRIER_INVALID_CASTING');
     await expect(buildOffsetBarrier(master, { segments: 16, casting: { sprueDia: 500 } })).rejects.toThrow('BARRIER_TOP_PORTS_DO_NOT_FIT');
+  });
+
+  it('B7: fastener holes cross BOTH flanges at identical XY and reject unsafe edge clearance', async () => {
+    const result = await buildOffsetBarrier(await cube(), { segments: 16, casting: {} });
+    const guide = motherAssemblyGuide(result);
+    expect(guide).toContain('قطر سوراخ عبوری: 4.5');
+    expect(guide).toContain('پیچ 4:');
+    expect(guide).toContain('آب‌بندی خودکار یا شیار واشر');
+    expect(guide).toContain('راستای +Y');
+    const { centers, holeDia } = result.casting!.fasteners;
+    // A hole center must not lie inside any flange triangle on the splitting face.
+    const insideTriangle = (x: number, y: number, a: number[], b: number[], c: number[]) => {
+      const cross = (p: number[], q: number[]) => (q[0]! - p[0]!) * (y - p[1]!) - (q[1]! - p[1]!) * (x - p[0]!);
+      const signs = [cross(a, b), cross(b, c), cross(c, a)];
+      return signs.every((n) => n > 1e-6) || signs.every((n) => n < -1e-6);
+    };
+    for (const half of result.halves) {
+      const p = half.positions;
+      let splitTriangles = 0;
+      for (let i = 0; i < half.indices.length; i += 3) {
+        const tri = [half.indices[i]!, half.indices[i + 1]!, half.indices[i + 2]!]
+          .map((v) => [p[v * 3]!, p[v * 3 + 1]!, p[v * 3 + 2]!]);
+        if (!tri.every((v) => Math.abs(v[2]!) < 1e-5)) continue;
+        splitTriangles++;
+        for (const [x, y] of centers) {
+          expect(insideTriangle(x, y, tri[0]!, tri[1]!, tri[2]!)).toBe(false);
+          expect(insideTriangle(x + holeDia / 4, y, tri[0]!, tri[1]!, tri[2]!)).toBe(false);
+        }
+      }
+      expect(splitTriangles).toBeGreaterThan(0);
+      expect(toBinaryStl(half).ok).toBe(true);
+    }
+    await expect(buildOffsetBarrier(await cube(), { casting: { flangeMm: 10 } }))
+      .rejects.toThrow('BARRIER_FLANGE_TOO_NARROW_FOR_BOLTS');
+    await expect(buildOffsetBarrier(await cube(), { casting: { boltHoleDia: NaN } }))
+      .rejects.toThrow('BARRIER_INVALID_CASTING');
   });
 
 });

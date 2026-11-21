@@ -400,7 +400,7 @@ function barrierMesh(man: ManifoldT): Mesh {
 
 export interface OffsetBarrierOptions {
   /** Optional integrated clamp flange and three top ports (experimental). */
-  casting?: { flangeMm?: number; sprueDia?: number; ventDia?: number };
+  casting?: { flangeMm?: number; sprueDia?: number; ventDia?: number; boltHoleDia?: number };
   clearanceMm?: number;
   thicknessMm?: number;
   /** Sphere tessellation; bounded so radial offset approximation stays below 0.2mm. */
@@ -411,6 +411,14 @@ export interface OffsetBarrierResult {
   halves: [Mesh, Mesh];
   casting?: {
     flangeMm: number;
+    fasteners: {
+      holeDia: number;
+      axis: 'z';
+      centers: [number, number, number][];
+      /** Thickness of both flange halves together, excludes washers/nuts. */
+      gripMm: number;
+      edgeClearanceMm: number;
+    };
     ports: { center: [number, number, number]; diameter: number; removedVolumeMm3: number }[];
   };
   clearanceMm: number;
@@ -438,8 +446,11 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
   // cos²(pi/segments) bounds the inscribed facets' radial loss conservatively.
   const offsetErrorBoundMm = (clearance + thickness) * (1 - Math.cos(Math.PI / segments) ** 2) + 0.0011;
   if (offsetErrorBoundMm > 0.2) throw new Error('BARRIER_OFFSET_TOLERANCE');
-  if (opts.casting && ![opts.casting.flangeMm ?? 15, opts.casting.sprueDia ?? 12, opts.casting.ventDia ?? 4]
+  if (opts.casting && ![opts.casting.flangeMm ?? 15, opts.casting.sprueDia ?? 12, opts.casting.ventDia ?? 4, opts.casting.boltHoleDia ?? 4.5]
     .every((n) => Number.isFinite(n) && n > 0)) throw new Error('BARRIER_INVALID_CASTING');
+  if (opts.casting && (opts.casting.flangeMm ?? 15) < 2 * ((opts.casting.boltHoleDia ?? 4.5) + 2)) {
+    throw new Error('BARRIER_FLANGE_TOO_NARROW_FOR_BOLTS');
+  }
   const report = validateMesh(master);
   if (!report.ok) throw new Error(`BARRIER_INVALID_MASTER: ${report.problems.join(',')}`);
   await initCsg();
@@ -500,7 +511,27 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
         shell = own(shell.subtract(tool));
         ports.push({ center, diameter, removedVolumeMm3 });
       }
-      casting = { flangeMm: flange, ports };
+      // Four axial through-holes in the external corner regions of the flange.
+      // A quarter flange inset keeps holes clear of both the cavity and the edge.
+      const holeDia = opts.casting.boltHoleDia ?? 4.5;
+      const inset = flange / 4;
+      const centers: [number, number, number][] = [];
+      for (const x of [bb.min[0] - reach + inset, bb.max[0] + reach - inset]) {
+        for (const y of [bb.min[1] - reach + inset, bb.max[1] + reach - inset]) {
+          const center: [number, number, number] = [x, y, midZ];
+          const cyl = own(w.Manifold.cylinder(2 * thickness + 2, holeDia / 2, holeDia / 2, 32, false));
+          const tool = own(cyl.translate([x, y, midZ - thickness - 1]));
+          const material = own(shell.intersect(tool)).volume();
+          const expected = Math.PI * (holeDia / 2) ** 2 * 2 * thickness;
+          if (material < expected * 0.98) throw new Error('BARRIER_BOLT_NOT_IN_SOLID_FLANGE');
+          shell = own(shell.subtract(tool));
+          centers.push(center);
+        }
+      }
+      casting = {
+        flangeMm: flange, ports,
+        fasteners: { holeDia, axis: 'z', centers, gripMm: 2 * thickness, edgeClearanceMm: inset - holeDia / 2 },
+      };
     }
     const pieces = shell.splitByPlane([0, 0, 1], (bb.min[2] + bb.max[2]) / 2);
     pieces.forEach(own);
@@ -512,4 +543,38 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
     // Minkowski operations create large native allocations; release even on validation failure.
     for (let i = owned.length - 1; i >= 0; i--) owned[i]!.delete?.();
   }
+}
+
+/** Human-readable assembly metadata; not a mechanical certification. */
+export function motherAssemblyGuide(result: OffsetBarrierResult): string {
+  const lines = [
+    'راهنمای مونتاژ مادرقالب هم‌فاصله — آزمایشی',
+    'واحد همهٔ مختصات و اندازه‌ها: mm؛ مختصات همان مختصات مونتاژی STL است.',
+    `فاصلهٔ اسمی از قطعه: ${result.clearanceMm} | ضخامت اسمی پوسته: ${result.thicknessMm}`,
+    `کران خطای تقریب offset: ${result.offsetErrorBoundMm.toFixed(4)}`,
+    'دو نیمه بدون تغییر مقیاس صادر می‌شوند؛ جهت بازشدن پیشنهادی در راستای منفی/مثبت Z است.',
+    'اعتبار مش به معنی تأیید جدایش مکانیکی نیست. گیرکردن قطعه و جزئیات باریک را بررسی کنید.',
+  ];
+  const casting = result.casting;
+  if (casting) {
+    const bolts = casting.fasteners;
+    lines.push(
+      `فلنج: ${casting.flangeMm} | تعداد سوراخ پیچ: ${bolts.centers.length} | قطر سوراخ عبوری: ${bolts.holeDia}`,
+      `محور سوراخ‌ها: ${bolts.axis.toUpperCase()} | ضخامت مجموع دو فلنج: ${bolts.gripMm}`,
+      `حداقل فاصلهٔ لبهٔ سوراخ تا لبهٔ بیرونی فلنج: ${bolts.edgeClearanceMm.toFixed(3)}`,
+      'پیچ، مهره و واشر جزو STL نیستند؛ قطر و طول پیچ را با تلرانس پرینت، واشر و مهره انتخاب کنید.',
+      'سوراخ‌ها رزوه ندارند. از واشر استفاده کنید؛ سفت‌کردن بیش از حد می‌تواند فلنج را بشکند.',
+    );
+    bolts.centers.forEach((p, i) => lines.push(`پیچ ${i + 1}: (${p.map((v) => v.toFixed(3)).join(', ')})`));
+    casting.ports.forEach((port, i) => lines.push(
+      `${i === 0 ? 'دهانهٔ ریختن' : `هواکش ${i}`}: قطر ${port.diameter} | مبدأ (${port.center.map((v) => v.toFixed(3)).join(', ')}) | راستای +Y`,
+    ));
+  }
+  lines.push(
+    'پیش از ریختن: دو نیمه را خشک مونتاژ و هم‌راستایی سوراخ‌ها و بازبودن راهگاه‌ها را بررسی کنید.',
+    'آب‌بندی خودکار یا شیار واشر در این خروجی وجود ندارد؛ درز و سطوح پرینت را با روش سازگار با ماده آب‌بندی کنید.',
+    'جداکنندهٔ سطح مناسب ماده به کار ببرید؛ ابتدا تست نشتی و جدایش روی نمونهٔ کم‌حجم انجام دهید.',
+    'این فایل تأیید تحمل فشار، بار پیچ، عدم نشتی یا قابلیت تولید نیست.',
+  );
+  return lines.join('\n');
 }
