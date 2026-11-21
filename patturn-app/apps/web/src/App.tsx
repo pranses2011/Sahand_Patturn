@@ -1,3 +1,4 @@
+import { useFileDelivery, type DeliveryOutcome } from './useFileDelivery';
 import { ViewportBoundary } from './ViewportBoundary';
 import { PatternViewSwitch, FlatPatternPreview, type PatternView } from './PatternPreview';
 import { SavedPatterns } from './SavedPatterns';
@@ -46,19 +47,15 @@ const PRESETS: Record<ProfileMode, Profile> = {
   ],
 };
 
-function download(name: string, bytes: Uint8Array) {
-  if (isDesktop()) {
-    void desktopFiles().then((files) => files.save(name, bytes)).catch((error) => {
-      alert(`ذخیرهٔ فایل ناموفق بود: ${String(error).slice(0, 220)}`);
-    });
-    return;
-  }
+async function writeOutput(name: string, bytes: Uint8Array): Promise<DeliveryOutcome> {
+  if (isDesktop()) return (await (await desktopFiles()).save(name,bytes)) ? 'saved' : 'cancelled';
   const blob = new Blob([bytes.slice().buffer], { type: 'application/octet-stream' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return 'requested';
 }
 
 const DEFAULT_EDITOR: EditorState = {
@@ -76,6 +73,7 @@ function loadEditorStartup() {
 }
 
 export function App() {
+  const { download, status: deliveryStatus, retry: retryDelivery } = useFileDelivery(writeOutput);
   const [startup] = useState(loadEditorStartup);
   const [historyEntries, setHistoryEntries] = useState(startup.entries);
   const [autosaveError, setAutosaveError] = useState(startup.error);
@@ -607,6 +605,11 @@ export function App() {
         <button className="btn primary" onClick={doExportStl}>⬇ خروجی STL</button>
       </header>
 
+      {deliveryStatus.message && <div className="hint file-delivery" role={deliveryStatus.error ? 'alert' : 'status'}>
+        {deliveryStatus.message}
+        {deliveryStatus.pending && <span> تا پایان یا لغو ذخیره، درخواست خروجی دیگری پذیرفته نمی‌شود.</span>}
+        {deliveryStatus.error && <button className="btn" onClick={retryDelivery}>تلاش دوبارهٔ همان خروجی</button>}
+      </div>}
       {projectError && <div className="hint" role="alert">⚠️ {projectError}</div>}
       {autosaveError && <div className="hint" role="alert">
         {autosaveError} <button className="btn" onClick={saveLocalState}>تلاش دوباره</button>
