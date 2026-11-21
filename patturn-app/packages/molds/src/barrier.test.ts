@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateMesh, referenceOuterProfile, revolve } from '@patturn/kernel';
-import { initCsg, buildBlock, toValidatedMesh, buildOffsetBarrier, buildSingleMold, buildSplitMold, motherAssemblyGuide } from './csg.js';
+import { initCsg, buildBlock, toValidatedMesh, buildOffsetBarrier, buildSingleMold, buildSplitMold, motherAssemblyGuide, analyzeMotherRelease } from './csg.js';
 import { chooseSplitPlanes } from './index.js';
 import { toBinaryStl } from '@patturn/exporters';
 
@@ -89,7 +89,12 @@ describe('Conformal offset barrier', () => {
 
   it('B7: fastener holes cross BOTH flanges at identical XY and reject unsafe edge clearance', async () => {
     const result = await buildOffsetBarrier(await cube(), { segments: 16, casting: {} });
+    result.release = await analyzeMotherRelease(await cube(), result.halves);
+    expect(result.release.halves).toHaveLength(2);
+    expect(result.release.halves.every((half) => half.status === 'no-collision-at-samples')).toBe(true);
     const guide = motherAssemblyGuide(result);
+    expect(guide).toContain('بدون تأیید پیوستهٔ جدایش');
+    expect(guide).toContain('تضمین جدایش نیست');
     expect(guide).toContain('قطر سوراخ عبوری: 4.5');
     expect(guide).toContain('پیچ 4:');
     expect(guide).toContain('آب‌بندی خودکار یا شیار واشر');

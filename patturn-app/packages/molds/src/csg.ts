@@ -408,6 +408,8 @@ export interface OffsetBarrierOptions {
 }
 
 export interface OffsetBarrierResult {
+  release?: ReleaseReport;
+  releaseError?: string;
   halves: [Mesh, Mesh];
   casting?: {
     flangeMm: number;
@@ -555,6 +557,14 @@ export function motherAssemblyGuide(result: OffsetBarrierResult): string {
     'دو نیمه بدون تغییر مقیاس صادر می‌شوند؛ جهت بازشدن پیشنهادی در راستای منفی/مثبت Z است.',
     'اعتبار مش به معنی تأیید جدایش مکانیکی نیست. گیرکردن قطعه و جزئیات باریک را بررسی کنید.',
   ];
+  if (result.release) {
+    lines.push('بررسی نمونه‌ای مسیر بازشدن در راستای Z — بدون تأیید پیوستهٔ جدایش',
+      `فاصله‌های بررسی‌شده: ${result.release.samplesMm.map((n) => n.toFixed(3)).join(', ')}`,
+      `آستانهٔ حجم برخورد: ${result.release.volumeToleranceMm3} mm³`);
+    result.release.halves.forEach((half, i) => lines.push(
+      `نیمهٔ ${i + 1} (${half.direction}): ${half.status === 'collision-detected' ? `برخورد در فاصلهٔ ${half.firstCollisionMm}mm` : 'در نمونه‌ها برخوردی دیده نشد؛ تضمین جدایش نیست'} | حداکثر همپوشانی با قطعه ${half.maxMasterOverlapMm3.toFixed(3)} و نیمهٔ مقابل ${half.maxOtherHalfOverlapMm3.toFixed(3)} mm³`,
+    ));
+  } else lines.push(`مسیر بازشدن برای این خروجی بررسی نشده است.${result.releaseError ? ` خطا: ${result.releaseError}` : ''}`);
   const casting = result.casting;
   if (casting) {
     const bolts = casting.fasteners;
@@ -577,4 +587,79 @@ export function motherAssemblyGuide(result: OffsetBarrierResult): string {
     'این فایل تأیید تحمل فشار، بار پیچ، عدم نشتی یا قابلیت تولید نیست.',
   );
   return lines.join('\n');
+}
+
+export interface ReleaseReport {
+  method: 'sampled-rigid-translation-z';
+  /** No continuous sweep, elastic deformation, friction or load analysis. */
+  certified: false;
+  samplesMm: number[];
+  volumeToleranceMm3: number;
+  halves: {
+    direction: '-z' | '+z';
+    status: 'collision-detected' | 'no-collision-at-samples';
+    firstCollisionMm: number | null;
+    maxMasterOverlapMm3: number;
+    maxOtherHalfOverlapMm3: number;
+  }[];
+}
+
+/**
+ * Move each half independently, keeping master and other half fixed.
+ * A finite sampling can detect blocking but cannot prove continuous release.
+ * Native temporaries are released per sample, including error paths.
+ */
+export async function analyzeMotherRelease(
+  master: Mesh,
+  halves: [Mesh, Mesh],
+  opts: { samplesMm?: number[]; volumeToleranceMm3?: number } = {},
+): Promise<ReleaseReport> {
+  const tolerance = opts.volumeToleranceMm3 ?? 0.01;
+  if (!Number.isFinite(tolerance) || tolerance < 0) throw new Error('RELEASE_INVALID_OPTIONS');
+  if (opts.samplesMm && (opts.samplesMm.length < 2 || opts.samplesMm.length > 128 ||
+      !opts.samplesMm.every((n) => Number.isFinite(n) && n >= 0))) throw new Error('RELEASE_INVALID_OPTIONS');
+  for (const mesh of [master, ...halves]) {
+    const report = validateMesh(mesh);
+    if (!report.ok) throw new Error(`RELEASE_INVALID_MESH: ${report.problems.join(',')}`);
+  }
+  await initCsg();
+  const solids: ManifoldT[] = [];
+  try {
+    for (const mesh of [master, ...halves]) solids.push(toManifold(mesh));
+    const boxes = solids.map((s) => s.boundingBox());
+    const span = Math.max(...boxes.map((b) => b.max[2])) - Math.min(...boxes.map((b) => b.min[2]));
+    const samplesMm = [...new Set([0, ...(opts.samplesMm ?? [0.25, 0.5, 1, 2, 4, 8, span / 4, span / 2]), span + 1])].sort((a, b) => a - b);
+    const result: ReleaseReport = {
+      method: 'sampled-rigid-translation-z', certified: false,
+      samplesMm, volumeToleranceMm3: tolerance, halves: [],
+    };
+    for (let i = 0; i < 2; i++) {
+      let firstCollisionMm: number | null = null, maxMasterOverlapMm3 = 0, maxOtherHalfOverlapMm3 = 0;
+      for (const distance of samplesMm) {
+        const temporaries: ManifoldT[] = [];
+        try {
+          const moving = solids[i + 1]!.translate([0, 0, (i === 0 ? -1 : 1) * distance]);
+          temporaries.push(moving);
+          const masterOverlap = moving.intersect(solids[0]!);
+          temporaries.push(masterOverlap);
+          const otherOverlap = moving.intersect(solids[2 - i]!);
+          temporaries.push(otherOverlap);
+          const mv = Math.max(0, masterOverlap.volume()), ov = Math.max(0, otherOverlap.volume());
+          maxMasterOverlapMm3 = Math.max(maxMasterOverlapMm3, mv);
+          maxOtherHalfOverlapMm3 = Math.max(maxOtherHalfOverlapMm3, ov);
+          if ((mv > tolerance || ov > tolerance) && firstCollisionMm === null) firstCollisionMm = distance;
+        } finally {
+          temporaries.reverse().forEach((s) => s.delete?.());
+        }
+      }
+      result.halves.push({
+        direction: i === 0 ? '-z' : '+z', firstCollisionMm,
+        status: firstCollisionMm === null ? 'no-collision-at-samples' : 'collision-detected',
+        maxMasterOverlapMm3, maxOtherHalfOverlapMm3,
+      });
+    }
+    return result;
+  } finally {
+    solids.reverse().forEach((s) => s.delete?.());
+  }
 }

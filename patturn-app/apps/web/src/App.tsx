@@ -417,12 +417,25 @@ export function App() {
                   ساخت مادرقالب هم‌فاصلهٔ قطعهٔ {i + 1}</button></div>
               ))}
               {barrierRequest !== null && <div className="ctl">
-                ⏳ در حال محاسبهٔ قطعهٔ {barrierRequest + 1}…
+                ⏳ ساخت هندسه و بررسی نمونه‌ای بازشدن قطعهٔ {barrierRequest + 1}…
                 <button className="btn" onClick={() => setBarrierRequest(null)}>لغو محاسبه</button>
               </div>}
               {barrierError && <div className="hint" role="alert">⚠️ {barrierError}</div>}
               {barrierResult && <div className="ctl">
                 <div className="hint">کران خطای تقریب offset: {barrierResult.result.offsetErrorBoundMm.toFixed(3)} mm</div>
+                {barrierResult.result.release && <div className="hint" role="status">
+                  <b>بررسی نمونه‌ای بازشدن — تضمین جدایش نیست</b>
+                  <div>{barrierResult.result.release.samplesMm.length} فاصله بررسی شد؛
+                    آستانهٔ برخورد {barrierResult.result.release.volumeToleranceMm3} mm³.</div>
+                  {barrierResult.result.release.halves.map((half, i) => <div key={i}>
+                    نیمهٔ {i + 1} ({half.direction}): {half.status === 'collision-detected'
+                      ? `⚠️ برخورد در جابه‌جایی ${half.firstCollisionMm?.toFixed(3)}mm؛ قبل از ساخت اصلاح شود`
+                      : 'در نمونه‌ها برخوردی دیده نشد؛ مسیر بین نمونه‌ها بررسی نشده است'}
+                  </div>)}
+                </div>}
+                {barrierResult.result.releaseError && <div className="hint" role="alert">
+                  ⚠️ بررسی بازشدن ناموفق بود: {barrierResult.result.releaseError}؛ هندسهٔ قابل دانلود تأیید جدایش ندارد.
+                </div>}
                 {barrierResult.result.casting && <div className="hint">
                   <div>مهار: {barrierResult.result.casting.fasteners.centers.length} سوراخ Ø{barrierResult.result.casting.fasteners.holeDia}؛
                     ضخامت مجموع فلنج‌ها {barrierResult.result.casting.fasteners.gripMm}mm؛ پیچ و مهره جداگانه لازم است.</div>
