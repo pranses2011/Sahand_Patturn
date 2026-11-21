@@ -29,6 +29,12 @@ test('form to mold to ZIP uses local assets only and exports coherent manufactur
   await page.getByText('🧱 قالب',{exact:true}).click();
   await page.getByText('📤 خروجی',{exact:true}).click();
   await expect(boxHalves).toHaveCount(4);
+  await page.getByText('🏺 فرم',{exact:true}).click();
+  await page.getByText('🔷 الگو',{exact:true}).click();
+  await page.getByRole('radio',{name:'لوزی',exact:true}).check();
+  await page.getByRole('radio',{name:'موج',exact:true}).check();
+  await page.getByText('📤 خروجی',{exact:true}).click();
+  await expect(boxHalves).toHaveCount(4);
   const zipButton=page.getByRole('button',{name:'⬇ ZIP ساخت: قطعات، مواد و راهنما',exact:true});
   await expect(zipButton).toBeEnabled({timeout:90_000});
   const downloaded=page.waitForEvent('download',{timeout:90_000});
@@ -59,5 +65,18 @@ test('form to mold to ZIP uses local assets only and exports coherent manufactur
   const svg=names.find((n)=>n.endsWith('.svg'))!;expect(strFromU8(files[svg]!)).toContain('width="300mm"');
   const dxf=names.find((n)=>n.endsWith('.dxf'))!;expect(new DxfParser().parseSync(strFromU8(files[dxf]!))!.entities.length).toBeGreaterThan(0);
   expect(strFromU8(files['README.txt']!)).toContain('۰٫۰۵mm');
+  // Real geometry changes must invalidate both the mold snapshot and its mother boxes.
+  await page.getByText('🏺 فرم',{exact:true}).click();
+  await segments.fill('28');await segments.press('Tab');
+  await page.getByText('📤 خروجی',{exact:true}).click();
+  await expect(zipButton).toBeEnabled({timeout:90_000});
+  await expect(boxHalves).toHaveCount(0);
+  const changedDownload=page.waitForEvent('download',{timeout:90_000});
+  await zipButton.click();
+  const changedZip=await changedDownload;
+  const changedFiles=unzipSync(new Uint8Array(await readFile((await changedZip.path())!)));
+  const changedParams=JSON.parse(strFromU8(changedFiles['parameters.json']!));
+  expect(changedParams.segments).toBe(28);expect(changedParams.motherBoxPartsIncluded).toBe(0);
+  expect(Object.keys(changedFiles).filter((n)=>n.startsWith('mother-box/'))).toHaveLength(0);
   expect(external).toEqual([]);
 });

@@ -215,8 +215,14 @@ export function App() {
 
   // real boolean mold (block − form, split by plan) when Mold tab is active
   const moldActive = part === 'mold' || part === 'export';
-  const [moldParts, setMoldParts] = useState<Mesh[] | null>(null);
-  const [splitPlan, setSplitPlan] = useState<SplitPlan | null>(null);
+  const moldInputs = useMemo(() => ({ formMesh, profile, shrink }), [formMesh, profile, shrink]);
+  const [moldSnapshot, setMoldSnapshot] = useState<{
+    inputs: typeof moldInputs; parts: Mesh[]; plan: SplitPlan;
+  } | null>(null);
+  // Never expose a cached result for different geometry, even before effects run.
+  const currentMold = moldSnapshot?.inputs === moldInputs ? moldSnapshot : null;
+  const moldParts = currentMold?.parts ?? null;
+  const splitPlan = currentMold?.plan ?? null;
   const [moldBusy, setMoldBusy] = useState(false);
   const [motherResults, setMotherResults] = useState<MotherMoldResult[] | null>(null);
   const [motherBusy, setMotherBusy] = useState(false);
@@ -270,14 +276,12 @@ export function App() {
     return () => { cancelled = true; };
   }, [motherBusy, moldParts]);
   useEffect(() => {
-    if (!moldActive || !formMesh) {
-      setMoldParts(null);
-      setSplitPlan(null);
+    if (!formMesh || !moldActive || moldSnapshot?.inputs === moldInputs) {
+      setMoldBusy(false);
+      if (moldSnapshot && moldSnapshot.inputs !== moldInputs) setMoldSnapshot(null);
       return;
     }
     let cancelled = false;
-    setMoldParts(null);
-    setSplitPlan(null);
     setMoldBusy(true);
     (async () => {
       try {
@@ -285,8 +289,7 @@ export function App() {
         const plan = chooseSplitPlanes(profile);
         const parts = await buildSplitMold(formMesh, plan, { shrink: shrink / 100, profile });
         if (!cancelled) {
-          setSplitPlan(plan);
-          setMoldParts(parts);
+          setMoldSnapshot({ inputs: moldInputs, parts, plan });
           setMeshErr(null);
         }
       } catch (e) {
@@ -298,7 +301,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [moldActive, formMesh, shrink, profile]);
+  }, [moldActive, moldInputs, moldSnapshot]);
 
   // exploded view: merge parts with display offsets (B up / ±z apart)
   const moldDisplay: Mesh | null = useMemo(() => {
