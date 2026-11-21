@@ -1,3 +1,4 @@
+import { clipLine, clipCircle, type DxfBounds } from './dxf-clip.js';
 import { exportName, type ExportResult } from './index.js';
 
 type Point = [number, number];
@@ -60,9 +61,10 @@ function circle(d: string): { x: number; y: number; radius: number } | null {
 }
 
 /** R12 linear geometry and canonical circles, model coordinates in mm. */
-export function toDxf(paths: { d: string; fill?: boolean }[]): ExportResult {
+export function toDxf(paths: { d: string; fill?: boolean }[], bounds?: DxfBounds): ExportResult {
   const filename = exportName('pattern', 'flat', 'mm', 'dxf');
   try {
+    if (bounds && ![bounds.width, bounds.height].every((n) => Number.isFinite(n) && n > 0)) throw Error('DXF_INVALID_BOUNDS');
     if (!paths.length) throw Error('DXF_EMPTY_DRAWING');
     // Parse everything first so unsupported geometry cannot yield a partial successful file.
     const parsed = paths.map((p) => {
@@ -77,8 +79,26 @@ export function toDxf(paths: { d: string; fill?: boolean }[]): ExportResult {
       push(0, 'LAYER', 2, name, 70, 0, 62, color, 6, 'CONTINUOUS');
     push(0, 'ENDTAB', 0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES');
     for (const p of parsed) {
-      if (p.circle) push(0, 'CIRCLE', 8, p.layer, 10, p.circle.x, 20, p.circle.y, 30, 0, 40, p.circle.radius);
+      if (p.circle) {
+        const c = p.circle;
+        const intervals = bounds ? clipCircle(c, bounds) : [[0, 2 * Math.PI]];
+        for (const [start, end] of intervals) {
+          if (end! - start! >= 2 * Math.PI - 1e-12)
+            push(0, 'CIRCLE', 8, p.layer, 10, c.x, 20, c.y, 30, 0, 40, c.radius);
+          else push(0, 'ARC', 8, p.layer, 10, c.x, 20, c.y, 30, 0, 40, c.radius, 50, start! * 180 / Math.PI, 51, end! * 180 / Math.PI);
+        }
+      }
       for (const line of p.lines) {
+        if (bounds) {
+          const count = line.points.length - (line.closed ? 0 : 1);
+          for (let i = 0; i < count; i++) {
+            const clipped = clipLine(line.points[i]!, line.points[(i + 1) % line.points.length]!, bounds);
+            if (clipped) push(0, 'LINE', 8, p.layer, 10, clipped[0][0], 20, clipped[0][1], 30, 0,
+              11, clipped[1][0], 21, clipped[1][1], 31, 0);
+          }
+          continue;
+        }
+
       push(0, 'POLYLINE', 8, p.layer, 66, 1, 70, line.closed ? 1 : 0, 10, 0, 20, 0, 30, 0);
       for (const [x, y] of line.points) push(0, 'VERTEX', 8, p.layer, 10, x, 20, y, 30, 0);
       push(0, 'SEQEND', 8, p.layer);
