@@ -138,3 +138,28 @@ test('keyboard focus is visible and numeric units are available as accessible de
   await expect(slider).toHaveCSS('outline-width','3px');await expect(slider).toHaveAccessibleDescription('mm');
   await expect(page.getByRole('spinbutton',{name:'شیرینک',exact:true})).toHaveAccessibleDescription('%');
 });
+
+test('invalid or oversized project imports preserve edits; cancelling replacement permits a later valid import',async({page})=>{
+  await page.goto('/');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('6');await wall.press('Enter');
+  const downloaded=page.waitForEvent('download');
+  await page.getByRole('button',{name:'ذخیرهٔ فایل پروژه',exact:true}).click();
+  const validPath=await (await downloaded).path();expect(validPath).not.toBeNull();
+  await wall.fill('8');await wall.press('Enter');
+  const input=page.getByLabel('انتخاب فایل پروژه',{exact:true});
+  let dialogs=0;
+  const dismiss=(dialog:import('@playwright/test').Dialog)=>{dialogs++;void dialog.dismiss();};
+  page.on('dialog',dismiss);
+  const error=page.getByRole('alert').filter({hasText:'فایل پروژه باز نشد؛ تنظیمات فعلی تغییر نکرد'});
+  await input.setInputFiles({name:'broken.patturn',mimeType:'application/octet-stream',buffer:Buffer.from('not gzip')});
+  await expect(error).toBeVisible();await expect(wall).toHaveValue('8');expect(dialogs).toBe(0);
+  await input.setInputFiles({name:'oversized.patturn',mimeType:'application/octet-stream',buffer:Buffer.alloc(256*1024+1)});
+  await expect(error).toContainText('PROJECT_FILE_TOO_LARGE');await expect(wall).toHaveValue('8');expect(dialogs).toBe(0);
+  await input.setInputFiles(validPath!);
+  await expect.poll(()=>dialogs).toBe(1);await expect(wall).toHaveValue('8');await expect(error).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'بازکردن پروژه',exact:true})).toBeEnabled();
+  page.off('dialog',dismiss);page.once('dialog',(dialog)=>dialog.accept());
+  await input.setInputFiles(validPath!);await expect(wall).toHaveValue('6');
+  await expect(error).toHaveCount(0);
+});
