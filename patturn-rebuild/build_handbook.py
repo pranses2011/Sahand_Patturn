@@ -2,6 +2,7 @@
 """Build a single self-contained RTL HTML handbook from the markdown files."""
 import pathlib, re, html
 import markdown
+from check_checklist import check_checklist
 
 ROOT = pathlib.Path(__file__).parent
 FILES = [
@@ -153,6 +154,7 @@ def convert(path: pathlib.Path) -> str:
 
 
 def main():
+    check_checklist((ROOT / "14-CHECKLIST.md").read_text(encoding="utf-8"))
     parts, nav = [], []
     for i, (fname, label) in enumerate(FILES):
         p = ROOT / fname
