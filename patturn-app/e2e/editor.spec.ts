@@ -857,3 +857,26 @@ test('applying a saved recipe revalidates storage rather than trusting stale dis
   await page.getByRole('button',{name:'بازخوانی / تلاش دوباره',exact:true}).click();
   await expect(row).toHaveCount(0);
 });
+
+test('empty saved library guidance is distinct from a search with no matches',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  const empty=page.getByText('هنوز تنظیماتی در این کتابخانه نیست؛ به تنظیمات فعلی نام بدهید و آن را ذخیره کنید، یا پشتیبان کتابخانه را وارد کنید.',{exact:true});
+  const noMatch=page.getByText('تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.',{exact:true});
+  await expect(empty).toBeVisible();await expect(noMatch).toHaveCount(0);
+  await page.getByLabel('نام تنظیمات',{exact:true}).fill('نمونه');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  await expect(empty).toHaveCount(0);
+  await page.getByLabel('جست‌وجوی تنظیمات ذخیره‌شده',{exact:true}).fill('ناشناخته');
+  await expect(noMatch).toBeVisible();await expect(empty).toHaveCount(0);
+  await page.getByRole('button',{name:'پاک‌کردن جست‌وجوی تنظیمات',exact:true}).click();
+  await expect(noMatch).toHaveCount(0);
+  page.once('dialog',(dialog)=>dialog.accept());
+  await page.getByRole('button',{name:'حذف نمونه',exact:true}).click();
+  await expect(empty).toBeVisible();await expect(noMatch).toHaveCount(0);
+  await expect(page.getByRole('radio',{name:'شبکهٔ نقطه‌ای',exact:true})).toBeChecked();
+  await page.evaluate(()=>localStorage.setItem('patturn:pattern-library:v1','{broken'));
+  await page.getByRole('button',{name:'بازخوانی / تلاش دوباره',exact:true}).click();
+  await expect(page.getByRole('alert').filter({hasText:'کتابخانه خوانده یا ذخیره نشد'})).toBeVisible();
+  await expect(empty).toHaveCount(0);await expect(noMatch).toHaveCount(0);
+});

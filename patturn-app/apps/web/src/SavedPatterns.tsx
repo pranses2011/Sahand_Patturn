@@ -97,7 +97,8 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
     <label>جست‌وجوی تنظیمات ذخیره‌شده<input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} /></label>
     {query && <button className="btn" onClick={() => { setQuery(''); searchRef.current?.focus(); }}>پاک‌کردن جست‌وجوی تنظیمات</button>}
     <p role="status">{new Intl.NumberFormat('fa-IR').format(visible.length)} مورد از {new Intl.NumberFormat('fa-IR').format(entries.length)} — جست‌وجو پروژه و کتابخانه را تغییر نمی‌دهد.</p>
-    {visible.length === 0 && <p className="hint">تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.</p>}
+    {!error && entries.length === 0 && <p className="hint">هنوز تنظیماتی در این کتابخانه نیست؛ به تنظیمات فعلی نام بدهید و آن را ذخیره کنید، یا پشتیبان کتابخانه را وارد کنید.</p>}
+    {!error && entries.length > 0 && visible.length === 0 && <p className="hint">تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.</p>}
     <ul>{visible.map((entry) => <li key={entry.name}>
       <b>{entry.name}</b> — {PATTERN_NAMES_FA[entry.patternId] ?? entry.patternId} — {new Intl.NumberFormat('fa-IR').format(entry.tileSize)} میلی‌متر
       {entry.patternId === patternId && entry.tileSize === tileSize && <span className="hint"> — مطابق تنظیمات فعلی</span>}
