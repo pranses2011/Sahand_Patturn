@@ -40,13 +40,35 @@ function polylines(d: string): { points: Point[]; closed: boolean }[] {
   return out;
 }
 
-/** R12 linear geometry only, model coordinates in mm, outline/detail layers. */
+/** Recognize only the complete two-semicircle encoding emitted by circle().
+ * Equal radii, opposite diameters and both arc flags are checked before conversion.
+ */
+function circle(d: string): { x: number; y: number; radius: number } | null {
+  const n = '([-+]?(?:\\d*\\.\\d+|\\d+\\.?\\d*)(?:[eE][-+]?\\d+)?)';
+  const pair = `${n}[ ,]+${n}`;
+  const arc = `${pair}[ ,]+${n}[ ,]+${n}[ ,]+${n}[ ,]+${pair}`;
+  const match = d.trim().match(new RegExp(`^M${pair}a${arc}a${arc}[zZ]$`));
+  if (!match) return null;
+  const v = match.slice(1).map(Number);
+  if (!v.every(Number.isFinite)) return null;
+  const [x,y,rx,ry,rot,large,sweep,dx,dy,rx2,ry2,rot2,large2,sweep2,dx2,dy2] = v as number[];
+  const eq = (a: number | undefined, b: number | undefined) => Math.abs(a! - b!) < 1e-9;
+  if (!(rx! > 0) || !eq(rx,ry) || !eq(rx,rx2) || !eq(rx,ry2) ||
+      !eq(rot,0) || !eq(rot2,0) || !eq(large,1) || !eq(large2,1) ||
+      !eq(sweep,0) || !eq(sweep2,0) || !eq(dx,2*rx!) || !eq(dx2,-2*rx!) || !eq(dy,0) || !eq(dy2,0)) return null;
+  return {x:x!+rx!,y:y!,radius:rx!};
+}
+
+/** R12 linear geometry and canonical circles, model coordinates in mm. */
 export function toDxf(paths: { d: string; fill?: boolean }[]): ExportResult {
   const filename = exportName('pattern', 'flat', 'mm', 'dxf');
   try {
     if (!paths.length) throw Error('DXF_EMPTY_DRAWING');
     // Parse everything first so unsupported geometry cannot yield a partial successful file.
-    const parsed = paths.map((p) => ({ layer: p.fill ? 'outline' : 'detail', lines: polylines(p.d) }));
+    const parsed = paths.map((p) => {
+      const c = circle(p.d);
+      return { layer: p.fill ? 'outline' : 'detail', circle: c, lines: c ? [] : polylines(p.d) };
+    });
     const lines: string[] = [];
     const push = (...values: (string | number)[]) => lines.push(...values.map(String));
     push(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$MEASUREMENT', 70, 1, 0, 'ENDSEC');
@@ -54,10 +76,13 @@ export function toDxf(paths: { d: string; fill?: boolean }[]): ExportResult {
     for (const [name, color] of [['outline', 7], ['detail', 1]] as const)
       push(0, 'LAYER', 2, name, 70, 0, 62, color, 6, 'CONTINUOUS');
     push(0, 'ENDTAB', 0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES');
-    for (const p of parsed) for (const line of p.lines) {
+    for (const p of parsed) {
+      if (p.circle) push(0, 'CIRCLE', 8, p.layer, 10, p.circle.x, 20, p.circle.y, 30, 0, 40, p.circle.radius);
+      for (const line of p.lines) {
       push(0, 'POLYLINE', 8, p.layer, 66, 1, 70, line.closed ? 1 : 0, 10, 0, 20, 0, 30, 0);
       for (const [x, y] of line.points) push(0, 'VERTEX', 8, p.layer, 10, x, 20, y, 30, 0);
       push(0, 'SEQEND', 8, p.layer);
+      }
     }
     push(0, 'ENDSEC', 0, 'EOF');
     return { ok: true, filename, bytes: new TextEncoder().encode(lines.join('\n') + '\n') };
