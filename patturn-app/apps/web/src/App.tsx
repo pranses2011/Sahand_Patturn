@@ -1,3 +1,4 @@
+import { usePreviewPattern } from './usePreviewPattern';
 import { useFileDelivery, type DeliveryOutcome } from './useFileDelivery';
 import { ViewportBoundary } from './ViewportBoundary';
 import { PatternViewSwitch, FlatPatternPreview, type PatternView } from './PatternPreview';
@@ -340,7 +341,8 @@ export function App() {
 
   // pattern canvas paths (SVG preview)
   const patternDef = useMemo(() => PATTERNS.find((p) => p.id === patternId) ?? PATTERNS[0]!, [patternId]);
-  const patternStrokeMm = typeof patternDef.defaults['stroke'] === 'number' ? patternDef.defaults['stroke'] : 1.5;
+  const previewPattern = usePreviewPattern(patternDef, tileSize);
+  const patternStrokeMm = previewPattern.strokeMm;
   const patternPaths = useMemo(() => {
     const def = patternDef;
     const ctx: PatternContext = {
@@ -838,9 +840,7 @@ export function App() {
           <Viewport
             mesh={mesh}
             mode={part === 'mold' ? 'mold' : 'form'}
-            pattern={part === 'pattern' && patternDef
-              ? { paths: patternPaths, tileW: tileSize, strokeMm: patternStrokeMm }
-              : null}
+            pattern={part === 'pattern' ? previewPattern : null}
           />
           </Suspense></ViewportBoundary>}
 
