@@ -656,3 +656,21 @@ test('library backup includes hidden recipes while a search filter is active',as
   await page.getByRole('button',{name:'پاک‌کردن جست‌وجوی تنظیمات',exact:true}).click();
   await expect(list).toHaveCount(2);
 });
+
+test('hidden active pattern can be revealed without changing project selection or history',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  const library=page.getByRole('group',{name:'الگوهای آماده',exact:true});
+  await library.getByRole('radio',{name:'شبکهٔ مربعی',exact:true}).check();
+  const undo=page.getByRole('button',{name:/^واگرد/});const title=await undo.getAttribute('title');
+  const search=library.getByRole('searchbox',{name:'جست‌وجوی الگو',exact:true});
+  await search.fill('dot');
+  await expect(library.getByRole('radio')).toHaveCount(1);
+  await expect(library.getByText('الگوی فعال «شبکهٔ مربعی» در نتایج جست‌وجو پنهان است؛ انتخاب پروژه تغییر نکرده است.',{exact:true})).toBeVisible();
+  const reveal=library.getByRole('button',{name:'نمایش الگوی فعال',exact:true});
+  await reveal.focus();await page.keyboard.press('Enter');
+  await expect(search).toHaveValue('');await expect(search).toBeFocused();
+  await expect(library.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
+  await expect(reveal).toHaveCount(0);await expect(undo).toHaveAttribute('title',title!);
+  await undo.click();await expect(library.getByRole('radio',{name:'شبکهٔ نقطه‌ای',exact:true})).toBeChecked();
+  await expect(undo).toBeDisabled();
+});

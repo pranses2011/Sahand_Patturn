@@ -33,12 +33,17 @@ export const PatternLibrary = memo(function PatternLibrary({ selectedId, onSelec
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const visible = useMemo(() => filterPatterns(query), [query]);
+  const selectedHidden = !visible.some((pattern) => pattern.id === selectedId);
   return <fieldset className="pattern-library">
     <legend>الگوهای آماده</legend>
     <p className="hint">نمونه‌ها: بوم ۸۰×۸۰ و کاشی ۴۰ میلی‌متر؛ اندازهٔ واقعی پروژه از کنترل کاشی تنظیم می‌شود.</p>
     <label>جست‌وجوی الگو <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} /></label>
     {query && <button type="button" className="btn" onClick={() => { setQuery(''); searchRef.current?.focus(); }}>پاک‌کردن جست‌وجو</button>}
     <p role="status">{visible.length} الگو از {PATTERNS.length} — جست‌وجو انتخاب پروژه را تغییر نمی‌دهد.</p>
+    {selectedHidden && <div className="hint">
+      <p>الگوی فعال «{NAMES[selectedId] ?? selectedId}» در نتایج جست‌وجو پنهان است؛ انتخاب پروژه تغییر نکرده است.</p>
+      <button type="button" className="btn" onClick={() => { setQuery(''); searchRef.current?.focus(); }}>نمایش الگوی فعال</button>
+    </div>}
     {visible.length === 0 && <p className="hint">الگویی پیدا نشد؛ نام فارسی، انگلیسی یا شناسه را امتحان کنید.</p>}
     <div className="pattern-cards">{visible.map((pattern) => <PatternCard key={pattern.id}
       pattern={pattern} selected={selectedId === pattern.id} onSelect={onSelect} />)}</div>
