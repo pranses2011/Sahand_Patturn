@@ -96,3 +96,5 @@ export function toDxf(paths: { d: string; fill?: boolean }[]): ExportResult {
   push(0, 'ENDSEC', 0, 'EOF');
   return { ok: true, filename: exportName('pattern', 'flat', 'mm', 'dxf'), bytes: new TextEncoder().encode(lines.join('\n')) };
 }
+
+export * from './bundle.js';

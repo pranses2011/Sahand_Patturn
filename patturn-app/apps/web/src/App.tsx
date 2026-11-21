@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   referenceOuterProfile,
   referenceProfile,
@@ -19,7 +19,7 @@ import {
 } from '@patturn/molds';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
-import { toBinaryStl, toSvg, exportName } from '@patturn/exporters';
+import { toBinaryStl, toSvg, exportName, toBuildZip, type BuildBundle } from '@patturn/exporters';
 import { AUTHOR, PLANS } from '@patturn/config';
 import { Viewport } from './Viewport';
 
@@ -244,8 +244,8 @@ export function App() {
     download(result.filename, result.bytes!);
   };
 
-  const exportBom = () => {
-    if (!moldParts || !splitPlan || moldBusy) return;
+  const buildBom = (): string => {
+    if (!moldParts || !splitPlan || moldBusy) return '';
     const lines = [
       'فهرست قطعات قالب — Patturn',
       `فرم: ${profileMode} | واحد: mm | جبران انقباض: ${shrink}%`,
@@ -263,7 +263,77 @@ export function App() {
     });
     const material = plasterForCavity(total);
     lines.push(`جمع: ${material.volumeL.toFixed(3)} L | گچ: ${material.plasterKg.toFixed(3)} kg | آب: ${material.waterKg.toFixed(3)} kg`);
-    download(exportName(`mold-${profileMode}`, 'BOM', 'mm', 'txt'), new TextEncoder().encode('\uFEFF' + lines.join('\n')));
+    return lines.join('\n');
+  };
+
+  const exportBom = () => {
+    const text = buildBom();
+    if (text) download(exportName(`mold-${profileMode}`, 'BOM', 'mm', 'txt'), new TextEncoder().encode('\uFEFF' + text));
+  };
+
+  const [zipBusy, setZipBusy] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
+  const zipController = useRef<AbortController | null>(null);
+  // Cancel a pending export if any captured geometry/pattern source is replaced.
+  useEffect(() => () => { zipController.current?.abort(); },
+    [formMesh, moldParts, motherResults, barrierResult, patternPaths, shrink]);
+
+  const exportBuildZip = async () => {
+    if (!formMesh || !moldParts || !splitPlan || moldBusy || zipBusy || motherBusy || barrierRequest !== null) return;
+    const controller = new AbortController();
+    zipController.current = controller;
+    setZipBusy(true);
+    setZipError(null);
+    try {
+      const name = (target: string) => exportName(target, 'mesh', 'mm', 'stl');
+      const meshes: BuildBundle['meshes'] = [{ path: `form/${name(`form-${profileMode}`)}`, mesh: formMesh }];
+      moldParts.forEach((mesh, i) => meshes.push({ path: `parts/${name(`mold-${profileMode}-part-${i + 1}`)}`, mesh }));
+      motherResults?.forEach((result, i) => result.jacket.forEach((mesh, j) => meshes.push({
+        path: `mother-box/${name(`mother-${profileMode}-part-${i + 1}-half-${j + 1}`)}`, mesh,
+      })));
+      const files: NonNullable<BuildBundle['files']> = [];
+      const text = (path: string, content: string) => files.push({ path, bytes: new TextEncoder().encode('\uFEFF' + content) });
+      if (barrierResult) {
+        barrierResult.result.halves.forEach((mesh, j) => meshes.push({
+          path: `mother-offset/${name(`barrier-${profileMode}-part-${barrierResult.index + 1}-half-${j + 1}`)}`, mesh,
+        }));
+        text('mother-offset/assembly.txt', motherAssemblyGuide(barrierResult.result));
+        const { halves: _halves, ...metadata } = barrierResult.result;
+        files.push({ path: 'mother-offset/report.json', bytes: new TextEncoder().encode(JSON.stringify({ moldPart: barrierResult.index + 1, ...metadata }, null, 2)) });
+      }
+      text('BOM.txt', buildBom());
+      const pattern = toSvg(patternPaths, 300, 300);
+      files.push({ path: `pattern/${pattern.filename}`, bytes: pattern.bytes! });
+      files.push({ path: 'parameters.json', bytes: new TextEncoder().encode(JSON.stringify({
+        kind: 'manufacturing-export-snapshot', version: 1, units: 'mm', profileMode,
+        profile, segments, shrinkPercent: shrink, splitPlan, pattern: { id: patternId, tileSize, canvasMm: [300, 300] },
+        motherBoxPartsIncluded: motherResults?.length ?? 0,
+        motherOffsetPartsIncluded: barrierResult ? [barrierResult.index + 1] : [],
+      }, null, 2)) });
+      const instructions = [
+        'بستهٔ ساخت Patturn — واحد mm',
+        `فرم: ${profileMode}؛ تعداد قطعات گچی: ${moldParts.length}؛ جبران انقباض: ${shrink}%`,
+        'form/: فرم اصلی بدون جبران انقباض. parts/: قالب گچی با جبران انقباض؛ فاصله‌گذاری نمایشی صادر نشده است.',
+        'BOM.txt: برآورد گچ و آب، بدون پرت. pattern/: الگوی تخت ۳۰۰×۳۰۰mm؛ نگاشت برجسته روی STL اعمال نشده است.',
+        'parameters.json: ثبت تنظیمات مؤثر خروجی؛ فایل پروژهٔ قابل بازیابی در برنامه نیست.',
+        `محفظهٔ جعبه‌ای صادرشده: ${motherResults?.length ?? 0} از ${moldParts.length} قطعه.`,
+        `مادرقالب هم‌فاصلهٔ صادرشده: ${barrierResult ? `فقط قطعهٔ ${barrierResult.index + 1}` : 'هیچ‌کدام؛ هنوز ساخته نشده است'}.`,
+        'مادرقالب‌های ساخته‌نشده در این بسته وجود ندارند؛ وجود ZIP به معنی تکمیل همهٔ مادرقالب‌ها نیست.',
+        'مادرقالب‌ها آزمایشی‌اند. راهنمای مونتاژ و گزارش برخورد را بخوانید؛ اعتبار STL تضمین جدایش یا آب‌بندی نیست.',
+        'آب‌بندی و جداکنندهٔ سازگار با مواد لازم است. ابتدا مونتاژ خشک و آزمایش کم‌حجم انجام دهید.',
+        'در اسلایسر واحد mm و مقیاس ۱۰۰٪ را انتخاب کنید. تحمل بار اتصال و کیفیت پرینت جداگانه بررسی شود.',
+        'manifest.json شامل فهرست فایل‌ها (به‌جز خودش) و اندازهٔ بایت آن‌ها است؛ STLها پیش از بسته‌بندی اعتبارسنجی شده‌اند.',
+      ].join('\n');
+      const result = await toBuildZip({ project: profileMode, meshes, files, instructions }, controller.signal);
+      if (controller.signal.aborted) setZipError('بسته‌بندی لغو شد؛ فایلی دانلود نشد.');
+      else if (!result.ok) setZipError(result.error ?? 'خطای تولید ZIP');
+      else download(result.filename, result.bytes!);
+    } catch (error) {
+      setZipError(String(error));
+    } finally {
+      if (zipController.current === controller) zipController.current = null;
+      setZipBusy(false);
+    }
   };
 
   const doExportSvg = () => {
@@ -392,6 +462,11 @@ export function App() {
           {part === 'export' && (
             <>
               <h3 className="sec">خروجی‌ها</h3>
+              <div className="ctl"><button className="btn primary" disabled={zipBusy || moldBusy || motherBusy || barrierRequest !== null || !formMesh || !moldParts}
+                onClick={exportBuildZip}>{zipBusy ? '⏳ در حال بسته‌بندی…' : '⬇ ZIP ساخت: قطعات، مواد و راهنما'}</button></div>
+              {zipBusy && <button className="btn" onClick={() => zipController.current?.abort()}>لغو بسته‌بندی</button>}
+              {zipError && <div className="hint" role="alert">{zipError}</div>}
+              <div className="hint">ZIP فقط مادرقالب‌های ساخته‌شدهٔ فعلی را شامل می‌شود؛ قطعات جاافتاده در README مشخص‌اند.</div>
               <div className="ctl"><button className="btn primary" style={{ width: '100%' }} onClick={doExportStl}>
                 ⬇ STL سه‌بعدی (اعتبارسنجی‌شده)</button></div>
               <div className="ctl"><button className="btn" style={{ width: '100%' }} onClick={doExportSvg}>
