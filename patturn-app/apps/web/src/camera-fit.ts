@@ -10,5 +10,10 @@ export function cameraFit(bounds: Box3, verticalFov: number, aspect: number) {
   const horizontal = Math.atan(Math.tan(vertical) * aspect);
   const distance = radius * 1.15 / Math.sin(Math.min(vertical, horizontal));
   if (!Number.isFinite(distance)) return null;
-  return { center, distance, near: Math.max(0.0001, distance - radius * 1.5), far: distance + radius * 2 };
+  // Do not tightly clip to the fitted pose: OrbitControls must still allow zooming
+  // toward / away from the target after fitting, without slicing the model away.
+  const near = Math.max(0.0001, radius / 1000);
+  const far = Math.max(5000, distance + radius * 100);
+  if (![near, far].every(Number.isFinite)) return null;
+  return { center, distance, near, far };
 }

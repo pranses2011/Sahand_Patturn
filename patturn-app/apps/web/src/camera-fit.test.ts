@@ -24,4 +24,17 @@ describe('Perspective model framing',()=>{
     const fit=cameraFit(new Box3(new Vector3(2,3,4),new Vector3(2,3,4)),45,1)!;
     expect(fit.center.toArray()).toEqual([2,3,4]);expect(fit.far).toBeGreaterThan(fit.near);expect(fit.near).toBeGreaterThan(0);
   });
+  it('keeps model center inside depth range after interactive zoom in and out',()=>{
+    const bounds=new Box3(new Vector3(-100,-100,-100),new Vector3(100,100,100));
+    const fit=cameraFit(bounds,45,1)!;
+    const camera=new PerspectiveCamera(45,1,fit.near,fit.far);
+    for(const distance of [fit.distance/10,fit.distance,fit.distance*5]){
+      camera.position.copy(fit.center).add(new Vector3(0,0,distance));
+      camera.lookAt(fit.center);camera.updateMatrixWorld();
+      const depth=fit.center.clone().project(camera).z;
+      expect(depth).toBeGreaterThan(-1);expect(depth).toBeLessThan(1);
+    }
+    expect(fit.near).toBeLessThan(1);expect(fit.far).toBeGreaterThanOrEqual(5000);
+  });
+
 });
