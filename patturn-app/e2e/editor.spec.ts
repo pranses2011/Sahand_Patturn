@@ -548,3 +548,14 @@ test('numeric corrections report clamping and invalid drafts without adding empt
   await expect(number).toHaveValue('20');
   await expect(control.getByRole('status')).toBeEmpty();
 });
+
+test('profile undo and redo commands display Persian form names',async({page})=>{
+  await page.goto('/');
+  await page.getByRole('radio',{name:'سطل گشاد',exact:true}).check();
+  const undo=page.getByRole('button',{name:'واگرد: فرم: گلدان مرجع ← سطل گشاد',exact:true});
+  await expect(undo).toHaveAttribute('title','فرم: گلدان مرجع ← سطل گشاد');
+  await undo.click();
+  await expect(page.getByRole('radio',{name:'گلدان مرجع (۱۱۳۱ml)',exact:true})).toBeChecked();
+  await page.getByRole('button',{name:'ازنو: فرم: گلدان مرجع ← سطل گشاد',exact:true}).click();
+  await expect(page.getByRole('radio',{name:'سطل گشاد',exact:true})).toBeChecked();
+});

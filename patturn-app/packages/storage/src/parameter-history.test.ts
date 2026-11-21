@@ -3,6 +3,18 @@ import { ParameterHistory } from './index.js';
 import type { EditorState } from '@patturn/schema';
 const state: EditorState={profileMode:'reference',segments:96,wall:4,shrink:12,fill:80,patternId:'dot-grid',tileSize:40};
 describe('Named parameter undo/redo',()=>{
+  it.each([
+    ['reference','bucket','گلدان مرجع','سطل گشاد'],
+    ['bucket','vase','سطل گشاد','گلدان کمر باریک'],
+    ['vase','reference','گلدان کمر باریک','گلدان مرجع'],
+  ] as const)('localizes profile history from %s to %s without changing stored IDs',(from,to,fromName,toName)=>{
+    const initial={...state,profileMode:from};
+    const h=new ParameterHistory(initial);h.record({...initial,profileMode:to});
+    expect(h.undoTitle).toBe(`فرم: ${fromName} ← ${toName}`);
+    expect(h.undo()).toEqual(initial);
+    expect(h.redoTitle).toBe(`فرم: ${fromName} ← ${toName}`);
+    expect(h.redo()!.profileMode).toBe(to);
+  });
   it('UHI1: named undo and redo restore complete snapshots',()=>{
     const h=new ParameterHistory(state);
     expect(h.undo()).toBeNull();

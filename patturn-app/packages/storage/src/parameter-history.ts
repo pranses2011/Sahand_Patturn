@@ -4,7 +4,12 @@ const LABELS: Record<keyof State, string> = {
   profileMode: 'فرم', segments: 'تقسیمات مش', wall: 'ضخامت', shrink: 'انقباض',
   fill: 'پرشدگی', patternId: 'الگو', tileSize: 'اندازهٔ کاشی',
 };
-const value = (v: string | number) => typeof v === 'number' ? new Intl.NumberFormat('fa-IR').format(v) : v;
+const PROFILE_NAMES: Record<State['profileMode'], string> = {
+  reference: 'گلدان مرجع', bucket: 'سطل گشاد', vase: 'گلدان کمر باریک',
+};
+const value = (key: keyof State, v: string | number) => key === 'profileMode'
+  ? PROFILE_NAMES[v as State['profileMode']]
+  : typeof v === 'number' ? new Intl.NumberFormat('fa-IR').format(v) : v;
 
 /** In-memory editing history; unrelated to autosave and folder backups. */
 export class ParameterHistory {
@@ -48,7 +53,7 @@ export class ParameterHistory {
     if (!changed.length) return false;
     const baseline = this.grouping && this.groupHasEntry ? this.groupStart!.entries[this.groupStart!.cursor]!.state : current;
     const title = (Object.keys(LABELS) as (keyof State)[]).filter((key) => state[key] !== baseline[key])
-      .map((key) => `${LABELS[key]}: ${value(baseline[key])} ← ${value(state[key])}`).join(' · ') || 'تغییر پارامترها';
+      .map((key) => `${LABELS[key]}: ${value(key, baseline[key])} ← ${value(key, state[key])}`).join(' · ') || 'تغییر پارامترها';
     if (this.grouping && this.groupHasEntry) this.entries[this.cursor] = { state, title };
     else {
       this.entries = this.entries.slice(0, this.cursor + 1);
