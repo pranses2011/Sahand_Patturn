@@ -23,6 +23,20 @@ describe('Numeric draft editing',()=>{
     expect(normalizeControlValue(12.7,0,20,.5)).toBe(12.5);
     expect(normalizeControlValue(.3,0,1,.1)).toBe(.3);
   });
+  it.each([
+    [4, 1, 10, 2, 5],
+    [10, 1, 10, 2, 9],
+    [100, 1, 10, 2, 9],
+    [-100, 1, 10, 2, 1],
+    [.3, .1, 1, .2, .3],
+    [1, .1, 1, .2, .9],
+    [-.6, -.9, .9, .2, -.5],
+    [5, 1, 1.1, 2, 1],
+    [.3, 0, .3, .1, .3],
+  ])('anchors %s to min=%s max=%s step=%s yielding %s',(input,min,max,step,expected)=>{
+    expect(normalizeControlValue(input,min,max,step)).toBe(expected);
+    expect(normalizeControlValue(expected,min,max,step)).toBe(expected);
+  });
   it('reflects external undo or project loads in the draft',()=>{
     let tree!:ReturnType<typeof create>;
     const props={label:'ضخامت',min:1,max:20,onChange:()=>{},onBeginEdit:()=>{},onEndEdit:()=>{}};

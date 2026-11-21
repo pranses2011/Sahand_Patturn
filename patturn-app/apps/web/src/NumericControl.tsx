@@ -2,7 +2,11 @@ import { useEffect, useId, useState } from 'react';
 import { ParameterHelp, type HelpTopic } from './ParameterHelp';
 
 export function normalizeControlValue(n: number, min: number, max: number, step: number): number {
-  return Math.min(max, Math.max(min, Number((Math.round(n / step) * step).toFixed(8))));
+  // HTML number/range steps are anchored at min, not at zero. Keep the upper
+  // endpoint on that lattice even when max itself is not an allowed step.
+  const lastStep = Math.floor(Number(((max - min) / step).toFixed(8)));
+  const index = Math.min(lastStep, Math.max(0, Math.round((n - min) / step)));
+  return Number((min + index * step).toFixed(8));
 }
 
 export function NumericControl({label,value,onChange,min,max,step=1,unit='mm',help,onBeginEdit,onEndEdit}: {
