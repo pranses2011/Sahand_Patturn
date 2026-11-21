@@ -410,3 +410,16 @@ test('a grouped slider gesture returning to its initial value leaves no empty un
   await page.keyboard.press('ArrowUp');await expect(slider).toHaveValue('5');
   await undo.click();await expect(slider).toHaveValue('4');await expect(undo).toBeDisabled();
 });
+
+test('a net-zero slider gesture after undo preserves the existing redo branch',async({page})=>{
+  await page.goto('/');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('6');await wall.press('Enter');
+  await page.getByRole('button',{name:/^واگرد/}).click();await expect(wall).toHaveValue('4');
+  const slider=page.getByRole('slider',{name:'ضخامت شعاعی برای ظرفیت',exact:true});await slider.focus();
+  await page.keyboard.down('ArrowUp');await page.keyboard.down('ArrowDown');
+  await page.keyboard.up('ArrowDown');await page.keyboard.up('ArrowUp');
+  await expect(wall).toHaveValue('4');
+  const redo=page.getByRole('button',{name:/^ازنو/});await expect(redo).toBeEnabled();
+  await redo.click();await expect(wall).toHaveValue('6');
+});

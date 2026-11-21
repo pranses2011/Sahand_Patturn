@@ -50,4 +50,20 @@ describe('Named parameter undo/redo',()=>{
     expect(h.undo()).toEqual(state);expect(h.redo()!.fill).toBe(50);expect(h.canRedo).toBe(false);
   });
 
+  it('restores the redo branch after a completed net-zero gesture',()=>{
+    const h=new ParameterHistory(state);h.record({...state,wall:6});h.undo();
+    h.beginGroup();h.record({...state,wall:8});h.record(state);h.endGroup();
+    expect(h.canUndo).toBe(false);expect(h.canRedo).toBe(true);expect(h.redo()!.wall).toBe(6);
+  });
+  it('restores the oldest entry displaced by a temporary group at capacity',()=>{
+    const h=new ParameterHistory(state,2);h.record({...state,wall:5});h.record({...state,wall:6});
+    h.beginGroup();h.record({...state,wall:7});h.record({...state,wall:6});h.endGroup();
+    expect(h.undo()!.wall).toBe(5);expect(h.undo()).toEqual(state);expect(h.canUndo).toBe(false);
+  });
+  it('still discards a redo branch when the group ends with a real change',()=>{
+    const h=new ParameterHistory(state);h.record({...state,wall:6});h.undo();
+    h.beginGroup();h.record({...state,wall:8});h.endGroup();
+    expect(h.canRedo).toBe(false);expect(h.undo()).toEqual(state);expect(h.redo()!.wall).toBe(8);
+  });
+
 });

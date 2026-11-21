@@ -12,6 +12,7 @@ export class ParameterHistory {
   private cursor = 0;
   private grouping = false;
   private groupHasEntry = false;
+  private groupStart: { entries: { state: State; title: string }[]; cursor: number } | null = null;
   constructor(initial: State, private limit = 50) {
     if (!Number.isInteger(limit) || limit < 1) throw new Error('INVALID_HISTORY_LIMIT');
     this.entries = [{ state: EditorState.parse(initial), title: 'شروع' }];
@@ -23,25 +24,29 @@ export class ParameterHistory {
   get current() { return EditorState.parse(this.entries[this.cursor]!.state); }
   beginGroup() {
     if (this.grouping) return;
+    this.groupStart = { entries: this.entries, cursor: this.cursor };
     this.grouping = true; this.groupHasEntry = false;
   }
   endGroup() {
-    if (this.grouping && this.groupHasEntry && this.cursor > 0) {
-      const previous = this.entries[this.cursor - 1]!.state;
+    if (this.grouping && this.groupHasEntry && this.groupStart) {
+      const previous = this.groupStart.entries[this.groupStart.cursor]!.state;
       const current = this.entries[this.cursor]!.state;
       if ((Object.keys(LABELS) as (keyof State)[]).every((key) => previous[key] === current[key])) {
-        this.entries.splice(this.cursor, 1);
-        this.cursor--;
+        // Restore redo and any oldest entry displaced by the temporary edit at capacity.
+        this.entries = this.groupStart.entries;
+        this.cursor = this.groupStart.cursor;
       }
     }
+    this.groupStart = null;
     this.grouping = false; this.groupHasEntry = false;
   }
+
   record(input: State): boolean {
     const state = EditorState.parse(input);
     const current = this.entries[this.cursor]!.state;
     const changed = (Object.keys(LABELS) as (keyof State)[]).filter((key) => state[key] !== current[key]);
     if (!changed.length) return false;
-    const baseline = this.grouping && this.groupHasEntry ? this.entries[this.cursor - 1]!.state : current;
+    const baseline = this.grouping && this.groupHasEntry ? this.groupStart!.entries[this.groupStart!.cursor]!.state : current;
     const title = (Object.keys(LABELS) as (keyof State)[]).filter((key) => state[key] !== baseline[key])
       .map((key) => `${LABELS[key]}: ${value(baseline[key])} ← ${value(state[key])}`).join(' · ') || 'تغییر پارامترها';
     if (this.grouping && this.groupHasEntry) this.entries[this.cursor] = { state, title };
