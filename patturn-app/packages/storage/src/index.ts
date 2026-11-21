@@ -72,3 +72,4 @@ export * from './history.js';
 export * from './native-files.js';
 export * from './backups.js';
 export * from './parameter-history.js';
+export * from './pattern-library.js';

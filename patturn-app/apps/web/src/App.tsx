@@ -1,3 +1,4 @@
+import { SavedPatterns } from './SavedPatterns';
 import { PatternLibrary } from './PatternLibrary';
 import { ParameterHelp, type HelpTopic } from './ParameterHelp';
 import { EditorModeSwitch, AdvancedControls, type EditorMode } from './EditorMode';
@@ -647,6 +648,9 @@ export function App() {
             <>
               <h3 className="sec">کتابخانهٔ الگو</h3>
               <PatternLibrary selectedId={patternId} onSelect={(id) => { setPatternId(id); markDirty(); }} />
+              <SavedPatterns patternId={patternId} tileSize={tileSize} onApply={(recipe) => {
+                parameterHistory.endGroup(); setPatternId(recipe.patternId); setTileSize(recipe.tileSize); markDirty();
+              }} />
               <h3 className="sec">نگاشت روی فرم (unwrap استوانه‌ای)</h3>
               <div className="hint">
                 {unwrapInfo ? (

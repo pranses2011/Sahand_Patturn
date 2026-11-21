@@ -114,3 +114,8 @@ h3.sec { font-size: 13px; color: var(--clay-dark); margin: 18px 0 10px; letter-s
 .pattern-card.selected { border-color: var(--clay); background: var(--sunken); }
 .pattern-card:focus-within { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
 .pattern-card svg { grid-column: 1 / -1; width: 100%; max-height: 100px; background: var(--bg); color: var(--ink); border-radius: 4px; }
+.saved-patterns { margin-block: 14px; font-size: 12px; }
+.saved-patterns summary { cursor: pointer; padding-block: 6px; }
+.saved-patterns input { width: 100%; margin-block: 6px; padding: 6px; }
+.saved-patterns ul { list-style: none; padding: 0; overflow-wrap: anywhere; }
+.saved-patterns li { padding-block: 8px; border-bottom: 1px solid var(--line); }
