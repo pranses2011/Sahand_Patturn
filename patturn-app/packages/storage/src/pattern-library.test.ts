@@ -32,4 +32,26 @@ describe('Named pattern recipes',()=>{
     const repo=new PatternLibraryRepo({getItem:()=>null,setItem:()=>{throw Error('quota');}},['wave']);
     expect(()=>repo.save(recipe)).toThrow('quota');
   });
+  it('renames in place while preserving pattern, tile size and neighboring entries',()=>{
+    const {repo}=setup();repo.save(recipe);repo.save({...recipe,name:'دوم',patternId:'grid'});
+    expect(repo.rename(recipe.name,'  نام جدید  ')).toEqual([{...recipe,name:'نام جدید'},{...recipe,name:'دوم',patternId:'grid'}]);
+    expect(repo.list()[0]!.name).toBe('نام جدید');
+  });
+  it('rejects duplicate, missing and invalid rename without changing stored bytes',()=>{
+    const {repo,data}=setup();repo.save(recipe);repo.save({...recipe,name:'دوم'});const before=data.get(PATTERN_LIBRARY_KEY);
+    for(const [old,next] of [[recipe.name,'دوم'],['missing','new'],[recipe.name,' '],[recipe.name,'x'.repeat(61)]]){
+      expect(()=>repo.rename(old!,next!)).toThrow();expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);
+    }
+  });
+  it('does not write an unchanged normalized name',()=>{
+    const {repo,storage}=setup();repo.save(recipe);storage.setItem=()=>{throw Error('should not write');};
+    expect(repo.rename(recipe.name,` ${recipe.name} `)[0]).toEqual(recipe);
+  });
+  it('retains old bytes on a denied rename and never replaces corrupt data',()=>{
+    const {repo,storage,data}=setup();repo.save(recipe);const before=data.get(PATTERN_LIBRARY_KEY);
+    storage.setItem=()=>{throw Error('denied');};
+    expect(()=>repo.rename(recipe.name,'new')).toThrow('denied');expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);
+    data.set(PATTERN_LIBRARY_KEY,'{broken');expect(()=>repo.rename(recipe.name,'new')).toThrow();expect(data.get(PATTERN_LIBRARY_KEY)).toBe('{broken');
+  });
+
 });

@@ -33,6 +33,17 @@ export class PatternLibraryRepo {
     this.storage.setItem(PATTERN_LIBRARY_KEY, JSON.stringify({ version: 1, entries: next }));
     return next;
   }
+  rename(name: string, nextName: string): PatternRecipe[] {
+    const entries = this.list();
+    const index = entries.findIndex((entry) => entry.name === name);
+    if (index < 0) throw new Error('LIBRARY_NOT_FOUND');
+    const recipe = this.validate({ ...entries[index]!, name: nextName });
+    if (entries.some((entry, i) => i !== index && entry.name === recipe.name)) throw new Error('LIBRARY_NAME_EXISTS');
+    if (recipe.name === entries[index]!.name) return entries;
+    const next = entries.map((entry, i) => i === index ? recipe : entry);
+    this.storage.setItem(PATTERN_LIBRARY_KEY, JSON.stringify({ version: 1, entries: next }));
+    return next;
+  }
   delete(name: string): PatternRecipe[] {
     const next = this.list().filter((e) => e.name !== name);
     this.storage.setItem(PATTERN_LIBRARY_KEY, JSON.stringify({ version: 1, entries: next }));

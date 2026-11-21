@@ -263,3 +263,21 @@ test('blocked localStorage does not prevent editing or portable export and recov
   await page.getByRole('radio',{name:'ساده',exact:true}).check();await expect(modeWarning).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('renaming a saved recipe supports cancel and preserves its values across reload',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await page.getByRole('textbox',{name:'نام تنظیمات',exact:true}).fill('قدیمی');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  page.once('dialog',(dialog)=>dialog.dismiss());
+  await page.getByRole('button',{name:'تغییر نام قدیمی',exact:true}).click();
+  await expect(page.getByRole('button',{name:'اعمال قدیمی',exact:true})).toBeVisible();
+  page.once('dialog',(dialog)=>dialog.accept('جدید'));
+  await page.getByRole('button',{name:'تغییر نام قدیمی',exact:true}).click();
+  await expect(page.getByRole('button',{name:'اعمال قدیمی',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'اعمال جدید',exact:true})).toBeVisible();
+  await page.reload();await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  const tile=page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true});await tile.fill('60');await tile.press('Enter');
+  await page.getByRole('button',{name:'اعمال جدید',exact:true}).click();await expect(tile).toHaveValue('40');
+});

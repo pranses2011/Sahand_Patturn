@@ -15,6 +15,8 @@ export function SavedPatterns({ patternId, tileSize, onApply }: {
       const code = e instanceof Error ? e.message : '';
       setError(code === 'LIBRARY_NAME_EXISTS'
         ? 'این نام قبلاً ذخیره شده است؛ نام دیگری انتخاب کنید. تنظیمات قبلی تغییر نکرد.'
+        : code === 'LIBRARY_NOT_FOUND'
+          ? 'این تنظیمات دیگر در کتابخانه نیست؛ فهرست را بازخوانی کنید.'
         : code === 'LIBRARY_FULL'
           ? 'کتابخانه به سقف ۳۰ تنظیمات رسیده است؛ برای ذخیرهٔ جدید، ابتدا یکی از موارد قبلی را حذف کنید.'
           : `کتابخانه خوانده یا ذخیره نشد؛ دادهٔ قبلی پاک نشده است: ${String(e).slice(0, 120)}`);
@@ -41,6 +43,10 @@ export function SavedPatterns({ patternId, tileSize, onApply }: {
     <ul>{entries.map((entry) => <li key={entry.name}>
       <b>{entry.name}</b> — {entry.tileSize} mm
       <button className="btn" onClick={() => onApply(entry)} aria-label={`اعمال ${entry.name}`}>اعمال</button>
+      <button className="btn" onClick={() => {
+        const nextName = window.prompt('نام جدید تنظیمات:', entry.name);
+        if (nextName !== null) perform(() => repo().rename(entry.name, nextName));
+      }} aria-label={`تغییر نام ${entry.name}`}>تغییر نام</button>
       <button className="btn" onClick={() => { if (window.confirm(`تنظیمات «${entry.name}» حذف شود؟`)) perform(() => repo().delete(entry.name)); }} aria-label={`حذف ${entry.name}`}>حذف</button>
     </li>)}</ul>
   </details>;
