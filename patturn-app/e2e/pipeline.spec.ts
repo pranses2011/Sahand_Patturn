@@ -100,3 +100,30 @@ test('failed WASM load does not invalidate the form and explicit mold retry reco
   await expect(page.getByText('✅ قالب سه‌بعدی ساخته شد — در viewport ببینید',{exact:false})).toBeVisible({timeout:60_000});
   await expect(error).toHaveCount(0);
 });
+
+test('changing capacity inputs while PDF loads cancels stale ZIP and a retry exports current parameters',async({page})=>{
+  let release!:()=>void;const held=new Promise<void>((resolve)=>{release=resolve;});
+  let requested!:()=>void;const requestedPdf=new Promise<void>((resolve)=>{requested=resolve;});
+  await page.route('**/assets/jspdf.es.min-*.js',async(route)=>{requested();await held;await route.continue();});
+  const downloads:string[]=[];page.on('download',(file)=>downloads.push(file.suggestedFilename()));
+  await page.goto('/');
+  await page.getByRole('radio',{name:'حرفه‌ای',exact:true}).check();
+  const segments=page.getByRole('spinbutton',{name:'تعداد سگمنت',exact:true});
+  await segments.fill('24');await segments.press('Enter');
+  await page.getByRole('button',{name:'📤 خروجی',exact:true}).click();
+  const zip=page.getByRole('button',{name:'⬇ ZIP ساخت: قطعات، مواد و راهنما',exact:true});
+  await expect(zip).toBeEnabled({timeout:90_000});await zip.click();
+  await requestedPdf;
+  await page.getByRole('button',{name:'🏺 فرم',exact:true}).click();
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('6');await wall.press('Enter');
+  release();
+  await page.getByRole('button',{name:'📤 خروجی',exact:true}).click();
+  await expect(page.getByRole('alert').filter({hasText:'بسته‌بندی لغو شد؛ فایلی دانلود نشد.'})).toBeVisible();
+  expect(downloads).toEqual([]);await expect(zip).toBeEnabled();
+  const event=page.waitForEvent('download');await zip.click();
+  const file=await event;const path=await file.path();expect(path).not.toBeNull();
+  const entries=unzipSync(new Uint8Array(await readFile(path!)));
+  expect(JSON.parse(strFromU8(entries['parameters.json']!)).wallMm).toBe(6);
+  expect(downloads).toHaveLength(1);
+});

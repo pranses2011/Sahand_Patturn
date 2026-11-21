@@ -472,7 +472,7 @@ export function App() {
   const zipController = useRef<AbortController | null>(null);
   // Cancel a pending export if any captured geometry/pattern source is replaced.
   useEffect(() => () => { zipController.current?.abort(); },
-    [formMesh, moldParts, motherResults, barrierResult, getPatternPaths, shrink]);
+    [formMesh, moldParts, motherResults, barrierResult, getPatternPaths, shrink, wall, fill]);
 
   const exportBuildZip = async () => {
     if (!formMesh || !moldParts || !splitPlan || moldBusy || zipBusy || motherBusy || barrierRequest !== null) return;
@@ -501,6 +501,7 @@ export function App() {
       files.push({ path: exportName(profileMode, 'project', 'v1', 'patturn'),
         bytes: encodeEditorProject({ profileMode, segments, wall, shrink, fill, patternId, tileSize }) });
       const dimensionPdf = await makeDimensionPdf();
+      if (controller.signal.aborted) throw new Error('EXPORT_ABORTED');
       if (!dimensionPdf.ok) throw new Error(dimensionPdf.error);
       files.push({ path: `dimensions/${dimensionPdf.filename}`, bytes: dimensionPdf.bytes! });
       const pattern = toSvg(getPatternPaths(), 300, 300, { strokeMm: patternStrokeMm });
@@ -544,7 +545,7 @@ export function App() {
       else if (!result.ok) setZipError(result.error ?? 'خطای تولید ZIP');
       else download(result.filename, result.bytes!);
     } catch (error) {
-      setZipError(String(error));
+      setZipError(controller.signal.aborted ? 'بسته‌بندی لغو شد؛ فایلی دانلود نشد.' : String(error));
     } finally {
       if (zipController.current === controller) zipController.current = null;
       setZipBusy(false);
