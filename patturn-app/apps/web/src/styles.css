@@ -100,3 +100,10 @@ h3.sec { font-size: 13px; color: var(--clay-dark); margin: 18px 0 10px; letter-s
 .editor-mode legend, .advanced-controls summary { font-size: 12px; font-weight: 600; }
 .advanced-controls { margin-block: 10px; }
 .advanced-controls summary { cursor: pointer; padding-block: 6px; }
+.parameter-help { margin-top: 5px; font-size: 12px; }
+.parameter-help summary { cursor: pointer; padding-block: 4px; }
+.parameter-help-content { padding: 8px; border-inline-start: 2px solid currentColor; line-height: 1.9; }
+.parameter-help svg { display: block; width: 180px; max-width: 100%; height: auto; margin-inline: auto; }
+.parameter-help p { margin-block: 6px; }
+.parameter-help small { opacity: .75; }
+.parameter-help summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

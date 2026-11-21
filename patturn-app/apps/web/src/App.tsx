@@ -1,3 +1,4 @@
+import { ParameterHelp, type HelpTopic } from './ParameterHelp';
 import { EditorModeSwitch, AdvancedControls, type EditorMode } from './EditorMode';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -539,7 +540,7 @@ export function App() {
     download(res.filename, res.bytes!);
   };
 
-  const numCtl = (label: string, value: number, set: (n: number) => void, min: number, max: number, step = 1, unit = 'mm') => (
+  const numCtl = (label: string, value: number, set: (n: number) => void, min: number, max: number, step = 1, unit = 'mm', help?: HelpTopic) => (
     <div className="ctl">
       <label>
         <span>{label}</span>
@@ -554,6 +555,7 @@ export function App() {
       </label>
       <input type="range" aria-label={label} onPointerDown={() => parameterHistory.beginGroup()} onPointerUp={finishParameterGroup} onPointerCancel={finishParameterGroup} onBlur={finishParameterGroup} min={min} max={max} step={step} value={value}
         onChange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) { set(Math.min(max, Math.max(min, Math.round(n / step) * step))); markDirty(); } }} />
+      {help && <ParameterHelp topic={help} />}
     </div>
   );
 
@@ -854,12 +856,12 @@ export function App() {
             <>
               <h3 className="sec">⚙️ پارامترهای فرم</h3>
               <AdvancedControls mode={editorMode}>
-                {numCtl('تعداد سگمنت', segments, setSegments, 12, 256, 4, '')}
+                {numCtl('تعداد سگمنت', segments, setSegments, 12, 256, 4, '', 'segments')}
                 <p className="hint">سگمنت بیشتر سطح را نرم‌تر و فایل و محاسبات را سنگین‌تر می‌کند؛ ابعاد اسمی تغییر نمی‌کند.</p>
               </AdvancedControls>
-              {numCtl('ضخامت شعاعی برای ظرفیت', wall, setWall, 1, 20)}
-              {numCtl('شیرینک', shrink, setShrink, 0, 20, 0.5, '%')}
-              {numCtl('سطح پرشدگی', fill, setFill, 0, 100, 5, '%')}
+              {numCtl('ضخامت شعاعی برای ظرفیت', wall, setWall, 1, 20, 1, 'mm', 'wall')}
+              {numCtl('شیرینک', shrink, setShrink, 0, 20, 0.5, '%', 'shrink')}
+              {numCtl('سطح پرشدگی', fill, setFill, 0, 100, 5, '%', 'fill')}
               <h3 className="sec">📐 ابعاد فرم انتخاب‌شده</h3>
               <div className="hint" style={{ direction: 'ltr', textAlign: 'left' }}>
                 w {dimensions.width.toFixed(1)} · h {dimensions.height.toFixed(1)} · wall {wall} mm
@@ -875,7 +877,7 @@ export function App() {
           {part === 'pattern' && (
             <>
               <h3 className="sec">⚙️ پارامترهای الگو</h3>
-              {numCtl('اندازهٔ کاشی', tileSize, setTileSize, 8, 120, 1)}
+              {numCtl('اندازهٔ کاشی', tileSize, setTileSize, 8, 120, 1, 'mm', 'tile')}
               <div className="hint">
                 بوم: 300×300 mm · واحد: mm
                 <br />خروجی SVG با واحد واقعی (قرارداد T7).
