@@ -75,3 +75,4 @@ export * from './parameter-history.js';
 export * from './pattern-library.js';
 
 export * from './local-profile.js';
+export * from './feature-requests.js';

@@ -1062,3 +1062,34 @@ test('jigsaw tool exports deterministic shared-cut SVG and DXF with editable see
   }
   await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
 });
+
+test('private feature requests persist, sort by votes or newest and export without changing project history',async({page})=>{
+  await page.goto('/');await page.getByText('درخواست قابلیت — فهرست خصوصی این دستگاه',{exact:true}).click();
+  const panel=page.locator('.feature-requests');
+  for(const text of ['ابزار اول','ابزار دوم']){
+    await panel.getByLabel('متن درخواست قابلیت',{exact:true}).fill(text);
+    await panel.getByRole('button',{name:'ثبت پیشنهاد محلی',exact:true}).click();
+  }
+  await panel.getByRole('button',{name:'افزودن رأی محلی: ابزار اول',exact:true}).click();
+  await expect(panel.locator('li').first()).toContainText('ابزار اول');
+  await panel.getByRole('radio',{name:'جدیدترین (New)',exact:true}).check();
+  await expect(panel.locator('li').first()).toContainText('ابزار دوم');
+  const download=page.waitForEvent('download');await panel.getByRole('button',{name:'خروجی JSON درخواست‌ها',exact:true}).click();
+  const file=await download;const path=await file.path();expect(path).not.toBeNull();
+  const doc=JSON.parse(await readFile(path!,'utf8'));expect(doc.format).toBe('patturn-local-feature-requests');
+  expect(doc.entries.map((entry:{text:string;votes:number})=>[entry.text,entry.votes])).toEqual([['ابزار اول',1],['ابزار دوم',0]]);
+  await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
+  await page.reload();await page.getByText('درخواست قابلیت — فهرست خصوصی این دستگاه',{exact:true}).click();
+  await expect(panel.locator('li')).toHaveCount(2);await expect(panel.locator('li').first()).toContainText('ابزار اول');
+});
+
+test('corrupt local feature requests do not overwrite data or block project editing',async({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('patturn:feature-requests:v1','{broken'));
+  await page.goto('/');await page.getByText('درخواست قابلیت — فهرست خصوصی این دستگاه',{exact:true}).click();
+  const panel=page.locator('.feature-requests');await expect(panel.getByRole('alert')).toBeVisible();
+  await panel.getByLabel('متن درخواست قابلیت',{exact:true}).fill('تازه');
+  await panel.getByRole('button',{name:'ثبت پیشنهاد محلی',exact:true}).click();
+  expect(await page.evaluate(()=>localStorage.getItem('patturn:feature-requests:v1'))).toBe('{broken');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});await wall.fill('7');await wall.press('Enter');
+  await expect(wall).toHaveValue('7');await expect(panel.getByRole('status')).toHaveCount(0);
+});

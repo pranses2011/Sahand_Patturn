@@ -1,3 +1,4 @@
+import { FeatureRequests } from './FeatureRequests';
 import { JigsawTool } from './JigsawTool';
 import { HorizontalSplitTool } from './HorizontalSplitTool';
 import { RounderTool } from './RounderTool';
@@ -954,6 +955,7 @@ export function App() {
             </>
           )}
 
+          <FeatureRequests onExport={download} />
           <LocalProfilePanel />
           <PrivacyNotice />
           <SupportPanel />
