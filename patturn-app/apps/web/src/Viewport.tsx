@@ -1,5 +1,5 @@
 import { disposeViewportObject } from './viewport-resources';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { unwrapCylinder, type Mesh } from '@patturn/kernel';
@@ -43,6 +43,7 @@ function buildPatternTexture(paths: Path[], tileW: number, strokeMm: number): TH
 
 /** three.js viewport: dark studio, mm grid, clay-colored form. */
 export function Viewport({ mesh, mode, pattern }: Props) {
+  const [renderError, setRenderError] = useState(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<{
     renderer?: THREE.WebGLRenderer;
@@ -58,6 +59,11 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     const host = hostRef.current!;
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      setRenderError(true);
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost);
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -107,13 +113,15 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     const loop = () => {
       st.raf = requestAnimationFrame(loop);
       controls.update();
-      renderer.render(scene, camera);
+      try { renderer.render(scene, camera); }
+      catch { setRenderError(true); }
     };
     loop();
 
     return () => {
       cancelAnimationFrame(st.raf!);
       ro.disconnect();
+      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       controls.dispose();
       disposeViewportObject(grid);
       disposeViewportObject(axes);
@@ -177,5 +185,6 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     };
   }, [mesh, mode, pattern]);
 
+  if (renderError) throw new Error('VIEWPORT_GRAPHICS_UNAVAILABLE');
   return <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />;
 }

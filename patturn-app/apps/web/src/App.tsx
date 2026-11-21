@@ -1,3 +1,4 @@
+import { ViewportBoundary } from './ViewportBoundary';
 import { PatternViewSwitch, FlatPatternPreview, type PatternView } from './PatternPreview';
 import { SavedPatterns } from './SavedPatterns';
 import { PatternLibrary } from './PatternLibrary';
@@ -830,7 +831,7 @@ export function App() {
 
         {/* ── center: viewport ── */}
         <section className="viewport">
-          {(part !== 'pattern' || patternView === 'surface') && <Suspense fallback={<div className="hint" role="status">در حال بارگذاری نمایشگر سه‌بعدی…</div>}>
+          {(part !== 'pattern' || patternView === 'surface') && <ViewportBoundary><Suspense fallback={<div className="hint" role="status">در حال بارگذاری نمایشگر سه‌بعدی…</div>}>
           <Viewport
             mesh={mesh}
             mode={part === 'mold' ? 'mold' : 'form'}
@@ -838,7 +839,7 @@ export function App() {
               ? { paths: patternPaths, tileW: tileSize, strokeMm: patternStrokeMm }
               : null}
           />
-          </Suspense>}
+          </Suspense></ViewportBoundary>}
 
           {part === 'pattern' && patternView === 'flat' && (
             <FlatPatternPreview paths={patternPaths} strokeMm={patternStrokeMm} />
