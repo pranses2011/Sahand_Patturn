@@ -608,8 +608,24 @@ test('saved recipe search filters Persian names and pattern types without applyi
   await search.fill('ناشناخته');await expect(list).toHaveCount(0);
   await expect(page.getByText('تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'پاک‌کردن جست‌وجوی تنظیمات',exact:true}).click();
+  await expect(search).toBeFocused();
   await expect(list).toHaveCount(2);
   await page.reload();await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
   await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
   await expect(list).toHaveCount(2);
+});
+
+test('clearing pattern search by keyboard restores input focus and permits immediate typing',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  const library=page.getByRole('group',{name:'الگوهای آماده',exact:true});
+  const search=library.getByRole('searchbox',{name:'جست‌وجوی الگو',exact:true});
+  await search.fill('ناشناخته');
+  await expect(library.getByRole('radio')).toHaveCount(0);
+  const clear=library.getByRole('button',{name:'پاک‌کردن جست‌وجو',exact:true});
+  await clear.focus();await page.keyboard.press('Enter');
+  await expect(search).toBeFocused();await expect(search).toHaveValue('');
+  await expect(library.getByRole('radio')).toHaveCount(12);
+  await expect(library.getByRole('radio',{name:'شبکهٔ نقطه‌ای',exact:true})).toBeChecked();
+  await page.keyboard.type('grid');
+  await expect(search).toHaveValue('grid');await expect(library.getByRole('radio')).toHaveCount(2);
 });

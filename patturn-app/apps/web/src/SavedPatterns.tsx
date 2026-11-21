@@ -11,6 +11,7 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
   const words = normalizePatternSearch(query).split(' ').filter(Boolean);
   const visible = entries.filter((entry) => {
     const text = normalizePatternSearch(`${entry.name} ${PATTERN_NAMES_FA[entry.patternId] ?? ''} ${entry.patternId}`);
@@ -93,8 +94,8 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
       importToken.current++; setImporting(false); setImportMessage('ورود پشتیبان لغو شد؛ کتابخانه تغییر نکرد.');
     }}>لغو خواندن پشتیبان</button>}
     {importMessage && <p role="status" className="hint">{importMessage}</p>}
-    <label>جست‌وجوی تنظیمات ذخیره‌شده<input type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} /></label>
-    {query && <button className="btn" onClick={() => setQuery('')}>پاک‌کردن جست‌وجوی تنظیمات</button>}
+    <label>جست‌وجوی تنظیمات ذخیره‌شده<input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} /></label>
+    {query && <button className="btn" onClick={() => { setQuery(''); searchRef.current?.focus(); }}>پاک‌کردن جست‌وجوی تنظیمات</button>}
     <p role="status">{new Intl.NumberFormat('fa-IR').format(visible.length)} مورد از {new Intl.NumberFormat('fa-IR').format(entries.length)} — جست‌وجو پروژه و کتابخانه را تغییر نمی‌دهد.</p>
     {visible.length === 0 && <p className="hint">تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.</p>}
     <ul>{visible.map((entry) => <li key={entry.name}>
