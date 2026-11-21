@@ -33,7 +33,16 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npm run bundle:report
+      - name: Report bundle size and roadmap budget (non-enforcing)
+        run: |
+          node scripts/bundle-report.mjs > bundle-report.json
+          cat bundle-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-bundle-report
+          path: patturn-app/bundle-report.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Install Chromium for browser smoke tests
         run: npx playwright install --with-deps chromium
       - name: Browser smoke tests (disabled and software WebGL)
