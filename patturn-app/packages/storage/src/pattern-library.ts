@@ -90,7 +90,9 @@ export class PatternLibraryRepo {
     return next;
   }
   delete(name: string): PatternRecipe[] {
-    const next = this.list().filter((e) => e.name !== name);
+    const entries = this.list();
+    const next = entries.filter((e) => e.name !== name);
+    if (next.length === entries.length) return entries;
     this.storage.setItem(PATTERN_LIBRARY_KEY, JSON.stringify({ version: 1, entries: next }));
     return next;
   }

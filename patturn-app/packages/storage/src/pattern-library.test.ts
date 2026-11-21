@@ -13,6 +13,27 @@ describe('Named pattern recipes',()=>{
     expect(new PatternLibraryRepo(storage,['wave']).list()).toEqual([recipe]);
     expect(repo.delete(recipe.name)).toEqual([]);
   });
+  it('does not create an empty storage document when deleting from an absent library',()=>{
+    const {repo,storage,data}=setup();
+    storage.setItem=()=>{throw Error('unexpected write');};
+    expect(repo.delete('missing')).toEqual([]);expect(data.has(PATTERN_LIBRARY_KEY)).toBe(false);
+  });
+  it('preserves exact stored bytes and neighbors on a repeated or missing delete',()=>{
+    const {repo,storage,data}=setup();repo.save(recipe);repo.save({...recipe,name:'دوم',patternId:'grid'});
+    repo.delete(recipe.name);
+    const before=data.get(PATTERN_LIBRARY_KEY)!;
+    // Deliberate whitespace must survive a no-op, not be normalized by a write.
+    data.set(PATTERN_LIBRARY_KEY,`  ${before}  `);
+    storage.setItem=()=>{throw Error('quota');};
+    expect(repo.delete(recipe.name)).toEqual([{...recipe,name:'دوم',patternId:'grid'}]);
+    expect(data.get(PATTERN_LIBRARY_KEY)).toBe(`  ${before}  `);
+  });
+  it('does not hide a failed real deletion or change the original stored data',()=>{
+    const {repo,storage,data}=setup();repo.save(recipe);const before=data.get(PATTERN_LIBRARY_KEY);
+    storage.setItem=()=>{throw Error('denied');};
+    expect(()=>repo.delete(recipe.name)).toThrow('denied');
+    expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);expect(repo.list()).toEqual([recipe]);
+  });
   it('rejects duplicates and invalid or unknown recipes without overwriting',()=>{
     const {repo,data}=setup();repo.save(recipe);const before=data.get(PATTERN_LIBRARY_KEY);
     for(const input of [{...recipe,name:' '},{...recipe,tileSize:NaN},{...recipe,patternId:'unknown'},recipe])expect(()=>repo.save(input)).toThrow();
