@@ -1,3 +1,4 @@
+import { gunzipSync, strFromU8 } from 'fflate';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
@@ -232,4 +233,33 @@ test('named recipe lists synchronize across browser tabs without changing either
   await expect(tile).toHaveValue('60');
   await expect(page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true})).toHaveValue('40');
   await other.close();
+});
+
+test('blocked localStorage does not prevent editing or portable export and recovery saves current state',async({page})=>{
+  await page.addInitScript(()=>{
+    const original=Object.getOwnPropertyDescriptor(window,'localStorage')!;
+    (window as unknown as {testStorageBlocked:boolean}).testStorageBlocked=true;
+    Object.defineProperty(window,'localStorage',{configurable:true,get(){
+      if((window as unknown as {testStorageBlocked:boolean}).testStorageBlocked)throw new DOMException('Synthetic storage block','SecurityError');
+      return original.get!.call(window);
+    }});
+  });
+  const errors:string[]=[];page.on('pageerror',(error)=>errors.push(error.message));
+  await page.goto('/');
+  await expect(page.getByRole('alert').filter({hasText:'بازیابی ذخیرهٔ محلی ناموفق بود'})).toBeVisible();
+  const modeWarning=page.getByRole('status').filter({hasText:'ترجیح حالت رابط خوانده یا ذخیره نشد'});
+  await expect(modeWarning).toBeVisible();
+  await page.getByRole('radio',{name:'حرفه‌ای',exact:true}).check();
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('6');await wall.press('Enter');
+  const event=page.waitForEvent('download');await page.getByRole('button',{name:'ذخیرهٔ فایل پروژه',exact:true}).click();
+  const path=await (await event).path();expect(path).not.toBeNull();
+  expect(JSON.parse(strFromU8(gunzipSync(new Uint8Array(await readFile(path!))))).state.wall).toBe(6);
+  await expect(page.getByRole('alert').filter({hasText:/^ذخیرهٔ محلی ناموفق بود/})).toBeVisible({timeout:10_000});
+  await page.evaluate(()=>{(window as unknown as {testStorageBlocked:boolean}).testStorageBlocked=false;});
+  await page.getByRole('alert').filter({hasText:/^ذخیرهٔ محلی ناموفق بود/}).getByRole('button',{name:'تلاش دوباره',exact:true}).click();
+  await expect(page.locator('header')).toContainText('✓ ذخیره شد');
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('patturn:editor-history:v1')!).entries[0].state.wall)).toBe(6);
+  await page.getByRole('radio',{name:'ساده',exact:true}).check();await expect(modeWarning).toHaveCount(0);
+  expect(errors).toEqual([]);
 });
