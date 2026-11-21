@@ -50,7 +50,13 @@ export async function toDimensionPdf(inputProfile: Profile, inputOptions: {
   try {
     if (inputProfile.length > MAX_PDF_PROFILE_POINTS) throw new Error('PDF_TOO_MANY_POINTS');
     // Snapshot before the first await: callers retain ownership of mutable arrays.
-    const options = { ...inputOptions, parameters: inputOptions.parameters?.map((row) => ({ ...row })) };
+    const options = {
+      project: inputOptions.project,
+      signal: inputOptions.signal,
+      parameters: inputOptions.parameters?.slice(0, 12).map((row) => ({
+        label: row.label.slice(0, 50), value: row.value.slice(0, 80),
+      })),
+    };
     const cancelled = () => { if (options.signal?.aborted) throw new Error('EXPORT_CANCELLED'); };
     cancelled();
     const profile = inputProfile.map((point) => ({ ...point }));

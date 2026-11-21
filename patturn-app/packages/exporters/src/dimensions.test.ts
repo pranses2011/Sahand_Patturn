@@ -101,4 +101,15 @@ describe('Dimension PDF', () => {
     }
   });
 
+  it('D13: snapshots only the twelve visible extra rows and their rendered text lengths',async()=>{
+    const visible=Array.from({length:12},(_,i)=>({label:`row ${i} `+'x'.repeat(80),value:'y'.repeat(120)}));
+    const parameters=[...visible];
+    Object.defineProperty(parameters,12,{get:()=>{throw Error('HIDDEN_ROW_MUST_NOT_BE_READ');}});
+    const result=await toDimensionPdf(referenceOuterProfile(8),{parameters});
+    const expected=await toDimensionPdf(referenceOuterProfile(8),{
+      parameters:visible.map((row)=>({label:row.label.slice(0,50),value:row.value.slice(0,80)})),
+    });
+    expect(result.ok).toBe(true);expect(result.bytes).toEqual(expected.bytes);
+  });
+
 });
