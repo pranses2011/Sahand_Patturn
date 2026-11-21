@@ -15,6 +15,8 @@ type ManifoldT = {
   subtract(o: ManifoldT): ManifoldT;
   add(o: ManifoldT): ManifoldT;
   intersect(o: ManifoldT): ManifoldT;
+  minkowskiSum(o: ManifoldT): ManifoldT;
+  simplify(tolerance?: number): ManifoldT;
   splitByPlane(normal: [number, number, number], offset: number): ManifoldT[];
   translate(v: [number, number, number]): ManifoldT;
   scale(v: number | [number, number, number]): ManifoldT;
@@ -344,4 +346,100 @@ export async function buildMotherMold(master: Mesh, opts: MotherMoldOptions = {}
     siliconeVolumeMm3, siliconeKg: siliconeVolumeMm3 / 1e6 * density,
     cavityBounds: { min, max },
   };
+}
+
+/**
+ * Weld on a 0.0001mm grid after Float32 conversion, removing collapsed face
+ * pairs. Displacement ≤ 0.000087mm; final topology is always revalidated.
+ */
+function barrierMesh(man: ManifoldT): Mesh {
+  const mesh = fromManifold(man);
+  const unique = new Map<string, number>();
+  const vertices: number[] = [];
+  const remap: number[] = [];
+  for (let i = 0; i < mesh.positions.length; i += 3) {
+    const xyz = [mesh.positions[i]!, mesh.positions[i + 1]!, mesh.positions[i + 2]!].map((v) => Math.round(v * 10000) / 10000);
+    const key = xyz.join(',');
+    let index = unique.get(key);
+    if (index === undefined) {
+      index = vertices.length / 3;
+      unique.set(key, index);
+      vertices.push(...xyz);
+    }
+    remap.push(index);
+  }
+  const indices: number[] = [];
+  const faces = new Map<string, [number, number, number]>();
+  for (let i = 0; i < mesh.indices.length; i += 3) {
+    const a = remap[mesh.indices[i]!]!, b = remap[mesh.indices[i + 1]!]!, c = remap[mesh.indices[i + 2]!]!;
+    if (a !== b && b !== c && c !== a) {
+      const key = [a, b, c].sort((x, y) => x - y).join(',');
+      if (faces.has(key)) faces.delete(key); // collapsed zero-thickness face pair
+      else faces.set(key, [a, b, c]);
+    }
+  }
+  for (const face of faces.values()) indices.push(...face);
+  const result: Mesh = { ...mesh, positions: new Float32Array(vertices), indices: new Uint32Array(indices) };
+  const report = validateMesh(result);
+  if (!report.ok) throw new Error(`BARRIER_MESH_INVALID: ${report.problems.join(',')}`);
+  return result;
+}
+
+export interface OffsetBarrierOptions {
+  clearanceMm?: number;
+  thicknessMm?: number;
+  /** Sphere tessellation; bounded so radial offset approximation stays below 0.2mm. */
+  segments?: number;
+}
+
+export interface OffsetBarrierResult {
+  halves: [Mesh, Mesh];
+  clearanceMm: number;
+  thicknessMm: number;
+  /** Conservative radial error from the faceted spherical dilation tool. */
+  offsetErrorBoundMm: number;
+}
+
+/**
+ * Separate, conformal barrier prototype: (master ⊕ sphere(clearance+thickness))
+ * minus (master ⊕ sphere(clearance)), split at bbox mid-Z for removal.
+ * Unlike a bbox scale this follows concave features, which may close if narrower
+ * than twice the offset. No ports/flanges: not a complete casting jacket.
+ */
+export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOptions = {}): Promise<OffsetBarrierResult> {
+  const clearance = opts.clearanceMm ?? 2;
+  const thickness = opts.thicknessMm ?? 2;
+  const segments = opts.segments ?? 32;
+  if (![clearance, thickness].every((v) => Number.isFinite(v) && v > 0) ||
+      !Number.isInteger(segments) || segments < 16 || segments > 64 || segments % 4 !== 0) {
+    throw new Error('BARRIER_INVALID_OPTIONS');
+  }
+  // Angular span in each of the two spherical directions ≤ 2π/segments.
+  // cos²(pi/segments) bounds the inscribed facets' radial loss conservatively.
+  const offsetErrorBoundMm = (clearance + thickness) * (1 - Math.cos(Math.PI / segments) ** 2) + 0.0011;
+  if (offsetErrorBoundMm > 0.2) throw new Error('BARRIER_OFFSET_TOLERANCE');
+  const report = validateMesh(master);
+  if (!report.ok) throw new Error(`BARRIER_INVALID_MASTER: ${report.problems.join(',')}`);
+  await initCsg();
+  const w = requireWasm();
+  const owned: ManifoldT[] = [];
+  const own = (m: ManifoldT) => { owned.push(m); return m; };
+  try {
+    const man = own(toManifold(master));
+    const innerSphere = own(w.Manifold.sphere(clearance, segments));
+    const outerSphere = own(w.Manifold.sphere(clearance + thickness, segments));
+    const inner = own(man.minkowskiSum(innerSphere));
+    const outer = own(man.minkowskiSum(outerSphere));
+    const shell = own(outer.subtract(inner));
+    const bb = man.boundingBox();
+    const pieces = shell.splitByPlane([0, 0, 1], (bb.min[2] + bb.max[2]) / 2);
+    pieces.forEach(own);
+    return {
+      halves: [barrierMesh(own(pieces[1]!.simplify(0.001))), barrierMesh(own(pieces[0]!.simplify(0.001)))],
+      clearanceMm: clearance, thicknessMm: thickness, offsetErrorBoundMm,
+    };
+  } finally {
+    // Minkowski operations create large native allocations; release even on validation failure.
+    for (let i = owned.length - 1; i >= 0; i--) owned[i]!.delete?.();
+  }
 }

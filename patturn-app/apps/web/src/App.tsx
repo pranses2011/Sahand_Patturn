@@ -15,7 +15,7 @@ import {
 import {
   analyzeUndercut, keyTopRadius, initCsg,
   chooseSplitPlanes, buildSplitMold, buildMotherMold, plasterForCavity,
-  type SplitPlan, type MotherMoldResult,
+  type SplitPlan, type MotherMoldResult, type OffsetBarrierResult,
 } from '@patturn/molds';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
@@ -80,6 +80,33 @@ export function App() {
   const [moldBusy, setMoldBusy] = useState(false);
   const [motherResults, setMotherResults] = useState<MotherMoldResult[] | null>(null);
   const [motherBusy, setMotherBusy] = useState(false);
+  const [barrierRequest, setBarrierRequest] = useState<number | null>(null);
+  const [barrierResult, setBarrierResult] = useState<{ index: number; result: OffsetBarrierResult } | null>(null);
+  const [barrierError, setBarrierError] = useState<string | null>(null);
+  useEffect(() => {
+    setBarrierRequest(null);
+    setBarrierResult(null);
+    setBarrierError(null);
+  }, [moldParts]);
+  useEffect(() => {
+    const master = barrierRequest === null ? null : moldParts?.[barrierRequest];
+    if (!master || barrierRequest === null) return;
+    const index = barrierRequest;
+    const worker = new Worker(new URL('./barrier.worker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (event: MessageEvent<
+      { ok: true; result: OffsetBarrierResult } | { ok: false; error: string }
+    >) => {
+      if (event.data.ok) setBarrierResult({ index, result: event.data.result });
+      else setBarrierError(event.data.error);
+      setBarrierRequest(null);
+    };
+    worker.onerror = () => {
+      setBarrierError('محاسبهٔ مانع ناموفق بود؛ دوباره با فرم ساده‌تر امتحان کنید.');
+      setBarrierRequest(null);
+    };
+    worker.postMessage(master);
+    return () => worker.terminate();
+  }, [barrierRequest, moldParts]);
   const [motherError, setMotherError] = useState<string | null>(null);
   useEffect(() => {
     setMotherResults(null);
@@ -377,10 +404,36 @@ export function App() {
               ))}
               <div className="ctl"><button className="btn" disabled={moldBusy || !moldParts} onClick={exportBom}>
                 ⬇ فهرست قطعات و مواد (BOM)</button></div>
+              <h3 className="sec">مانع هم‌فاصلهٔ آزمایشی</h3>
+              <div className="hint">فاصله از سطح ۲mm و ضخامت اسمی ۲mm؛ دو نیمهٔ مستقل.
+                این خروجی فلنج، راهگاه و مهار ندارد و جایگزین محفظهٔ نهایی نیست.
+                جزئیات باریک ممکن است در offset بسته شوند. بررسی جدایش و ساخت لازم است.
+                محاسبهٔ فرم‌های پیچیده ممکن است طولانی شود.</div>
+              {!moldBusy && moldParts?.map((_, i) => (
+                <div className="ctl" key={`barrier-${i}`}><button className="btn"
+                  disabled={barrierRequest !== null}
+                  onClick={() => { setBarrierResult(null); setBarrierError(null); setBarrierRequest(i); }}>
+                  ساخت مانع قطعهٔ {i + 1}</button></div>
+              ))}
+              {barrierRequest !== null && <div className="ctl">
+                ⏳ در حال محاسبهٔ قطعهٔ {barrierRequest + 1}…
+                <button className="btn" onClick={() => setBarrierRequest(null)}>لغو محاسبه</button>
+              </div>}
+              {barrierError && <div className="hint" role="alert">⚠️ {barrierError}</div>}
+              {barrierResult && <div className="ctl">
+                <div className="hint">کران خطای تقریب offset: {barrierResult.result.offsetErrorBoundMm.toFixed(3)} mm</div>
+                {barrierResult.result.halves.map((half, i) => (
+                  <button className="btn" key={i} onClick={() => {
+                    const output = toBinaryStl(half, `barrier-${profileMode}-part-${barrierResult.index + 1}-half-${i + 1}`);
+                    if (output.ok) download(output.filename, output.bytes!);
+                    else alert(output.error);
+                  }}>⬇ مانع: نیمهٔ {i + 1}</button>
+                ))}
+              </div>}
               <h3 className="sec">محفظهٔ ریختن سیلیکون</h3>
               <div className="hint">
                 محفظهٔ جعبه‌ای دوتکه: دیواره ۱۰، فلنج ۱۵ و فاصلهٔ حداقل ۲mm؛ دهانهٔ ریختن ۱۲ و دو هواکش ۴mm.
-                پوستهٔ هم‌فاصله و مانع جداساز مستقل هنوز پیاده نشده‌اند.
+                ادغام مانع هم‌فاصله با محفظهٔ فلنج‌دار هنوز تکمیل نشده است.
                 مهار مکانیکی، آب‌بندی درز و جداساز سطح قبل از ساخت لازم است.
               </div>
               <div className="ctl"><button className="btn" disabled={moldBusy || motherBusy || !moldParts}
