@@ -59,14 +59,27 @@ describe('Conformal offset barrier', () => {
     }
     await expect(buildOffsetBarrier(master, { thicknessMm: 100, segments: 16 })).rejects.toThrow('BARRIER_OFFSET_TOLERANCE');
   });
-  it('B5: keyed mold parts retain closed exportable offset barriers', async () => {
+  it('B5: keyed mold parts retain closed exportable integrated jackets', async () => {
     const profile = referenceOuterProfile(8);
     const form = revolve(profile, { segments: 16, closeBottom: true, closeTop: true });
     const parts = await buildSplitMold(form, chooseSplitPlanes(profile), { profile });
     for (const part of parts) {
-      const result = await buildOffsetBarrier(part, { segments: 16 });
+      const result = await buildOffsetBarrier(part, { segments: 16, casting: {} });
       for (const half of result.halves) expect(toBinaryStl(half).ok).toBe(true);
     }
   }, 60000);
+
+  it('B6: integrated flange and three connected top ports produce valid STL halves', async () => {
+    const master = await cube();
+    const bare = await buildOffsetBarrier(master, { segments: 16 });
+    const result = await buildOffsetBarrier(master, { segments: 16, casting: {} });
+    expect(result.casting!.ports).toHaveLength(3);
+    expect(result.casting!.ports.map((p) => p.diameter)).toEqual([12, 4, 4]);
+    for (const port of result.casting!.ports) expect(port.removedVolumeMm3).toBeGreaterThan(1);
+    for (const half of result.halves) expect(toBinaryStl(half).ok).toBe(true);
+    expect(result.halves[0].meta!.volumeMm3!).toBeGreaterThan(bare.halves[0].meta!.volumeMm3!);
+    await expect(buildOffsetBarrier(master, { segments: 16, casting: { flangeMm: -1 } })).rejects.toThrow('BARRIER_INVALID_CASTING');
+    await expect(buildOffsetBarrier(master, { segments: 16, casting: { sprueDia: 500 } })).rejects.toThrow('BARRIER_TOP_PORTS_DO_NOT_FIT');
+  });
 
 });

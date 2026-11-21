@@ -404,16 +404,17 @@ export function App() {
               ))}
               <div className="ctl"><button className="btn" disabled={moldBusy || !moldParts} onClick={exportBom}>
                 ⬇ فهرست قطعات و مواد (BOM)</button></div>
-              <h3 className="sec">مانع هم‌فاصلهٔ آزمایشی</h3>
+              <h3 className="sec">مادرقالب هم‌فاصلهٔ آزمایشی</h3>
               <div className="hint">فاصله از سطح ۲mm و ضخامت اسمی ۲mm؛ دو نیمهٔ مستقل.
-                این خروجی فلنج، راهگاه و مهار ندارد و جایگزین محفظهٔ نهایی نیست.
+                فلنج ۱۵mm، دهانهٔ ریختن ۱۲mm و دو هواکش ۴mm به پوسته متصل‌اند.
+                مهار و آب‌بندی باید جداگانه طراحی شوند؛ جدایش مکانیکی تضمین نشده است.
                 جزئیات باریک ممکن است در offset بسته شوند. بررسی جدایش و ساخت لازم است.
                 محاسبهٔ فرم‌های پیچیده ممکن است طولانی شود.</div>
               {!moldBusy && moldParts?.map((_, i) => (
                 <div className="ctl" key={`barrier-${i}`}><button className="btn"
                   disabled={barrierRequest !== null}
                   onClick={() => { setBarrierResult(null); setBarrierError(null); setBarrierRequest(i); }}>
-                  ساخت مانع قطعهٔ {i + 1}</button></div>
+                  ساخت مادرقالب هم‌فاصلهٔ قطعهٔ {i + 1}</button></div>
               ))}
               {barrierRequest !== null && <div className="ctl">
                 ⏳ در حال محاسبهٔ قطعهٔ {barrierRequest + 1}…
@@ -422,6 +423,12 @@ export function App() {
               {barrierError && <div className="hint" role="alert">⚠️ {barrierError}</div>}
               {barrierResult && <div className="ctl">
                 <div className="hint">کران خطای تقریب offset: {barrierResult.result.offsetErrorBoundMm.toFixed(3)} mm</div>
+                {barrierResult.result.casting && <div className="hint">
+                  {barrierResult.result.casting.ports.length} مسیر متصل به پوسته؛ موقعیت دهانه‌ها (mm):
+                  {barrierResult.result.casting.ports.map((port, i) => <div key={i}>
+                    {i === 0 ? 'ریختن' : 'هواکش'}: Ø{port.diameter} — ({port.center.map((n) => n.toFixed(1)).join(', ')})
+                  </div>)}
+                </div>}
                 {barrierResult.result.halves.map((half, i) => (
                   <button className="btn" key={i} onClick={() => {
                     const output = toBinaryStl(half, `barrier-${profileMode}-part-${barrierResult.index + 1}-half-${i + 1}`);
@@ -433,7 +440,7 @@ export function App() {
               <h3 className="sec">محفظهٔ ریختن سیلیکون</h3>
               <div className="hint">
                 محفظهٔ جعبه‌ای دوتکه: دیواره ۱۰، فلنج ۱۵ و فاصلهٔ حداقل ۲mm؛ دهانهٔ ریختن ۱۲ و دو هواکش ۴mm.
-                ادغام مانع هم‌فاصله با محفظهٔ فلنج‌دار هنوز تکمیل نشده است.
+                گزینهٔ سریع جعبه‌ای؛ مستقل از مادرقالب هم‌فاصلهٔ بالا.
                 مهار مکانیکی، آب‌بندی درز و جداساز سطح قبل از ساخت لازم است.
               </div>
               <div className="ctl"><button className="btn" disabled={moldBusy || motherBusy || !moldParts}

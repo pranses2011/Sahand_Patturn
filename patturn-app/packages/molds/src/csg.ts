@@ -354,20 +354,33 @@ export async function buildMotherMold(master: Mesh, opts: MotherMoldOptions = {}
  */
 function barrierMesh(man: ManifoldT): Mesh {
   const mesh = fromManifold(man);
-  const unique = new Map<string, number>();
-  const vertices: number[] = [];
-  const remap: number[] = [];
+  const points: number[][] = [];
+  const parents: number[] = [];
   for (let i = 0; i < mesh.positions.length; i += 3) {
-    const xyz = [mesh.positions[i]!, mesh.positions[i + 1]!, mesh.positions[i + 2]!].map((v) => Math.round(v * 10000) / 10000);
-    const key = xyz.join(',');
-    let index = unique.get(key);
-    if (index === undefined) {
-      index = vertices.length / 3;
-      unique.set(key, index);
-      vertices.push(...xyz);
-    }
-    remap.push(index);
+    points.push([mesh.positions[i]!, mesh.positions[i + 1]!, mesh.positions[i + 2]!].map((v) => Math.round(v * 10000) / 10000));
+    parents.push(i / 3);
   }
+  const root = (i: number): number => {
+    while (parents[i] !== i) { parents[i] = parents[parents[i]!]!; i = parents[i]!; }
+    return i;
+  };
+  // Only weld collapsed mesh EDGES. Coincident but topologically separate
+  // surfaces must not be welded: doing so can create a four-face edge.
+  for (let i = 0; i < mesh.indices.length; i += 3) {
+    const tri = [mesh.indices[i]!, mesh.indices[i + 1]!, mesh.indices[i + 2]!];
+    for (let k = 0; k < 3; k++) {
+      const a = tri[k]!, b = tri[(k + 1) % 3]!;
+      if (points[a]!.every((v, j) => v === points[b]![j])) parents[root(b)] = root(a);
+    }
+  }
+  const unique = new Map<number, number>();
+  const vertices: number[] = [];
+  const remap = points.map((_, i) => {
+    const key = root(i);
+    let index = unique.get(key);
+    if (index === undefined) { index = vertices.length / 3; unique.set(key, index); vertices.push(...points[key]!); }
+    return index;
+  });
   const indices: number[] = [];
   const faces = new Map<string, [number, number, number]>();
   for (let i = 0; i < mesh.indices.length; i += 3) {
@@ -386,6 +399,8 @@ function barrierMesh(man: ManifoldT): Mesh {
 }
 
 export interface OffsetBarrierOptions {
+  /** Optional integrated clamp flange and three top ports (experimental). */
+  casting?: { flangeMm?: number; sprueDia?: number; ventDia?: number };
   clearanceMm?: number;
   thicknessMm?: number;
   /** Sphere tessellation; bounded so radial offset approximation stays below 0.2mm. */
@@ -394,6 +409,10 @@ export interface OffsetBarrierOptions {
 
 export interface OffsetBarrierResult {
   halves: [Mesh, Mesh];
+  casting?: {
+    flangeMm: number;
+    ports: { center: [number, number, number]; diameter: number; removedVolumeMm3: number }[];
+  };
   clearanceMm: number;
   thicknessMm: number;
   /** Conservative radial error from the faceted spherical dilation tool. */
@@ -404,7 +423,8 @@ export interface OffsetBarrierResult {
  * Separate, conformal barrier prototype: (master ⊕ sphere(clearance+thickness))
  * minus (master ⊕ sphere(clearance)), split at bbox mid-Z for removal.
  * Unlike a bbox scale this follows concave features, which may close if narrower
- * than twice the offset. No ports/flanges: not a complete casting jacket.
+ * than twice the offset. Optional casting adds a flange and top ports;
+ * mechanical release is NOT guaranteed by the split or mesh validation.
  */
 export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOptions = {}): Promise<OffsetBarrierResult> {
   const clearance = opts.clearanceMm ?? 2;
@@ -418,6 +438,8 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
   // cos²(pi/segments) bounds the inscribed facets' radial loss conservatively.
   const offsetErrorBoundMm = (clearance + thickness) * (1 - Math.cos(Math.PI / segments) ** 2) + 0.0011;
   if (offsetErrorBoundMm > 0.2) throw new Error('BARRIER_OFFSET_TOLERANCE');
+  if (opts.casting && ![opts.casting.flangeMm ?? 15, opts.casting.sprueDia ?? 12, opts.casting.ventDia ?? 4]
+    .every((n) => Number.isFinite(n) && n > 0)) throw new Error('BARRIER_INVALID_CASTING');
   const report = validateMesh(master);
   if (!report.ok) throw new Error(`BARRIER_INVALID_MASTER: ${report.problems.join(',')}`);
   await initCsg();
@@ -430,13 +452,61 @@ export async function buildOffsetBarrier(master: Mesh, opts: OffsetBarrierOption
     const outerSphere = own(w.Manifold.sphere(clearance + thickness, segments));
     const inner = own(man.minkowskiSum(innerSphere));
     const outer = own(man.minkowskiSum(outerSphere));
-    const shell = own(outer.subtract(inner));
+    let shell = own(outer.subtract(inner));
     const bb = man.boundingBox();
+    let casting: OffsetBarrierResult['casting'];
+    if (opts.casting) {
+      const flange = opts.casting.flangeMm ?? 15;
+      const sprue = opts.casting.sprueDia ?? 12;
+      const vent = opts.casting.ventDia ?? 4;
+      const midZ = (bb.min[2] + bb.max[2]) / 2;
+      const reach = clearance + thickness + flange;
+      const slab = own(w.Manifold.cube([
+        bb.max[0] - bb.min[0] + 2 * reach,
+        bb.max[1] - bb.min[1] + 2 * reach,
+        2 * thickness,
+      ], false));
+      const flangeSolid = own(slab.translate([bb.min[0] - reach, bb.min[1] - reach, midZ - thickness]));
+      const ring = own(flangeSolid.subtract(inner));
+      shell = own(shell.add(ring));
+      // Select well-separated actual top vertices, never bbox points over empty space.
+      const candidates: [number, number, number][] = [];
+      for (let i = 0; i < master.positions.length; i += 3) {
+        if (Math.abs(master.positions[i + 1]! - bb.max[1]) < 0.001) {
+          candidates.push([master.positions[i]!, bb.max[1], master.positions[i + 2]!]);
+        }
+      }
+      const distance = (a: number[], b: number[]) => Math.hypot(a[0]! - b[0]!, a[2]! - b[2]!);
+      const chosen: [number, number, number][] = [];
+      if (candidates.length) chosen.push(candidates[0]!);
+      while (chosen.length < 3) {
+        let best: [number, number, number] | undefined, bestDistance = -1;
+        for (const candidate of candidates) {
+          const d = Math.min(...chosen.map((p) => distance(p, candidate)));
+          if (d > bestDistance) { best = candidate; bestDistance = d; }
+        }
+        if (!best || bestDistance < (sprue + vent) / 2 + thickness) throw new Error('BARRIER_TOP_PORTS_DO_NOT_FIT');
+        chosen.push(best);
+      }
+      const ports: NonNullable<OffsetBarrierResult['casting']>['ports'] = [];
+      for (let i = 0; i < chosen.length; i++) {
+        const center = chosen[i]!;
+        const diameter = i === 0 ? sprue : vent;
+        const cyl = own(w.Manifold.cylinder(reach + 2, diameter / 2, diameter / 2, 32, false));
+        const upright = own(cyl.rotate([-90, 0, 0]));
+        const tool = own(upright.translate([center[0], center[1] - 1, center[2]]));
+        const removedVolumeMm3 = own(shell.intersect(tool)).volume();
+        if (removedVolumeMm3 <= 0) throw new Error('BARRIER_PORT_NOT_CONNECTED');
+        shell = own(shell.subtract(tool));
+        ports.push({ center, diameter, removedVolumeMm3 });
+      }
+      casting = { flangeMm: flange, ports };
+    }
     const pieces = shell.splitByPlane([0, 0, 1], (bb.min[2] + bb.max[2]) / 2);
     pieces.forEach(own);
     return {
       halves: [barrierMesh(own(pieces[1]!.simplify(0.001))), barrierMesh(own(pieces[0]!.simplify(0.001)))],
-      clearanceMm: clearance, thicknessMm: thickness, offsetErrorBoundMm,
+      clearanceMm: clearance, thicknessMm: thickness, offsetErrorBoundMm, casting,
     };
   } finally {
     // Minkowski operations create large native allocations; release even on validation failure.
