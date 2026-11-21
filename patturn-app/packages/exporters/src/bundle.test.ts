@@ -54,4 +54,18 @@ describe('Build ZIP', () => {
     expect(result.error).toBe('EXPORT_CANCELLED');
     expect(result.bytes).toBeUndefined();
   });
+  it('Z6: validates named OBJ assemblies inside ZIP, rejecting invalid parts atomically', async () => {
+    const data = input();
+    data.assemblies = [{ path: 'obj/mold.obj', parts: [{ name: 'A', mesh }, { name: 'B', mesh, color: [1, 0, 0] }] }];
+    const result = await toBuildZip(data);
+    expect(result.ok).toBe(true);
+    const files = unzipSync(result.bytes!);
+    const text = strFromU8(files['obj/mold.obj']!);
+    expect(text).toContain('o 1-A'); expect(text).toContain('o 2-B');
+    data.assemblies[0]!.parts[1]!.mesh = { positions: new Float32Array(), indices: new Uint32Array() };
+    const invalid = await toBuildZip(data);
+    expect(invalid.ok).toBe(false); expect(invalid.bytes).toBeUndefined();
+    expect(invalid.error).toContain('MESH_INVALID');
+  });
+
 });

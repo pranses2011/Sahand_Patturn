@@ -1,5 +1,6 @@
 import { zip, strToU8, type Zippable } from 'fflate';
 import type { Mesh } from '@patturn/kernel';
+import { toObj, type ObjPart } from './obj.js';
 import { toBinaryStl, exportName, type ExportResult } from './index.js';
 
 export interface BuildBundle {
@@ -7,6 +8,7 @@ export interface BuildBundle {
   meshes: { path: string; mesh: Mesh }[];
   files?: { path: string; bytes: Uint8Array }[];
   instructions: string;
+  assemblies?: { path: string; parts: ObjPart[] }[];
 }
 
 /** Atomic archive: all STL inputs validated before compression/download. */
@@ -34,6 +36,12 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
       if (!output.ok) throw new Error(`${item.path}:${output.error}`);
       add(item.path, output.bytes!);
     }
+    for (const item of input.assemblies ?? []) {
+      if (!item.path.toLowerCase().endsWith('.obj')) throw new Error('BUNDLE_OBJ_EXTENSION');
+      const output = toObj(item.parts, input.project);
+      if (!output.ok) throw new Error(`${item.path}:${output.error}`);
+      add(item.path, output.bytes!);
+    }
     for (const item of input.files ?? []) {
       // Extra files must not bypass STL validation or introduce arbitrary archives.
       if (!/\.(txt|json|svg|pdf)$/i.test(item.path)) throw new Error('BUNDLE_EXTRA_EXTENSION');
@@ -43,6 +51,7 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     entries.set('manifest.json', strToU8(JSON.stringify({
       version: 1, project: input.project, units: 'mm',
       stlValidated: true,
+      objValidated: true,
       files: [...entries].map(([path, bytes]) => ({ path, bytes: bytes.length })).sort((a, b) => a.path < b.path ? -1 : 1),
     }, null, 2)));
   } catch (e) { return fail(String(e)); }

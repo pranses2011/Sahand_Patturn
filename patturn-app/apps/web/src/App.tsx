@@ -19,7 +19,7 @@ import {
 } from '@patturn/molds';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
-import { toBinaryStl, toSvg, exportName, toBuildZip, toDimensionPdf, type BuildBundle } from '@patturn/exporters';
+import { toBinaryStl, toSvg, exportName, toBuildZip, toDimensionPdf, toObj, type ObjPart, type BuildBundle } from '@patturn/exporters';
 import { AUTHOR, PLANS } from '@patturn/config';
 import { Viewport } from './Viewport';
 
@@ -266,6 +266,20 @@ export function App() {
     return lines.join('\n');
   };
 
+  const moldObjParts = (): ObjPart[] => (moldParts ?? []).map((mesh, i) => ({
+    name: `mold-part-${i + 1}`, mesh,
+    color: i % 2 === 0 ? [0.75, 0.72, 0.65] : [0.55, 0.65, 0.75],
+  }));
+  const exportObj = (target: 'form' | 'mold') => {
+    if (!formMesh || (target === 'mold' && (moldBusy || !moldParts))) return;
+    const parts: ObjPart[] = target === 'form'
+      ? [{ name: `form-${profileMode}`, mesh: formMesh, color: [0.77, 0.38, 0.18] }]
+      : moldObjParts();
+    const result = toObj(parts, `${target}-${profileMode}`);
+    if (result.ok) download(result.filename, result.bytes!);
+    else alert(`خطای خروجی OBJ: ${result.error}`);
+  };
+
   const exportBom = () => {
     const text = buildBom();
     if (text) download(exportName(`mold-${profileMode}`, 'BOM', 'mm', 'txt'), new TextEncoder().encode('\uFEFF' + text));
@@ -331,6 +345,7 @@ export function App() {
         'بستهٔ ساخت Patturn — واحد mm',
         `فرم: ${profileMode}؛ تعداد قطعات گچی: ${moldParts.length}؛ جبران انقباض: ${shrink}%`,
         'form/: فرم اصلی بدون جبران انقباض. parts/: قالب گچی با جبران انقباض؛ فاصله‌گذاری نمایشی صادر نشده است.',
+        'obj/: فرم و مجموعهٔ قطعات قالب با نام و رنگ رأس؛ واحد mm. رنگ از افزونهٔ رایج RGB استفاده می‌کند و ممکن است در برخی نرم‌افزارها نمایش داده نشود. فایل MTL ندارد.',
         'BOM.txt: برآورد گچ و آب، بدون پرت. pattern/: الگوی تخت ۳۰۰×۳۰۰mm؛ نگاشت برجسته روی STL اعمال نشده است.',
         'dimensions/: برگهٔ ابعاد PDF آ۴؛ چاپ اندازهٔ واقعی ۱۰۰٪، خاموش‌کردن Fit to page و اندازه‌گیری خط‌کش ۱۰۰mm الزامی است.',
         'parameters.json: ثبت تنظیمات مؤثر خروجی؛ فایل پروژهٔ قابل بازیابی در برنامه نیست.',
@@ -342,7 +357,11 @@ export function App() {
         'در اسلایسر واحد mm و مقیاس ۱۰۰٪ را انتخاب کنید. تحمل بار اتصال و کیفیت پرینت جداگانه بررسی شود.',
         'manifest.json شامل فهرست فایل‌ها (به‌جز خودش) و اندازهٔ بایت آن‌ها است؛ STLها پیش از بسته‌بندی اعتبارسنجی شده‌اند.',
       ].join('\n');
-      const result = await toBuildZip({ project: profileMode, meshes, files, instructions }, controller.signal);
+      const assemblies: NonNullable<BuildBundle['assemblies']> = [
+        { path: `obj/${exportName(`form-${profileMode}`, 'assembly', 'mm', 'obj')}`, parts: [{ name: 'form', mesh: formMesh, color: [0.77, 0.38, 0.18] }] },
+        { path: `obj/${exportName(`mold-${profileMode}`, 'assembly', 'mm', 'obj')}`, parts: moldObjParts() },
+      ];
+      const result = await toBuildZip({ project: profileMode, meshes, assemblies, files, instructions }, controller.signal);
       if (controller.signal.aborted) setZipError('بسته‌بندی لغو شد؛ فایلی دانلود نشد.');
       else if (!result.ok) setZipError(result.error ?? 'خطای تولید ZIP');
       else download(result.filename, result.bytes!);
@@ -493,6 +512,9 @@ export function App() {
                 ⬇ PDF برگهٔ ابعاد A4 — مقیاس ۱:۱</button></div>
               <div className="hint">چاپ با اندازهٔ واقعی ۱۰۰٪؛ Fit to page خاموش. خط‌کش ۱۰۰mm را کنترل کنید.
                 فرم‌های بزرگ چندصفحه‌ای هستند و کوچک نمی‌شوند.</div>
+              <div className="ctl"><button className="btn" disabled={!formMesh} onClick={() => exportObj('form')}>⬇ OBJ فرم با رنگ رأس</button></div>
+              <div className="ctl"><button className="btn" disabled={moldBusy || !moldParts} onClick={() => exportObj('mold')}>⬇ OBJ مجموعهٔ قطعات قالب</button></div>
+              <div className="hint">OBJ در مختصات مونتاژی و واحد mm است؛ رنگ رأس اختیاری است و همهٔ نرم‌افزارها آن را نمایش نمی‌دهند.</div>
               <h3 className="sec">قطعات قالب</h3>
               {moldBusy && <div className="hint">⏳ در حال ساخت قطعات قالب…</div>}
               {!moldBusy && moldParts?.map((_, i) => (
