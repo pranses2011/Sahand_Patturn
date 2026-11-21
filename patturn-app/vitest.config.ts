@@ -16,8 +16,9 @@ const tsExtensions = {
 
 export default defineConfig({
   plugins: [tsExtensions],
+  esbuild: { jsx: 'automatic' },
   test: {
-    include: ['packages/*/src/**/*.test.ts'],
+    include: ['packages/*/src/**/*.test.ts', 'apps/web/src/**/*.test.ts'],
     environment: 'node',
   },
   resolve: {

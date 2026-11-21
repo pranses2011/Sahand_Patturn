@@ -95,3 +95,8 @@ h3.sec { font-size: 13px; color: var(--clay-dark); margin: 18px 0 10px; letter-s
 .history-entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; font-size: 12px; }
 .history-command { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn:focus-visible { outline: 3px solid var(--clay-dark); outline-offset: 2px; }
+.editor-mode { border: 1px solid var(--line, #ddd); border-radius: 8px; margin: 0 0 14px; padding: 8px; }
+.editor-mode label { display: inline-flex; gap: 4px; align-items: center; margin-inline-end: 12px; cursor: pointer; }
+.editor-mode legend, .advanced-controls summary { font-size: 12px; font-weight: 600; }
+.advanced-controls { margin-block: 10px; }
+.advanced-controls summary { cursor: pointer; padding-block: 6px; }

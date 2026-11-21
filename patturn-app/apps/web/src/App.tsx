@@ -1,3 +1,4 @@
+import { EditorModeSwitch, AdvancedControls, type EditorMode } from './EditorMode';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   referenceOuterProfile,
@@ -84,6 +85,7 @@ export function App() {
     }).catch((error) => { if (!cancelled) setBackupError(String(error)); });
     return () => { cancelled = true; };
   }, []);
+  const [editorMode, setEditorMode] = useState<EditorMode>('simple');
   const [part, setPart] = useState<Part>('form');
   const [profileMode, setProfileMode] = useState<ProfileMode>(startup.state.profileMode);
   const [segments, setSegments] = useState(startup.state.segments);
@@ -847,10 +849,14 @@ export function App() {
 
         {/* ── right: params ── */}
         <aside className="panel">
+          <EditorModeSwitch mode={editorMode} onChange={setEditorMode} />
           {part === 'form' && (
             <>
               <h3 className="sec">⚙️ پارامترهای فرم</h3>
-              {numCtl('تعداد سگمنت', segments, setSegments, 12, 256, 4, '')}
+              <AdvancedControls mode={editorMode}>
+                {numCtl('تعداد سگمنت', segments, setSegments, 12, 256, 4, '')}
+                <p className="hint">سگمنت بیشتر سطح را نرم‌تر و فایل و محاسبات را سنگین‌تر می‌کند؛ ابعاد اسمی تغییر نمی‌کند.</p>
+              </AdvancedControls>
               {numCtl('ضخامت شعاعی برای ظرفیت', wall, setWall, 1, 20)}
               {numCtl('شیرینک', shrink, setShrink, 0, 20, 0.5, '%')}
               {numCtl('سطح پرشدگی', fill, setFill, 0, 100, 5, '%')}
@@ -918,7 +924,7 @@ export function App() {
 
       {/* ── status bar ── */}
       <footer className="statusbar">
-        <span>w <b>145</b> h <b>148</b> mm</span>
+        <span>w <b>{dimensions.width.toFixed(1)}</b> h <b>{dimensions.height.toFixed(1)}</b> mm</span>
         <span>Wall <b>{wall}</b></span>
         <span>Cap <b>{capMl.toFixed(0)}</b> ml</span>
         <span>Filled <b>{filled.toFixed(0)}</b> ml</span>
