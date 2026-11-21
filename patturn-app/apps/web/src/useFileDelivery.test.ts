@@ -60,6 +60,22 @@ describe('Output delivery status and retry',()=>{
     await act(async()=>reject(Error('failed again')));
     act(()=>h.tree.unmount());
   });
+  it.each(['resolve','reject'] as const)('ignores late %s after unmount without accepting more writes',async(result)=>{
+    let resolve!:(result:DeliveryOutcome)=>void,reject!:(reason:Error)=>void;
+    const writer=vi.fn<FileWriter>(()=>new Promise((ok,fail)=>{resolve=ok;reject=fail;}));
+    const h=setup(writer);act(()=>h.api.download('pending.zip',bytes));
+    const status=h.api.status;
+    act(()=>h.tree.unmount());
+    await act(async()=>{if(result==='resolve')resolve('saved');else reject(Error('late failure'));});
+    act(()=>{h.api.retry();h.api.discard();h.api.download('after-unmount.zip',bytes);});
+    expect(writer).toHaveBeenCalledTimes(1);expect(h.api.status).toBe(status);
+  });
+  it('drops a previously failed retry when the delivery owner unmounts',async()=>{
+    const writer=vi.fn<FileWriter>().mockRejectedValue(Error('failed'));
+    const h=setup(writer);await act(async()=>h.api.download('old.zip',bytes));
+    expect(h.api.status.error).toBe(true);act(()=>h.tree.unmount());
+    act(()=>{h.api.retry();h.api.discard();});expect(writer).toHaveBeenCalledTimes(1);
+  });
   it('a new request supersedes a failed retry without changing the earlier payload',async()=>{
     const writer=vi.fn<FileWriter>().mockRejectedValueOnce(Error('denied')).mockResolvedValue('saved');
     const h=setup(writer);

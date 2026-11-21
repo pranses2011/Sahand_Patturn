@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export type DeliveryOutcome = 'saved' | 'cancelled' | 'requested';
 export type FileWriter = (name: string, bytes: Uint8Array) => Promise<DeliveryOutcome>;
@@ -7,9 +7,14 @@ export type FileWriter = (name: string, bytes: Uint8Array) => Promise<DeliveryOu
 export function useFileDelivery(write: FileWriter) {
   const busy = useRef(false);
   const failed = useRef<{name:string;bytes:Uint8Array} | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; failed.current = null; };
+  }, []);
   const [status,setStatus] = useState<{pending:boolean;error:boolean;message:string}>({pending:false,error:false,message:''});
   const download = (name:string,bytes:Uint8Array) => {
-    if (busy.current) return; // Never open another picker or replace the pending payload.
+    if (!mounted.current || busy.current) return; // Never open another picker or replace the pending payload.
     // Own an immutable-by-convention snapshot, independent of the caller and writer.
     const snapshot = bytes.slice();
     busy.current = true;
@@ -18,17 +23,19 @@ export function useFileDelivery(write: FileWriter) {
     void (async()=>{
       try {
         const outcome = await write(name,snapshot.slice());
+        if (!mounted.current) return;
         const message = outcome === 'saved' ? `فایل ذخیره شد: ${name}` : outcome === 'cancelled'
           ? `ذخیره لغو شد؛ فایلی نوشته نشد: ${name}` : `درخواست دانلود به مرورگر ارسال شد: ${name}؛ ذخیرهٔ نهایی را در دانلودهای مرورگر بررسی کنید.`;
         setStatus({pending:false,error:false,message});
       } catch {
+        if (!mounted.current) return;
         failed.current = {name,bytes:snapshot};
         setStatus({pending:false,error:true,message:`ذخیرهٔ ${name} ناموفق بود؛ ممکن است فایل مقصد ناقص باشد. فضای آزاد و مجوز مسیر را بررسی و دوباره تلاش کنید.`});
       } finally { busy.current = false; }
     })();
   };
   const discard = () => {
-    if (busy.current || !failed.current) return;
+    if (!mounted.current || busy.current || !failed.current) return;
     failed.current = null;
     setStatus({pending:false,error:false,message:'خروجی ناموفق کنار گذاشته شد؛ برای ذخیره، خروجی را دوباره بسازید. تنظیمات پروژه تغییر نکرد.'});
   };
