@@ -8,20 +8,29 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
   const [entries, setEntries] = useState<PatternRecipe[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [importMessage, setImportMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const importToken = useRef(0);
   const [importing, setImporting] = useState(false);
   const importFile = async (file: File) => {
     const token = ++importToken.current;
-    setImporting(true);
+    setImporting(true); setError(null); setImportMessage(null);
     try {
       if (file.size > MAX_PATTERN_BACKUP_BYTES) throw new Error('LIBRARY_BACKUP_TOO_LARGE');
       const bytes = new Uint8Array(await file.arrayBuffer());
       if (token !== importToken.current) return;
       const preview = repo().previewImport(bytes);
       if (window.confirm(`${preview.added} تنظیمات جدید افزوده شود؟ مجموع پس از ادغام: ${preview.total}. موارد یکسان تکرار نمی‌شوند و پروژهٔ باز تغییر نمی‌کند.`)) {
-        perform(() => repo().importDocument(bytes));
-      }
+        let added = 0;
+        const ok = perform(() => {
+          const library = repo();
+          const before = library.list().length;
+          const entries = library.importDocument(bytes);
+          added = entries.length - before;
+          return entries;
+        });
+        if (ok) setImportMessage(`ورود پشتیبان انجام شد؛ ${added} تنظیمات جدید افزوده شد.`);
+      } else setImportMessage('ورود پشتیبان لغو شد؛ کتابخانه تغییر نکرد.');
     } catch (e) { if (token === importToken.current) perform(() => { throw e; }); }
     finally { if (token === importToken.current) setImporting(false); }
   };
@@ -72,6 +81,10 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
     <input ref={inputRef} type="file" accept=".json" hidden aria-label="انتخاب پشتیبان کتابخانهٔ الگو" disabled={importing}
       onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void importFile(file); }} />
     <button className="btn" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? 'در حال خواندن پشتیبان…' : 'ورود پشتیبان کتابخانهٔ الگو'}</button>
+    {importing && <button className="btn" onClick={() => {
+      importToken.current++; setImporting(false); setImportMessage('ورود پشتیبان لغو شد؛ کتابخانه تغییر نکرد.');
+    }}>لغو خواندن پشتیبان</button>}
+    {importMessage && <p role="status" className="hint">{importMessage}</p>}
     <ul>{entries.map((entry) => <li key={entry.name}>
       <b>{entry.name}</b> — {entry.tileSize} mm
       <button className="btn" onClick={() => onApply(entry)} aria-label={`اعمال ${entry.name}`}>اعمال</button>

@@ -370,3 +370,31 @@ test('leaving the pattern section discards a late backup read without prompting 
   await expect(page.getByRole('button',{name:'اعمال دیررس',exact:true})).toHaveCount(0);
   expect(dialogs).toBe(0);expect(await page.evaluate(()=>localStorage.getItem('patturn:pattern-library:v1'))).toBeNull();
 });
+
+test('backup read can be cancelled explicitly and a new import survives the old read completing',async({page})=>{
+  await page.addInitScript(()=>{
+    const original=File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer=async function(){
+      if(this.name==='slow.json')await new Promise<void>((resolve)=>{
+        (window as unknown as {testReleaseSlowRead:()=>void}).testReleaseSlowRead=resolve;
+      });
+      const result=await original.call(this);
+      if(this.name==='slow.json')(window as unknown as {testSlowReadFinished:boolean}).testSlowReadFinished=true;
+      return result;
+    };
+  });
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  const picker=page.getByLabel('انتخاب پشتیبان کتابخانهٔ الگو',{exact:true});
+  const backup=(filename:string,name:string)=>({name:filename,mimeType:'application/json',buffer:Buffer.from(JSON.stringify({format:'patturn-pattern-library',version:1,entries:[{name,patternId:'wave',tileSize:60}]}))});
+  await picker.setInputFiles(backup('slow.json','قدیمی'));
+  await page.getByRole('button',{name:'لغو خواندن پشتیبان',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'ورود پشتیبان لغو شد'})).toBeVisible();
+  let dialogs=0;page.on('dialog',async(dialog)=>{dialogs++;await dialog.accept();});
+  await picker.setInputFiles(backup('new.json','جدید'));
+  await expect(page.getByRole('status').filter({hasText:'1 تنظیمات جدید افزوده شد'})).toBeVisible();
+  await page.evaluate(()=>{(window as unknown as {testReleaseSlowRead:()=>void}).testReleaseSlowRead();});
+  await expect.poll(()=>page.evaluate(()=>(window as unknown as {testSlowReadFinished:boolean}).testSlowReadFinished)).toBe(true);
+  await expect(page.getByRole('button',{name:'اعمال جدید',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'اعمال قدیمی',exact:true})).toHaveCount(0);expect(dialogs).toBe(1);
+});
