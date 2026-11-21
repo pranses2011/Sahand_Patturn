@@ -85,33 +85,7 @@ export function toSvg(paths: { d: string; fill?: boolean }[], widthMm: number, h
   return { ok: true, filename, bytes: new TextEncoder().encode(svg) };
 }
 
-/** Minimal DXF R12 (ENTITIES with LINE/CIRCLE) — layers: 0=outline,1=detail. */
-export function toDxf(paths: { d: string; fill?: boolean }[]): ExportResult {
-  // Parse only our own generated simple paths: circles (M..a..z) and polylines (M..L..)
-  const lines: string[] = [];
-  const push = (...xs: (string | number)[]) => lines.push(...xs.map(String));
-  push(0, 'SECTION', 2, 'ENTITIES');
-  for (const p of paths) {
-    const circle = p.d.match(/^M([-\d.]+) ([-\d.]+)a([-\d.]+) ([-\d.]+) 0 1 0 ([-\d.]+) ([-\d.]+)a/);
-    if (circle) {
-      const cx = parseFloat(circle[1]!) + parseFloat(circle[3]!);
-      const cy = parseFloat(circle[2]!);
-      const r = Math.abs(parseFloat(circle[3]!));
-      push(0, 'CIRCLE', 8, p.fill ? '0' : '1', 10, cx.toFixed(3), 20, cy.toFixed(3), 30, '0.0', 40, r.toFixed(3));
-      continue;
-    }
-    const pairs = [...p.d.matchAll(/([ML])([-\d.]+) ([-\d.]+)/g)];
-    if (pairs.length >= 2) {
-      push(0, 'POLYLINE', 8, p.fill ? '0' : '1', 66, '1', 70, '0');
-      for (const m of pairs) {
-        push(0, "VERTEX", 8, p.fill ? "0" : "1", 10, m[2] ?? "0", 20, m[3] ?? "0", 30, "0.0");
-      }
-      push(0, 'SEQEND');
-    }
-  }
-  push(0, 'ENDSEC', 0, 'EOF');
-  return { ok: true, filename: exportName('pattern', 'flat', 'mm', 'dxf'), bytes: new TextEncoder().encode(lines.join('\n')) };
-}
+export { toDxf } from './dxf.js';
 
 export * from './bundle.js';
 export * from './dimensions.js';
