@@ -1,3 +1,4 @@
+import { PatternLibrary } from './PatternLibrary';
 import { ParameterHelp, type HelpTopic } from './ParameterHelp';
 import { EditorModeSwitch, AdvancedControls, type EditorMode } from './EditorMode';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -645,14 +646,7 @@ export function App() {
           {part === 'pattern' && (
             <>
               <h3 className="sec">کتابخانهٔ الگو</h3>
-              {PATTERNS.map((p) => (
-                <div className="ctl" key={p.id}>
-                  <label style={{ cursor: 'pointer' }}>
-                    <input type="radio" name="pat" checked={patternId === p.id}
-                      onChange={() => { setPatternId(p.id); markDirty(); }} /> {p.label}
-                  </label>
-                </div>
-              ))}
+              <PatternLibrary selectedId={patternId} onSelect={(id) => { setPatternId(id); markDirty(); }} />
               <h3 className="sec">نگاشت روی فرم (unwrap استوانه‌ای)</h3>
               <div className="hint">
                 {unwrapInfo ? (

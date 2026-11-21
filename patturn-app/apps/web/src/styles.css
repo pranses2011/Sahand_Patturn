@@ -107,3 +107,10 @@ h3.sec { font-size: 13px; color: var(--clay-dark); margin: 18px 0 10px; letter-s
 .parameter-help p { margin-block: 6px; }
 .parameter-help small { opacity: .75; }
 .parameter-help summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.pattern-library { border: 0; padding: 0; margin: 0; min-width: 0; }
+.pattern-library legend { font-size: 12px; }
+.pattern-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pattern-card { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: 12px; }
+.pattern-card.selected { border-color: var(--clay); background: var(--sunken); }
+.pattern-card:focus-within { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
+.pattern-card svg { grid-column: 1 / -1; width: 100%; max-height: 100px; background: var(--bg); color: var(--ink); border-radius: 4px; }
