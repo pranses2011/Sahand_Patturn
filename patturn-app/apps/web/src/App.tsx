@@ -1,3 +1,4 @@
+import { useEditorMode } from './useEditorMode';
 import { EditorNavigation, type EditorSection as Part } from './EditorNavigation';
 import { NumericControl } from './NumericControl';
 import { usePreviewPattern } from './usePreviewPattern';
@@ -7,7 +8,7 @@ import { PatternViewSwitch, FlatPatternPreview, type PatternView } from './Patte
 import { SavedPatterns } from './SavedPatterns';
 import { PatternLibrary } from './PatternLibrary';
 import type { HelpTopic } from './ParameterHelp';
-import { EditorModeSwitch, AdvancedControls, type EditorMode } from './EditorMode';
+import { EditorModeSwitch, AdvancedControls } from './EditorMode';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   referenceOuterProfile,
@@ -91,7 +92,7 @@ export function App() {
     return () => { cancelled = true; };
   }, []);
   const [patternView, setPatternView] = useState<PatternView>('flat');
-  const [editorMode, setEditorMode] = useState<EditorMode>('simple');
+  const { mode: editorMode, changeMode: setEditorMode, error: editorModeError } = useEditorMode();
   const [part, setPart] = useState<Part>('form');
   const [profileMode, setProfileMode] = useState<ProfileMode>(startup.state.profileMode);
   const [segments, setSegments] = useState(startup.state.segments);
@@ -858,6 +859,7 @@ export function App() {
         {/* ── right: params ── */}
         <aside className="panel">
           <EditorModeSwitch mode={editorMode} onChange={setEditorMode} />
+          {editorModeError && <p className="hint" role="status">ترجیح حالت رابط خوانده یا ذخیره نشد؛ تغییر حالت در این نشست کار می‌کند، ولی ممکن است پس از بازکردن دوباره برنگردد. این خطا مربوط به ذخیرهٔ پروژه نیست.</p>}
           {part === 'form' && (
             <>
               <h3 className="sec">⚙️ پارامترهای فرم</h3>

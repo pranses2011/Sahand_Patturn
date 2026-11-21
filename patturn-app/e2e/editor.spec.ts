@@ -203,3 +203,14 @@ test('named pattern recipes reject duplicate names without overwriting and apply
   await page.getByRole('button',{name:'حذف نمونهٔ من',exact:true}).click();
   await expect(page.getByRole('button',{name:'اعمال نمونهٔ من',exact:true})).toHaveCount(0);
 });
+
+test('control mode persists independently of project history',async({page})=>{
+  await page.goto('/');
+  const simple=page.getByRole('radio',{name:'ساده',exact:true});
+  const pro=page.getByRole('radio',{name:'حرفه‌ای',exact:true});
+  await expect(simple).toBeChecked();await pro.check();
+  await page.reload();await expect(pro).toBeChecked();
+  await expect(page.getByRole('spinbutton',{name:'تعداد سگمنت',exact:true})).toHaveValue('96');
+  await simple.check();await page.reload();await expect(simple).toBeChecked();
+  await expect(page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true})).toHaveValue('4');
+});
