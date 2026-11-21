@@ -674,3 +674,23 @@ test('hidden active pattern can be revealed without changing project selection o
   await undo.click();await expect(library.getByRole('radio',{name:'شبکهٔ نقطه‌ای',exact:true})).toBeChecked();
   await expect(undo).toBeDisabled();
 });
+
+test('recipe rename and deletion restore search focus only after successful confirmation',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await page.getByLabel('نام تنظیمات',{exact:true}).fill('اول');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  const search=page.getByLabel('جست‌وجوی تنظیمات ذخیره‌شده',{exact:true});
+  const rename=page.getByRole('button',{name:'تغییر نام اول',exact:true});
+  await rename.focus();
+  page.once('dialog',(dialog)=>dialog.dismiss());await page.keyboard.press('Enter');
+  await expect(rename).toBeFocused();await expect(page.locator('.saved-patterns li')).toHaveCount(1);
+  page.once('dialog',(dialog)=>dialog.accept('دوم'));await page.keyboard.press('Enter');
+  await expect(search).toBeFocused();
+  const remove=page.getByRole('button',{name:'حذف دوم',exact:true});await expect(remove).toBeVisible();
+  await remove.focus();page.once('dialog',(dialog)=>dialog.dismiss());await page.keyboard.press('Enter');
+  await expect(remove).toBeFocused();await expect(page.locator('.saved-patterns li')).toHaveCount(1);
+  page.once('dialog',(dialog)=>dialog.accept());await page.keyboard.press('Enter');
+  await expect(search).toBeFocused();await expect(page.locator('.saved-patterns li')).toHaveCount(0);
+  await expect(page.getByRole('radio',{name:'شبکهٔ نقطه‌ای',exact:true})).toBeChecked();
+});

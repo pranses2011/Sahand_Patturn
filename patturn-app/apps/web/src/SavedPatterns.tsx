@@ -108,9 +108,11 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
       }} aria-label={`به‌روزرسانی ${entry.name} با مقادیر فعلی`}>به‌روزرسانی با مقادیر فعلی</button>
       <button className="btn" onClick={() => {
         const nextName = window.prompt('نام جدید تنظیمات:', entry.name);
-        if (nextName !== null) perform(() => repo().rename(entry.name, nextName));
+        if (nextName !== null && perform(() => repo().rename(entry.name, nextName))) searchRef.current?.focus();
       }} aria-label={`تغییر نام ${entry.name}`}>تغییر نام</button>
-      <button className="btn" onClick={() => { if (window.confirm(`تنظیمات «${entry.name}» حذف شود؟`)) perform(() => repo().delete(entry.name)); }} aria-label={`حذف ${entry.name}`}>حذف</button>
+      <button className="btn" onClick={() => {
+        if (window.confirm(`تنظیمات «${entry.name}» حذف شود؟`) && perform(() => repo().delete(entry.name))) searchRef.current?.focus();
+      }} aria-label={`حذف ${entry.name}`}>حذف</button>
     </li>)}</ul>
   </details>;
 }
