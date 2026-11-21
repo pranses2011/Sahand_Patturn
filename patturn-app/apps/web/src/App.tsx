@@ -12,7 +12,7 @@ import {
   type Mesh,
   type Profile,
 } from '@patturn/kernel';
-import { analyzeUndercut, keyTopRadius } from '@patturn/molds';
+import { analyzeUndercut, keyTopRadius, initCsg, buildSingleMold } from '@patturn/molds';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
 import { toBinaryStl, toSvg } from '@patturn/exporters';
 import { AUTHOR, PLANS } from '@patturn/config';
@@ -57,7 +57,7 @@ export function App() {
 
   const profile = useMemo(() => PRESETS[profileMode], [profileMode]);
 
-  const mesh: Mesh | null = useMemo(() => {
+  const formMesh: Mesh | null = useMemo(() => {
     try {
       const m = revolve(profile, { segments, closeBottom: true, closeTop: profileMode !== 'reference' });
       const rep = validateMesh(m);
@@ -68,6 +68,37 @@ export function App() {
       return null;
     }
   }, [profile, segments, profileMode]);
+
+  // real boolean mold (block − form) when Mold tab is active
+  const [moldMesh, setMoldMesh] = useState<Mesh | null>(null);
+  const [moldBusy, setMoldBusy] = useState(false);
+  useEffect(() => {
+    if (part !== 'mold' || !formMesh) {
+      setMoldMesh(null);
+      return;
+    }
+    let cancelled = false;
+    setMoldBusy(true);
+    (async () => {
+      try {
+        await initCsg();
+        const m = await buildSingleMold(formMesh, { shrink: shrink / 100 });
+        if (!cancelled) {
+          setMoldMesh(m);
+          setMeshErr(null);
+        }
+      } catch (e) {
+        if (!cancelled) setMeshErr(String(e).slice(0, 160));
+      } finally {
+        if (!cancelled) setMoldBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [part, formMesh, shrink]);
+
+  const mesh: Mesh | null = part === 'mold' ? moldMesh : formMesh;
 
   // metrics
   const innerProfile = useMemo(() => referenceProfile(128), []);
@@ -197,13 +228,18 @@ export function App() {
             <>
               <h3 className="sec">تحلیل قالب</h3>
               <div className="hint">
-                {undercut.dropOutSafe ? (
-                  <>✅ فرم drop-out مجاز است → قالب <b>تک‌تکه</b></>
-                ) : (
-                  <>⚠️ زیر برش: {undercut.problemBands.length} ناحیه → پیشنهاد <b>{undercut.suggestedParts} قطعه</b></>
+                {moldBusy ? '⏳ در حال محاسبهٔ Boolean (block − form)…' : moldMesh ? '✅ قالب سه‌بعدی ساخته شد — در viewport ببینید' : null}
+                {moldBusy ? null : (
+                  <>
+                    {undercut.dropOutSafe ? (
+                      <>✅ فرم drop-out مجاز است → قالب <b>تک‌تکه</b></>
+                    ) : (
+                      <>⚠️ زیر برش: {undercut.problemBands.length} ناحیه → پیشنهاد <b>{undercut.suggestedParts} قطعه</b></>
+                    )}
+                    <br />کلید ثبت Ø16 با تلورانس 0.2mm
+                    <br />r_top = {keyTopRadius().toFixed(4)} mm
+                  </>
                 )}
-                <br />کلید ثبت Ø16 با تلورانس 0.2mm
-                <br />r_top = {keyTopRadius().toFixed(4)} mm
               </div>
               <h3 className="sec">مواد (مراجعه به فرم مرجع)</h3>
               <div className="hint">
