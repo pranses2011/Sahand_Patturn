@@ -214,6 +214,43 @@ export const diamond: PatternDef = {
   }),
 };
 
+/** Two-turn Archimedean spiral, sampled deterministically inside each tile. */
+export const spiral: PatternDef = {
+  id: 'spiral', label: 'Spiral', defaults: { stroke: 1.5 },
+  build: (ctx) => tile(ctx, (x, y) => {
+    const points: string[] = [];
+    for (let i = 0; i <= 96; i++) {
+      const t = i / 96, angle = 4 * Math.PI * t;
+      points.push(`${f(x + ctx.tileW / 2 + ctx.tileW * .42 * t * Math.cos(angle))} ${f(y + ctx.tileH / 2 + ctx.tileH * .42 * t * Math.sin(angle))}`);
+    }
+    return [{ d: `M${points.join('L')}`, fill: false }];
+  }),
+};
+
+/** Staggered three-ring semicircular fans. Full repeat is tileW × tileH.
+ * Edge fans deliberately extend outside the canvas; SVG/texture clipping is required.
+ */
+export const seigaiha: PatternDef = {
+  id: 'seigaiha', label: 'Seigaiha', defaults: { stroke: 1.5 },
+  build: (ctx) => {
+    const out: Path[] = [];
+    const rows = Math.ceil(ctx.canvasH / (ctx.tileH / 2));
+    const cols = Math.ceil(ctx.canvasW / ctx.tileW);
+    for (let row = 1; row <= rows + 1; row++) {
+      const cy = row * ctx.tileH / 2;
+      const shift = row % 2 === 0 ? ctx.tileW / 2 : 0;
+      for (let col = -1; col <= cols; col++) {
+        const cx = col * ctx.tileW + shift;
+        for (const ratio of [1, 2 / 3, 1 / 3]) {
+          const rx = ctx.tileW * ratio / 2, ry = ctx.tileH * ratio / 2;
+          out.push({ d: `M${f(cx - rx)} ${f(cy)}A${f(rx)} ${f(ry)} 0 0 1 ${f(cx + rx)} ${f(cy)}`, fill: false });
+        }
+      }
+    }
+    return out;
+  },
+};
+
 /** 12 base patterns (roadmap 2.3) — subset implemented here, rest follow same shape. */
 export const PATTERNS: PatternDef[] = [
   dotGrid,
@@ -224,6 +261,8 @@ export const PATTERNS: PatternDef[] = [
   scalePattern,
   wave,
   diamond,
+  spiral,
+  seigaiha,
 ];
 
 /**
