@@ -16,7 +16,7 @@ import {
   chooseSplitPlanes, buildSplitMold, buildMotherMold, plasterForCavity, motherAssemblyGuide,
   type SplitPlan, type MotherMoldResult, type OffsetBarrierResult,
 } from '@patturn/molds';
-import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES, EditorHistory, desktopFiles, isDesktop, desktopBackups, type BackupEntry, type HistoryEntry } from '@patturn/storage';
+import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES, EditorHistory, ParameterHistory, desktopFiles, isDesktop, desktopBackups, type BackupEntry, type HistoryEntry } from '@patturn/storage';
 import type { EditorState } from '@patturn/schema';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
@@ -94,15 +94,50 @@ export function App() {
   const [tileSize, setTileSize] = useState(startup.state.tileSize);
   const [saved, setSaved] = useState(startup.entries.length > 0);
   const [meshErr, setMeshErr] = useState<string | null>(null);
+  const [parameterHistory] = useState(() => new ParameterHistory(startup.state));
+  const [, updateHistoryUi] = useState(0);
+  const currentParameters = useMemo(() => ({ profileMode, segments, wall, shrink, fill, patternId, tileSize }),
+    [profileMode, segments, wall, shrink, fill, patternId, tileSize]);
+  useEffect(() => {
+    if (parameterHistory.record(currentParameters)) updateHistoryUi((n) => n + 1);
+  }, [parameterHistory, currentParameters]);
+  const finishParameterGroup = () => {
+    parameterHistory.record(currentParameters);
+    parameterHistory.endGroup();
+    updateHistoryUi((n) => n + 1);
+  };
 
   const projectInput = useRef<HTMLInputElement | null>(null);
   const [projectError, setProjectError] = useState<string | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
-  const applyEditorState = (state: EditorState) => {
+  const applyEditorState = (state: EditorState, resetPart = true) => {
+    parameterHistory.endGroup();
     setProfileMode(state.profileMode); setSegments(state.segments); setWall(state.wall);
     setShrink(state.shrink); setFill(state.fill); setPatternId(state.patternId); setTileSize(state.tileSize);
-    setPart('form'); setSaved(false);
+    if (resetPart) setPart('form');
+    setSaved(false);
   };
+  const stepParameterHistory = (direction: 'undo' | 'redo') => {
+    parameterHistory.record(currentParameters);
+    const state = direction === 'undo' ? parameterHistory.undo() : parameterHistory.redo();
+    if (state) applyEditorState(state, false);
+    updateHistoryUi((n) => n + 1);
+  };
+  useEffect(() => {
+    const keyboard = (event: KeyboardEvent) => {
+      const target = event.target;
+      // Preserve native text-input undo while editing a field.
+      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z' || key === 'y') {
+        event.preventDefault();
+        stepParameterHistory(key === 'y' || event.shiftKey ? 'redo' : 'undo');
+      }
+    };
+    window.addEventListener('keydown', keyboard);
+    return () => window.removeEventListener('keydown', keyboard);
+  }, [currentParameters, parameterHistory]);
   const restoreHistory = (id: string) => {
     try {
       const state = localHistory().restore(id);
@@ -509,13 +544,13 @@ export function App() {
         <span className="val">
           {value} {unit}
           <input
-            className="num" type="number" value={value} min={min} max={max} step={step}
+            className="num" type="number" onFocus={() => parameterHistory.beginGroup()} onBlur={finishParameterGroup} value={value} min={min} max={max} step={step}
             onChange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) { set(Math.min(max, Math.max(min, Math.round(n / step) * step))); markDirty(); } }}
             style={{ marginRight: 6 }}
           />
         </span>
       </label>
-      <input type="range" min={min} max={max} step={step} value={value}
+      <input type="range" aria-label={label} onPointerDown={() => parameterHistory.beginGroup()} onPointerUp={finishParameterGroup} onPointerCancel={finishParameterGroup} onBlur={finishParameterGroup} min={min} max={max} step={step} value={value}
         onChange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) { set(Math.min(max, Math.max(min, Math.round(n / step) * step))); markDirty(); } }} />
     </div>
   );
@@ -527,6 +562,12 @@ export function App() {
         <span className="brand">🏺 Patturn</span>
         <span className="saved">{autosaveError ? '⚠ ذخیره نشد' : saved ? '✓ ذخیره شد' : '…در حال ذخیره'}</span>
         <span className="spacer" />
+        <button className="btn history-command" disabled={!parameterHistory.canUndo} aria-keyshortcuts="Control+Z Meta+Z"
+          title={parameterHistory.undoTitle ?? 'چیزی برای واگرد نیست'} onClick={() => stepParameterHistory('undo')}>
+          واگرد{parameterHistory.undoTitle ? `: ${parameterHistory.undoTitle}` : ''}</button>
+        <button className="btn history-command" disabled={!parameterHistory.canRedo} aria-keyshortcuts="Control+Y Control+Shift+Z Meta+Shift+Z"
+          title={parameterHistory.redoTitle ?? 'چیزی برای ازنو نیست'} onClick={() => stepParameterHistory('redo')}>
+          ازنو{parameterHistory.redoTitle ? `: ${parameterHistory.redoTitle}` : ''}</button>
         <input ref={projectInput} type="file" accept=".patturn" hidden aria-label="انتخاب فایل پروژه"
           onChange={(event) => {
             const file = event.target.files?.[0]; event.target.value = '';

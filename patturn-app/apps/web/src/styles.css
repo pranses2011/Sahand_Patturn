@@ -93,3 +93,5 @@ h3.sec { font-size: 13px; color: var(--clay-dark); margin: 18px 0 10px; letter-s
 .history-panel { padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--surface); max-height: 220px; overflow-y: auto; flex-shrink: 0; }
 .history-panel summary { cursor: pointer; font-size: 13px; }
 .history-entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; font-size: 12px; }
+.history-command { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn:focus-visible { outline: 3px solid var(--clay-dark); outline-offset: 2px; }
