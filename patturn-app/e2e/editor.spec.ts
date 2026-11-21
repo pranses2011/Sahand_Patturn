@@ -895,3 +895,29 @@ test('privacy notice opens by keyboard using packaged text and preserves project
   await expect(wall).toHaveValue('7');await expect(undo).toHaveAttribute('title',title!);
   await summary.focus();await page.keyboard.press('Enter');await expect(notice).not.toBeVisible();
 });
+
+test('optional support copies only the card number and reports clipboard denial without touching the project',async({page})=>{
+  await page.addInitScript(()=>{
+    const audit={text:'',deny:false};
+    (window as unknown as {testSupportClipboard:typeof audit}).testSupportClipboard=audit;
+    Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(text:string)=>{
+      if(audit.deny)throw Error('denied');audit.text=text;
+    }}});
+  });
+  await page.goto('/');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('7');await wall.press('Enter');
+  const undo=page.getByRole('button',{name:/^واگرد/});const title=await undo.getAttribute('title');
+  const panel=page.getByRole('region',{name:'حمایت اختیاری و پشتیبانی',exact:true});
+  const button=panel.getByRole('button',{name:'کپی شمارهٔ کارت حمایت',exact:true});
+  await button.focus();await page.keyboard.press('Enter');
+  await expect(panel.getByRole('status')).toContainText('شمارهٔ کارت کپی شد');
+  const copied=await page.evaluate(()=>{
+    const audit=(window as unknown as {testSupportClipboard:{text:string;deny:boolean}}).testSupportClipboard;
+    audit.deny=true;return audit.text;
+  });
+  expect(copied).toMatch(/^\d{16}$/);
+  await expect(panel.locator('p[dir="ltr"]').first()).toHaveText(copied.match(/.{4}/g)!.join(' '));
+  await button.click();await expect(panel.getByRole('alert')).toContainText('دستی انتخاب و کپی کنید');
+  await expect(wall).toHaveValue('7');await expect(undo).toHaveAttribute('title',title!);
+});

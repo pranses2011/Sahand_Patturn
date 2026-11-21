@@ -1,3 +1,4 @@
+import { SupportPanel } from './SupportPanel';
 import { PrivacyNotice } from './PrivacyNotice';
 import { requestBrowserDownload } from './browser-download';
 import { historyShortcut } from './history-shortcut';
@@ -945,18 +946,7 @@ export function App() {
           )}
 
           <PrivacyNotice />
-          <h3 className="sec">👤 پشتیبانی</h3>
-          <div className="hint" style={{ fontSize: 11.5 }}>
-            {AUTHOR.name} — {AUTHOR.company}
-            <br />
-            <span style={{ direction: 'ltr', display: 'inline-block' }}>{AUTHOR.phone}</span>
-            <br />
-            <span style={{ direction: 'ltr', display: 'inline-block' }}>{AUTHOR.email}</span>
-            <br />
-            <span style={{ direction: 'ltr', display: 'inline-block' }}>{AUTHOR.card}</span>
-            <br />
-            {AUTHOR.site}
-          </div>
+          <SupportPanel />
         </aside>
       </div>
 
