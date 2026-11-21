@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { PatternLibraryRepo, type PatternRecipe } from '@patturn/storage';
+import { useEffect, useState } from 'react';
+import { PatternLibraryRepo, PATTERN_LIBRARY_KEY, type PatternRecipe } from '@patturn/storage';
 import { PATTERNS } from '@patturn/patterns';
 
 export function SavedPatterns({ patternId, tileSize, onApply }: {
@@ -21,6 +21,14 @@ export function SavedPatterns({ patternId, tileSize, onApply }: {
       return false;
     }
   };
+  useEffect(() => {
+    const refresh = (event: StorageEvent) => {
+      // null means localStorage.clear(); never apply a recipe to the project implicitly.
+      if (event.key === PATTERN_LIBRARY_KEY || event.key === null) perform(() => repo().list());
+    };
+    window.addEventListener('storage', refresh);
+    return () => window.removeEventListener('storage', refresh);
+  }, []);
   return <details className="saved-patterns" onToggle={(e) => { if (e.currentTarget.open) perform(() => repo().list()); }}>
     <summary>تنظیمات الگوی ذخیره‌شده</summary>
     <p className="hint">حداکثر ۳۰ ترکیب نام‌دار، فقط در همین دستگاه؛ شامل نوع الگو و اندازهٔ کاشی، نه مسیر سفارشی. برای نگهداری جداگانه، فایل پروژه را ذخیره کنید.</p>

@@ -214,3 +214,22 @@ test('control mode persists independently of project history',async({page})=>{
   await simple.check();await page.reload();await expect(simple).toBeChecked();
   await expect(page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true})).toHaveValue('4');
 });
+
+test('named recipe lists synchronize across browser tabs without changing either project',async({page,context})=>{
+  const other=await context.newPage();
+  for(const tab of [page,other]){
+    await tab.goto('/');await tab.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+    await tab.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  }
+  await page.getByRole('textbox',{name:'نام تنظیمات',exact:true}).fill('اشتراکی');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  await expect(other.getByRole('button',{name:'اعمال اشتراکی',exact:true})).toBeVisible();
+  const tile=other.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true});
+  await tile.fill('60');await tile.press('Enter');
+  other.once('dialog',(dialog)=>dialog.accept());
+  await other.getByRole('button',{name:'حذف اشتراکی',exact:true}).click();
+  await expect(page.getByRole('button',{name:'اعمال اشتراکی',exact:true})).toHaveCount(0);
+  await expect(tile).toHaveValue('60');
+  await expect(page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true})).toHaveValue('40');
+  await other.close();
+});
