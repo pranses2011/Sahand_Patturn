@@ -1,3 +1,4 @@
+import { PATTERN_NAMES_FA } from '@patturn/config';
 import { useEffect, useRef, useState } from 'react';
 import { PatternLibraryRepo, PATTERN_LIBRARY_KEY, MAX_PATTERN_BACKUP_BYTES, type PatternRecipe } from '@patturn/storage';
 import { PATTERNS } from '@patturn/patterns';
@@ -86,7 +87,7 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
     }}>لغو خواندن پشتیبان</button>}
     {importMessage && <p role="status" className="hint">{importMessage}</p>}
     <ul>{entries.map((entry) => <li key={entry.name}>
-      <b>{entry.name}</b> — {entry.tileSize} mm
+      <b>{entry.name}</b> — {PATTERN_NAMES_FA[entry.patternId] ?? entry.patternId} — {new Intl.NumberFormat('fa-IR').format(entry.tileSize)} میلی‌متر
       <button className="btn" onClick={() => onApply(entry)} aria-label={`اعمال ${entry.name}`}>اعمال</button>
       <button className="btn" onClick={() => {
         if (window.confirm(`نوع الگو و اندازهٔ کاشی فعلی جایگزین تنظیمات «${entry.name}» شود؟`)) {

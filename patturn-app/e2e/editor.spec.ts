@@ -569,3 +569,25 @@ test('pattern undo and redo use the same Persian names as the pattern library',a
   await page.getByRole('button',{name:'ازنو: الگو: شبکهٔ نقطه‌ای ← شبکهٔ مربعی',exact:true}).click();
   await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
 });
+
+test('saved recipe summaries distinguish pattern types and applying a reloaded item restores its values',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  const save=async(name:string)=>{
+    await page.getByLabel('نام تنظیمات',{exact:true}).fill(name);
+    await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  };
+  await save('نمونه نقطه');
+  await page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true}).check();
+  await save('نمونه مربع');
+  await page.reload();await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  const dot=page.locator('.saved-patterns li').filter({has:page.getByRole('button',{name:'اعمال نمونه نقطه',exact:true})});
+  const grid=page.locator('.saved-patterns li').filter({has:page.getByRole('button',{name:'اعمال نمونه مربع',exact:true})});
+  await expect(dot).toContainText('نمونه نقطه — شبکهٔ نقطه‌ای — ۴۰ میلی‌متر');
+  await expect(grid).toContainText('نمونه مربع — شبکهٔ مربعی — ۴۰ میلی‌متر');
+  await dot.getByRole('button',{name:'اعمال نمونه نقطه',exact:true}).click();
+  await expect(page.getByRole('radio',{name:'شبکهٔ نقطه‌ای',exact:true})).toBeChecked();
+  await grid.getByRole('button',{name:'اعمال نمونه مربع',exact:true}).click();
+  await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
+});
