@@ -1003,3 +1003,43 @@ test('rounder tool exports a solid three-degree plug at the chosen nominal mouth
   await page.getByRole('button',{name:'🏺 فرم',exact:true}).click();
   await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
 });
+
+test('horizontal split downloads capped parts and invalidates old results when cut height changes',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'📤 خروجی',exact:true}).click();
+  await page.getByText('تقسیم افقی فرم در ارتفاع انتخابی',{exact:true}).click();
+  await page.getByRole('button',{name:'ساخت دو قطعهٔ برش افقی',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'دو قطعه بسته و اعتبارسنجی شدند'})).toBeVisible({timeout:60_000});
+  for(const [label,side] of [['پایین','lower'],['بالا','upper']] as const){
+    const download=page.waitForEvent('download');
+    await page.getByRole('button',{name:`دانلود STL قطعهٔ ${label}`,exact:true}).click();
+    const file=await download;expect(file.suggestedFilename()).toBe(`form_horizontal-${side}_Y50mm.stl`);
+    const path=await file.path();expect(path).not.toBeNull();const bytes=await readFile(path!);
+    const tris=bytes.readUInt32LE(80);expect(tris).toBeGreaterThan(0);expect(bytes.length).toBe(84+tris*50);
+    let min=Infinity,max=-Infinity;
+    for(let offset=84;offset<bytes.length;offset+=50)for(let v=0;v<3;v++){
+      const y=bytes.readFloatLE(offset+16+12*v);min=Math.min(min,y);max=Math.max(max,y);
+    }
+    if(side==='lower')expect(max).toBeCloseTo(50,4);else expect(min).toBeCloseTo(50,4);
+  }
+  const cut=page.getByRole('spinbutton',{name:'ارتفاع برش افقی',exact:true});await cut.fill('60');await cut.press('Enter');
+  await expect(page.getByRole('button',{name:'دانلود STL قطعهٔ پایین',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'دانلود STL قطعهٔ بالا',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'ساخت دو قطعهٔ برش افقی',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'دو قطعه بسته و اعتبارسنجی شدند'})).toBeVisible({timeout:60_000});
+  await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
+});
+
+test('horizontal split reports WASM failure independently and an explicit retry recovers',async({page})=>{
+  let allow=false;
+  await page.route('**/*.wasm',async(route)=>{if(allow)await route.continue();else await route.abort('failed');});
+  await page.goto('/');await page.getByRole('button',{name:'📤 خروجی',exact:true}).click();
+  await page.getByText('تقسیم افقی فرم در ارتفاع انتخابی',{exact:true}).click();
+  await page.getByRole('button',{name:'ساخت دو قطعهٔ برش افقی',exact:true}).click();
+  const error=page.getByRole('alert').filter({hasText:'تقسیم افقی ناموفق بود؛ فرم اصلی تغییر نکرد'});
+  await expect(error).toBeVisible();
+  await expect(page.getByRole('button',{name:'دانلود STL قطعهٔ پایین',exact:true})).toHaveCount(0);
+  const download=page.waitForEvent('download');await page.getByRole('button',{name:'⬇ خروجی STL فرم',exact:true}).click();await download;
+  allow=true;await page.getByRole('button',{name:'ساخت دو قطعهٔ برش افقی',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'دو قطعه بسته و اعتبارسنجی شدند'})).toBeVisible({timeout:60_000});
+  await expect(error).toHaveCount(0);
+});

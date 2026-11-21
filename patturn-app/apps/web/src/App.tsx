@@ -1,3 +1,4 @@
+import { HorizontalSplitTool } from './HorizontalSplitTool';
 import { RounderTool } from './RounderTool';
 import { ChuckTool } from './ChuckTool';
 import { LocalProfilePanel } from './LocalProfilePanel';
@@ -745,6 +746,7 @@ export function App() {
               <h3 className="sec">خروجی‌ها</h3>
               <ChuckTool onExport={download} />
               <RounderTool onExport={download} />
+              <HorizontalSplitTool mesh={formMesh} onExport={download} />
               <div className="ctl"><button className="btn primary" disabled={zipBusy || moldBusy || motherBusy || barrierRequest !== null || !formMesh || !moldParts}
                 onClick={exportBuildZip}>{zipBusy ? '⏳ در حال بسته‌بندی…' : '⬇ ZIP ساخت: قطعات، مواد و راهنما'}</button></div>
               {zipBusy && <button className="btn" onClick={() => zipController.current?.abort()}>لغو بسته‌بندی</button>}

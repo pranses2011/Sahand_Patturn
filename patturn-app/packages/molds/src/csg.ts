@@ -663,3 +663,30 @@ export async function analyzeMotherRelease(
     solids.reverse().forEach((s) => s.delete?.());
   }
 }
+
+/** Flat Y-plane split of an already closed form. Coordinates are preserved in mm.
+ * The operation adds planar caps, not alignment keys or fabrication clearance.
+ */
+export function splitHorizontal(mesh: Mesh, height: number): {lower:Mesh;upper:Mesh} {
+  if(!Number.isFinite(height))throw Error('INVALID_SPLIT_HEIGHT');
+  if(!mesh.positions.length || mesh.positions.length%3 || mesh.indices.length%3 ||
+    mesh.positions.some((v)=>!Number.isFinite(v)) || mesh.indices.some((i)=>i>=mesh.positions.length/3))throw Error('INVALID_SPLIT_MESH');
+  const report=validateMesh(mesh);
+  if(!report.ok)throw Error('INVALID_SPLIT_MESH');
+  let min=Infinity,max=-Infinity;
+  for(let i=1;i<mesh.positions.length;i+=3){min=Math.min(min,mesh.positions[i]!);max=Math.max(max,mesh.positions[i]!);}
+  if(height<=min+0.01 || height>=max-0.01)throw Error('SPLIT_HEIGHT_OUTSIDE');
+  const owned:ManifoldT[]=[];
+  try {
+    const source=toManifold(mesh);owned.push(source);
+    const parts=source.splitByPlane([0,1,0],height);owned.push(...parts);
+    if(parts.length!==2 || parts.some((part)=>part.numTri()===0))throw Error('SPLIT_EMPTY_PART');
+    parts.sort((a,b)=>a.boundingBox().min[1]-b.boundingBox().min[1]);
+    const lower=fromManifold(parts[0]!),upper=fromManifold(parts[1]!);
+    const reports=[validateMesh(lower),validateMesh(upper)];
+    if(reports.some((result)=>!result.ok))throw Error('SPLIT_INVALID_RESULT');
+    const total=reports.reduce((sum,result)=>sum+result.signedVolumeMm3,0);
+    if(Math.abs(total-report.signedVolumeMm3)>Math.max(0.01,report.signedVolumeMm3*1e-4))throw Error('SPLIT_VOLUME_MISMATCH');
+    return {lower,upper};
+  } finally { for(const part of new Set(owned))part.delete?.(); }
+}
