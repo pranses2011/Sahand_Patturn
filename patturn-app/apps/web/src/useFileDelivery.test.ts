@@ -44,4 +44,24 @@ describe('Output delivery status and retry',()=>{
     await act(async()=>h.api.retry());expect(writer).toHaveBeenCalledTimes(2);
     act(()=>h.tree.unmount());
   });
+  it('isolates repeated retries from caller and failing writer mutations of subarrays',async()=>{
+    const backing=new Uint8Array([99,1,2,3,88]);
+    const received:number[][]=[];
+    let reject!:(reason:Error)=>void;
+    const writer=vi.fn<FileWriter>((_name,payload)=>{
+      received.push([...payload]);payload.fill(42);
+      return new Promise((_resolve,fail)=>{reject=fail;});
+    });
+    const h=setup(writer);
+    act(()=>h.api.download('snapshot.stl',backing.subarray(1,4)));
+    backing.fill(7);
+    await act(async()=>reject(Error('partial write')));
+    act(()=>h.api.retry());
+    expect(received).toEqual([[1,2,3],[1,2,3]]);
+    await act(async()=>reject(Error('still full')));
+    act(()=>h.api.retry());expect(received[2]).toEqual([1,2,3]);
+    await act(async()=>reject(Error('still full')));
+    act(()=>h.tree.unmount());
+  });
+
 });
