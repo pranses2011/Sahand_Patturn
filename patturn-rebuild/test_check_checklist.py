@@ -23,6 +23,25 @@ class ChecklistArithmeticTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'DUPLICATE_ITEM'):
             check_checklist(self.text + '\n| 12.5 | [ ] | duplicate |')
 
+    def test_malformed_task_status_or_identifier_is_not_ignored(self):
+        for replacement in ['| 12.5 | [X]', '| 12.5 | [yes]', '| 12.a | [ ]']:
+            with self.subTest(replacement=replacement), self.assertRaisesRegex(ValueError, 'INVALID_ITEM_ROW'):
+                check_checklist(self.text.replace('| 12.5 | [ ]', replacement))
+
+    def test_duplicate_summary_section_is_not_silently_overwritten(self):
+        with self.assertRaisesRegex(ValueError, 'DUPLICATE_SUMMARY_SECTION'):
+            check_checklist(self.text + '\n| ۱۲ تست | 10 | 4 |')
+
+    def test_duplicate_headline_and_footer_are_rejected(self):
+        for duplicate, code in [('✅ 70 از 122 کار', 'HEADLINE_COUNT_MISMATCH'),
+                                ('| **مجموع** | **122** | **70** |', 'FOOTER_COUNT_MISMATCH')]:
+            with self.subTest(code=code), self.assertRaisesRegex(ValueError, code):
+                check_checklist(self.text + '\n' + duplicate)
+
+    def test_empty_document_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'CHECKLIST_EMPTY'):
+            check_checklist('')
+
 
 if __name__ == '__main__':
     unittest.main()
