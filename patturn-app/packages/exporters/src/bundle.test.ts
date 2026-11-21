@@ -109,4 +109,19 @@ describe('Build ZIP', () => {
     expect((await toBuildZip(data)).error).toContain('BUNDLE_DUPLICATE_PATH');
   });
 
+  it('snapshots sidecar subarrays and project name before asynchronous compression',async()=>{
+    const backing=new Uint8Array(300_002);
+    for(let i=0;i<backing.length;i++)backing[i]=i%251;
+    const bytes=backing.subarray(1,-1),expected=bytes.slice();
+    const data=input();data.project='original';data.files=[{path:'data.txt',bytes}];
+    const pending=toBuildZip(data);
+    backing.fill(42);data.project='changed';data.files[0]!.path='changed.txt';
+    const result=await pending;expect(result.ok,result.error).toBe(true);
+    const entries=unzipSync(result.bytes!);
+    expect(entries['data.txt']).toEqual(expected);expect(entries['changed.txt']).toBeUndefined();
+    expect(JSON.parse(strFromU8(entries['manifest.json']!)).project).toBe('original');
+    expect(result.filename).toContain('original');expect(result.filename).not.toContain('changed');
+    expect(backing.byteLength).toBe(300_002);
+  });
+
 });

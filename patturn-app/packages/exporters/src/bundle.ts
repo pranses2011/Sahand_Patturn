@@ -16,6 +16,7 @@ export interface BuildBundle {
 
 /** Atomic archive: all STL inputs validated before compression/download. */
 export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Promise<ExportResult> {
+  const project = input.project;
   const fail = (error: string): ExportResult => ({ ok: false, filename: '', error });
   if (signal?.aborted) return fail('EXPORT_CANCELLED');
   if (!input.meshes.length) return fail('BUNDLE_NO_MESHES');
@@ -41,7 +42,7 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     }
     for (const item of input.assemblies ?? []) {
       if (!item.path.toLowerCase().endsWith('.obj')) throw new Error('BUNDLE_OBJ_EXTENSION');
-      const output = toObj(item.parts, input.project);
+      const output = toObj(item.parts, project);
       if (!output.ok) throw new Error(`${item.path}:${output.error}`);
       add(item.path, output.bytes!);
     }
@@ -54,11 +55,12 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     for (const item of input.files ?? []) {
       // Extra files must not bypass STL validation or introduce arbitrary archives.
       if (!/\.(txt|json|svg|pdf|patturn)$/i.test(item.path)) throw new Error('BUNDLE_EXTRA_EXTENSION');
-      add(item.path, item.bytes);
+      // Compression may run in a worker; never expose caller-owned backing bytes.
+      add(item.path, item.bytes.slice());
     }
     entries.set('README.txt', strToU8('\uFEFF' + input.instructions));
     entries.set('manifest.json', strToU8(JSON.stringify({
-      version: 1, project: input.project, units: 'mm',
+      version: 1, project, units: 'mm',
       stlValidated: true,
       objValidated: true,
       files: [...entries].map(([path, bytes]) => ({ path, bytes: bytes.length })).sort((a, b) => a.path < b.path ? -1 : 1),
@@ -83,7 +85,7 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     try {
       cancel = zip(archive, { level: 6 }, (error, bytes) => {
         if (error) finish(fail(`ZIP_FAILED:${error.message}`));
-        else finish({ ok: true, filename: exportName(input.project, 'build', 'mm', 'zip'), bytes });
+        else finish({ ok: true, filename: exportName(project, 'build', 'mm', 'zip'), bytes });
       });
       if (signal?.aborted) abort();
     } catch (e) { finish(fail(`ZIP_FAILED:${String(e)}`)); }
