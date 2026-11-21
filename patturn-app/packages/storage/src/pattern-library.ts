@@ -25,6 +25,12 @@ export class PatternLibraryRepo {
     if (new Set(entries.map((e) => e.name)).size !== entries.length) throw new Error('LIBRARY_DUPLICATE_NAME');
     return entries;
   }
+  exportDocument(): Uint8Array {
+    // Validate stored data; never export a corrupt library as a successful backup.
+    return new TextEncoder().encode(JSON.stringify({
+      format: 'patturn-pattern-library', version: 1, entries: this.list(),
+    }, null, 2));
+  }
   save(input: PatternRecipe): PatternRecipe[] {
     const recipe = this.validate(input), entries = this.list();
     if (entries.some((e) => e.name === recipe.name)) throw new Error('LIBRARY_NAME_EXISTS');

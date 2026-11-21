@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { PatternLibraryRepo, PATTERN_LIBRARY_KEY, type PatternRecipe } from '@patturn/storage';
 import { PATTERNS } from '@patturn/patterns';
 
-export function SavedPatterns({ patternId, tileSize, onApply }: {
-  patternId: string; tileSize: number; onApply: (recipe: PatternRecipe) => void;
+export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
+  patternId: string; tileSize: number; onApply: (recipe: PatternRecipe) => void; onExport: (name: string, bytes: Uint8Array) => void;
 }) {
   const [entries, setEntries] = useState<PatternRecipe[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -33,13 +33,18 @@ export function SavedPatterns({ patternId, tileSize, onApply }: {
   }, []);
   return <details className="saved-patterns" onToggle={(e) => { if (e.currentTarget.open) perform(() => repo().list()); }}>
     <summary>تنظیمات الگوی ذخیره‌شده</summary>
-    <p className="hint">حداکثر ۳۰ ترکیب نام‌دار، فقط در همین دستگاه؛ شامل نوع الگو و اندازهٔ کاشی، نه مسیر سفارشی. برای نگهداری جداگانه، فایل پروژه را ذخیره کنید.</p>
+    <p className="hint">حداکثر ۳۰ ترکیب نام‌دار، فقط در همین دستگاه؛ شامل نوع الگو و اندازهٔ کاشی، نه مسیر سفارشی. فایل پروژه فقط تنظیمات فعال را دارد؛ پشتیبان JSON تمام موارد این کتابخانه را نگه می‌دارد. ورود پشتیبان هنوز اضافه نشده است.</p>
     <form onSubmit={(e) => { e.preventDefault(); if (perform(() => repo().save({ name, patternId, tileSize }))) setName(''); }}>
       <label>نام تنظیمات<input value={name} maxLength={60} required onChange={(e) => setName(e.currentTarget.value)} /></label>
       <button className="btn" type="submit" disabled={!name.trim()}>ذخیرهٔ تنظیمات فعلی</button>
     </form>
     {error && <p className="hint" role="alert">{error}</p>}
     <button className="btn" onClick={() => perform(() => repo().list())}>بازخوانی / تلاش دوباره</button>
+    <button className="btn" onClick={() => perform(() => {
+      const library = repo();
+      onExport('patturn-pattern-library-v1.json', library.exportDocument());
+      return library.list();
+    })}>دانلود پشتیبان کتابخانهٔ الگو</button>
     <ul>{entries.map((entry) => <li key={entry.name}>
       <b>{entry.name}</b> — {entry.tileSize} mm
       <button className="btn" onClick={() => onApply(entry)} aria-label={`اعمال ${entry.name}`}>اعمال</button>

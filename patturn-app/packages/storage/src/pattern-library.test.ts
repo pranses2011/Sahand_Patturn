@@ -73,4 +73,15 @@ describe('Named pattern recipes',()=>{
     expect(repo.update(recipe.name,{patternId:recipe.patternId,tileSize:recipe.tileSize})).toEqual([recipe]);
   });
 
+  it('exports every recipe in a versioned deterministic UTF-8 document without changing storage',()=>{
+    const {repo,data}=setup();repo.save(recipe);repo.save({...recipe,name:'شبکه',patternId:'grid',tileSize:60});
+    const before=data.get(PATTERN_LIBRARY_KEY),bytes=repo.exportDocument();
+    expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual({format:'patturn-pattern-library',version:1,entries:repo.list()});
+    expect(repo.exportDocument()).toEqual(bytes);expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);
+  });
+  it('exports an empty library but refuses corrupted stored data without overwriting it',()=>{
+    const {repo,data}=setup();expect(JSON.parse(new TextDecoder().decode(repo.exportDocument())).entries).toEqual([]);
+    data.set(PATTERN_LIBRARY_KEY,'{broken');expect(()=>repo.exportDocument()).toThrow();expect(data.get(PATTERN_LIBRARY_KEY)).toBe('{broken');
+  });
+
 });

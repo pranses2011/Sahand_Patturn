@@ -673,7 +673,7 @@ export function App() {
               <h3 className="sec">کتابخانهٔ الگو</h3>
               <PatternViewSwitch value={patternView} onChange={setPatternView} />
               <PatternLibrary selectedId={patternId} onSelect={(id) => { setPatternId(id); markDirty(); }} />
-              <SavedPatterns patternId={patternId} tileSize={tileSize} onApply={(recipe) => {
+              <SavedPatterns onExport={download} patternId={patternId} tileSize={tileSize} onApply={(recipe) => {
                 parameterHistory.endGroup(); setPatternId(recipe.patternId); setTileSize(recipe.tileSize); markDirty();
               }} />
               <h3 className="sec">نگاشت روی فرم (unwrap استوانه‌ای)</h3>

@@ -301,3 +301,20 @@ test('updating a named recipe requires confirmation and preserves the saved name
   await page.getByRole('button',{name:'اعمال قابل ویرایش',exact:true}).click();
   await expect(tile).toHaveValue('60');await expect(page.getByRole('radio',{name:'موج',exact:true})).toBeChecked();
 });
+
+test('library backup downloads all named recipes without changing the active project',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  const name=page.getByRole('textbox',{name:'نام تنظیمات',exact:true});
+  await name.fill('نقطه');await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  const tile=page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true});await tile.fill('60');await tile.press('Enter');
+  await page.getByRole('radio',{name:'موج',exact:true}).check();
+  await name.fill('موج بزرگ');await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  const event=page.waitForEvent('download');await page.getByRole('button',{name:'دانلود پشتیبان کتابخانهٔ الگو',exact:true}).click();
+  const file=await event;expect(file.suggestedFilename()).toBe('patturn-pattern-library-v1.json');
+  const path=await file.path();expect(path).not.toBeNull();
+  expect(JSON.parse((await readFile(path!)).toString('utf8'))).toEqual({format:'patturn-pattern-library',version:1,entries:[
+    {name:'نقطه',patternId:'dot-grid',tileSize:40},{name:'موج بزرگ',patternId:'wave',tileSize:60},
+  ]});
+  await expect(tile).toHaveValue('60');await expect(page.getByRole('radio',{name:'موج',exact:true})).toBeChecked();
+});
