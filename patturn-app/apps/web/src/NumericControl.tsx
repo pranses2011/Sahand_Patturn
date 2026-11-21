@@ -21,8 +21,8 @@ export function NumericControl({label,value,onChange,min,max,step=1,unit='mm',he
     onEndEdit();
   };
   return <div className="ctl">
-    <label htmlFor={id}><span>{label}</span><span className="val">{value} {unit}</span></label>
-    <input id={id} aria-label={label} className="num" type="number" value={draft} min={min} max={max} step={step}
+    <label htmlFor={id}><span>{label}</span><span className="val">{value} <span id={`${id}-unit`}>{unit}</span></span></label>
+    <input id={id} aria-label={label} aria-describedby={`${id}-unit`} className="num" type="number" value={draft} min={min} max={max} step={step}
       onFocus={onBeginEdit} onChange={(event)=>setDraft(event.currentTarget.value)}
       onBlur={(event)=>commit(event.currentTarget)} onKeyDown={(event)=>{
         if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur();}
@@ -30,7 +30,7 @@ export function NumericControl({label,value,onChange,min,max,step=1,unit='mm',he
           event.preventDefault();event.currentTarget.value=String(value);setDraft(String(value));event.currentTarget.blur();
         }
       }} />
-    <input type="range" aria-label={label} min={min} max={max} step={step} value={value}
+    <input type="range" aria-label={label} aria-describedby={`${id}-unit`} min={min} max={max} step={step} value={value}
       onPointerDown={onBeginEdit} onPointerUp={onEndEdit} onPointerCancel={onEndEdit} onBlur={onEndEdit}
       onKeyDown={(event)=>{if(!event.repeat && /^(Arrow|Home|End|Page)/.test(event.key))onBeginEdit();}}
       onKeyUp={onEndEdit}

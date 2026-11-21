@@ -121,3 +121,20 @@ test('corrupted autosave is not silently overwritten and portable export remains
   expect((await downloaded).suggestedFilename()).toMatch(/\.patturn$/);
   await expect(wall).toHaveValue('7');
 });
+
+
+test('keyboard focus is visible and numeric units are available as accessible descriptions',async({page})=>{
+  await page.goto('/');
+  const form=page.getByRole('navigation',{name:'بخش‌های طراحی'}).getByRole('button',{name:'🏺 فرم',exact:true});
+  await form.focus();await page.keyboard.press('Tab');
+  const pattern=page.getByRole('navigation',{name:'بخش‌های طراحی'}).getByRole('button',{name:'🔷 الگو',exact:true});
+  await expect(pattern).toBeFocused();
+  await expect(pattern).toHaveCSS('outline-style','solid');await expect(pattern).toHaveCSS('outline-width','3px');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.focus();await expect(wall).toHaveCSS('outline-width','3px');
+  await expect(wall).toHaveAccessibleDescription('mm');
+  const slider=page.getByRole('slider',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await page.keyboard.press('Tab');await expect(slider).toBeFocused();
+  await expect(slider).toHaveCSS('outline-width','3px');await expect(slider).toHaveAccessibleDescription('mm');
+  await expect(page.getByRole('spinbutton',{name:'شیرینک',exact:true})).toHaveAccessibleDescription('%');
+});
