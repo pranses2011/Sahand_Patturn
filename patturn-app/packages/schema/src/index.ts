@@ -111,3 +111,24 @@ export function migrate(doc: { schemaVersion: number }): ProjectDoc {
   }
   return d as ProjectDoc;
 }
+
+/** Versioned snapshot of the currently implemented preset editor (not ProjectDoc). */
+export const EditorState = z.object({
+  profileMode: z.enum(['reference', 'bucket', 'vase']),
+  segments: z.number().int().min(12).max(256),
+  wall: z.number().finite().min(1).max(20),
+  shrink: z.number().finite().min(0).max(20),
+  fill: z.number().finite().min(0).max(100),
+  patternId: z.string().min(1).max(80),
+  tileSize: z.number().finite().min(8).max(120),
+}).strict();
+export type EditorState = z.infer<typeof EditorState>;
+
+export const PortableEditorProject = z.object({
+  format: z.literal('patturn-editor'),
+  version: z.literal(1),
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  unit: z.literal('mm'),
+  state: EditorState,
+}).strict();
+export type PortableEditorProject = z.infer<typeof PortableEditorProject>;

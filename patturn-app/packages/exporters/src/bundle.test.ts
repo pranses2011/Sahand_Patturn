@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
+import { encodeEditorProject, decodeEditorProject } from '@patturn/storage';
 import { referenceOuterProfile, revolve } from '@patturn/kernel';
 import { toBuildZip, toDimensionPdf, type BuildBundle } from './index.js';
 const mesh = revolve(referenceOuterProfile(8), { segments: 16, closeBottom: true, closeTop: true });
@@ -8,12 +9,14 @@ const input = (): BuildBundle => ({ project: 'گلدان', meshes: [{ path: 'par
 describe('Build ZIP', () => {
   it('Z1: round-trip archive contains validated STL, UTF-8 guide, BOM and manifest', async () => {
     const data = input();
+    const project = encodeEditorProject({ profileMode: 'reference', segments: 96, wall: 4, shrink: 12, fill: 80, patternId: 'dot-grid', tileSize: 40 });
+    data.files!.push({ path: 'project.patturn', bytes: project });
     const pdf = toDimensionPdf(referenceOuterProfile(8));
     data.files!.push({ path: 'dimensions/profile.pdf', bytes: pdf.bytes! });
     const out = await toBuildZip(data);
     expect(out.ok, out.error).toBe(true);
     const entries = unzipSync(out.bytes!);
-    expect(Object.keys(entries).sort()).toEqual(['BOM.txt', 'README.txt', 'dimensions/profile.pdf', 'manifest.json', 'parts/part-1.stl']);
+    expect(Object.keys(entries).sort()).toEqual(['BOM.txt', 'README.txt', 'dimensions/profile.pdf', 'manifest.json', 'parts/part-1.stl', 'project.patturn']);
     expect(strFromU8(entries['README.txt']!)).toContain('راهنمای فارسی');
     const stl = entries['parts/part-1.stl']!;
     expect(stl.length).toBe(84 + mesh.indices.length / 3 * 50);
@@ -21,6 +24,7 @@ describe('Build ZIP', () => {
     expect(manifest.stlValidated).toBe(true);
     expect(manifest.units).toBe('mm');
     expect(entries['dimensions/profile.pdf']).toEqual(pdf.bytes);
+    expect(decodeEditorProject(entries['project.patturn']!, ['dot-grid']).shrink).toBe(12);
     for (const file of manifest.files) expect(entries[file.path]!.length).toBe(file.bytes);
   });
   it('Z2: deterministic bytes for identical input', async () => {

@@ -66,3 +66,5 @@ export function parseProject(text: string): ProjectRecord {
   if (o.format !== 'patturn') throw new Error('NOT_PATTURN_FILE');
   return o.project as ProjectRecord;
 }
+
+export * from './portable.js';

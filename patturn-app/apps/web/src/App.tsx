@@ -17,6 +17,7 @@ import {
   chooseSplitPlanes, buildSplitMold, buildMotherMold, plasterForCavity, motherAssemblyGuide,
   type SplitPlan, type MotherMoldResult, type OffsetBarrierResult,
 } from '@patturn/molds';
+import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES } from '@patturn/storage';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
 import { toBinaryStl, toSvg, exportName, toBuildZip, toDimensionPdf, toObj, type ObjPart, type BuildBundle } from '@patturn/exporters';
@@ -59,6 +60,31 @@ export function App() {
   const [tileSize, setTileSize] = useState(40);
   const [saved, setSaved] = useState(true);
   const [meshErr, setMeshErr] = useState<string | null>(null);
+
+  const projectInput = useRef<HTMLInputElement | null>(null);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [projectLoading, setProjectLoading] = useState(false);
+  const saveProjectFile = () => {
+    try {
+      const bytes = encodeEditorProject({ profileMode, segments, wall, shrink, fill, patternId, tileSize });
+      download(exportName(profileMode, 'project', 'v1', 'patturn'), bytes);
+      setProjectError(null);
+    } catch (error) { setProjectError(`ذخیرهٔ پروژه ناموفق بود: ${String(error)}`); }
+  };
+  const openProjectFile = async (file: File) => {
+    setProjectLoading(true);
+    setProjectError(null);
+    try {
+      if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('PROJECT_FILE_TOO_LARGE');
+      const state = decodeEditorProject(new Uint8Array(await file.arrayBuffer()), PATTERNS.map((p) => p.id));
+      if (!window.confirm('تنظیمات فعلی با فایل انتخاب‌شده جایگزین شود؟ برای نگه‌داشتن وضعیت فعلی ابتدا آن را ذخیره کنید.')) return;
+      // One validated state, applied as a batched React update; derived meshes regenerate.
+      setProfileMode(state.profileMode); setSegments(state.segments); setWall(state.wall);
+      setShrink(state.shrink); setFill(state.fill); setPatternId(state.patternId); setTileSize(state.tileSize);
+      setPart('form'); setSaved(false);
+    } catch (error) { setProjectError(`فایل پروژه باز نشد؛ تنظیمات فعلی تغییر نکرد: ${String(error).slice(0, 220)}`); }
+    finally { setProjectLoading(false); }
+  };
 
   const profile = useMemo(() => PRESETS[profileMode], [profileMode]);
 
@@ -330,6 +356,8 @@ export function App() {
         files.push({ path: 'mother-offset/report.json', bytes: new TextEncoder().encode(JSON.stringify({ moldPart: barrierResult.index + 1, ...metadata }, null, 2)) });
       }
       text('BOM.txt', buildBom());
+      files.push({ path: exportName(profileMode, 'project', 'v1', 'patturn'),
+        bytes: encodeEditorProject({ profileMode, segments, wall, shrink, fill, patternId, tileSize }) });
       const dimensionPdf = makeDimensionPdf();
       if (!dimensionPdf.ok) throw new Error(dimensionPdf.error);
       files.push({ path: `dimensions/${dimensionPdf.filename}`, bytes: dimensionPdf.bytes! });
@@ -348,6 +376,7 @@ export function App() {
         'obj/: فرم و مجموعهٔ قطعات قالب با نام و رنگ رأس؛ واحد mm. رنگ از افزونهٔ رایج RGB استفاده می‌کند و ممکن است در برخی نرم‌افزارها نمایش داده نشود. فایل MTL ندارد.',
         'BOM.txt: برآورد گچ و آب، بدون پرت. pattern/: الگوی تخت ۳۰۰×۳۰۰mm؛ نگاشت برجسته روی STL اعمال نشده است.',
         'dimensions/: برگهٔ ابعاد PDF آ۴؛ چاپ اندازهٔ واقعی ۱۰۰٪، خاموش‌کردن Fit to page و اندازه‌گیری خط‌کش ۱۰۰mm الزامی است.',
+        'فایل .patturn: پروژهٔ فشردهٔ قابل بازکردن از دکمهٔ بازکردن پروژه؛ مش‌ها دوباره محاسبه می‌شوند. مادرقالب‌ها و نتایج مشتق‌شده ذخیره نمی‌شوند.',
         'parameters.json: ثبت تنظیمات مؤثر خروجی؛ فایل پروژهٔ قابل بازیابی در برنامه نیست.',
         `محفظهٔ جعبه‌ای صادرشده: ${motherResults?.length ?? 0} از ${moldParts.length} قطعه.`,
         `مادرقالب هم‌فاصلهٔ صادرشده: ${barrierResult ? `فقط قطعهٔ ${barrierResult.index + 1}` : 'هیچ‌کدام؛ هنوز ساخته نشده است'}.`,
@@ -403,10 +432,19 @@ export function App() {
         <span className="brand">🏺 Patturn</span>
         <span className="saved">{saved ? '✓ ذخیره شد' : '…در حال ذخیره'}</span>
         <span className="spacer" />
+        <input ref={projectInput} type="file" accept=".patturn" hidden aria-label="انتخاب فایل پروژه"
+          onChange={(event) => {
+            const file = event.target.files?.[0]; event.target.value = '';
+            if (file) void openProjectFile(file);
+          }} />
+        <button className="btn" disabled={projectLoading} onClick={() => projectInput.current?.click()}>
+          {projectLoading ? 'در حال خواندن…' : 'بازکردن پروژه'}</button>
+        <button className="btn" onClick={saveProjectFile}>ذخیرهٔ فایل پروژه</button>
         <button className="btn" onClick={doExportSvg}>خروجی SVG الگو</button>
         <button className="btn primary" onClick={doExportStl}>⬇ خروجی STL</button>
       </header>
 
+      {projectError && <div className="hint" role="alert">⚠️ {projectError}</div>}
       <div className="main">
         {/* ── left: parts ── */}
         <aside className="panel left">
