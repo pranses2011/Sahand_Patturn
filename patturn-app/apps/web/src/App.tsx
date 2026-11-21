@@ -1,3 +1,4 @@
+import { historyShortcut } from './history-shortcut';
 import { preserveNativeUndo } from './native-undo';
 import { zipErrorMessage } from './export-error';
 import { createPatternCanvas } from './pattern-canvas';
@@ -140,11 +141,10 @@ export function App() {
       // Preserve native text-input undo while editing a field.
       if (event.isComposing) return;
       if (target instanceof HTMLElement && preserveNativeUndo(target.tagName, target.getAttribute('type'), target.isContentEditable)) return;
-      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-      const key = event.key.toLowerCase();
-      if (key === 'z' || key === 'y') {
+      const direction = historyShortcut(event);
+      if (direction) {
         event.preventDefault();
-        stepParameterHistory(key === 'y' || event.shiftKey ? 'redo' : 'undo');
+        stepParameterHistory(direction);
       }
     };
     window.addEventListener('keydown', keyboard);

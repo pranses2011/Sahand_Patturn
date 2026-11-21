@@ -436,3 +436,16 @@ test('project undo and redo shortcuts work on a focused slider but leave numeric
   await expect(slider).toHaveValue('5');
   await wall.press('Escape');await expect(wall).toHaveValue('5');
 });
+
+test('physical history shortcuts handle Persian key values without intercepting composing events',async({page})=>{
+  await page.goto('/');
+  const slider=page.getByRole('slider',{name:'ضخامت شعاعی برای ظرفیت',exact:true});await slider.focus();
+  await page.keyboard.press('ArrowUp');await expect(slider).toHaveValue('5');
+  // Synthetic key values exercise the listener; this is not an OS keyboard-layout switch.
+  await slider.evaluate((element)=>element.dispatchEvent(new KeyboardEvent('keydown',{key:'ظ',code:'KeyZ',ctrlKey:true,isComposing:true,bubbles:true,cancelable:true})));
+  await expect(slider).toHaveValue('5');
+  const undoAllowed=await slider.evaluate((element)=>element.dispatchEvent(new KeyboardEvent('keydown',{key:'ظ',code:'KeyZ',ctrlKey:true,bubbles:true,cancelable:true})));
+  expect(undoAllowed).toBe(false);await expect(slider).toHaveValue('4');
+  await slider.evaluate((element)=>element.dispatchEvent(new KeyboardEvent('keydown',{key:'ظ',code:'KeyZ',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true})));
+  await expect(slider).toHaveValue('5');
+});
