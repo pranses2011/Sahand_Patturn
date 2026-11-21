@@ -56,6 +56,8 @@ describe('Native file access adapter', () => {
       expect(capability.permissions).toContain(permission);
     }
     expect(JSON.stringify(capability)).not.toContain('"**"');
+    const scope = capability.permissions.find((p: unknown) => typeof p === 'object' && p !== null && 'identifier' in p && p.identifier === 'fs:scope');
+    expect(scope.allow.map((p: {path: string}) => p.path)).toEqual(['$APPLOCALDATA/backups', '$APPLOCALDATA/backups/**']);
   });
 
 });

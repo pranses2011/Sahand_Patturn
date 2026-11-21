@@ -70,3 +70,4 @@ export function parseProject(text: string): ProjectRecord {
 export * from './portable.js';
 export * from './history.js';
 export * from './native-files.js';
+export * from './backups.js';

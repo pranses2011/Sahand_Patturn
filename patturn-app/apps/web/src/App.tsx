@@ -17,7 +17,7 @@ import {
   chooseSplitPlanes, buildSplitMold, buildMotherMold, plasterForCavity, motherAssemblyGuide,
   type SplitPlan, type MotherMoldResult, type OffsetBarrierResult,
 } from '@patturn/molds';
-import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES, EditorHistory, desktopFiles, isDesktop, type HistoryEntry } from '@patturn/storage';
+import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES, EditorHistory, desktopFiles, isDesktop, desktopBackups, type BackupEntry, type HistoryEntry } from '@patturn/storage';
 import type { EditorState } from '@patturn/schema';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
@@ -74,6 +74,17 @@ export function App() {
   const [startup] = useState(loadEditorStartup);
   const [historyEntries, setHistoryEntries] = useState(startup.entries);
   const [autosaveError, setAutosaveError] = useState(startup.error);
+  const [folderBackups, setFolderBackups] = useState<BackupEntry[]>([]);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [backupPending, setBackupPending] = useState(0);
+  useEffect(() => {
+    if (!isDesktop()) return;
+    let cancelled = false;
+    void desktopBackups(PATTERNS.map((p) => p.id)).then((repo) => repo.list()).then((entries) => {
+      if (!cancelled) setFolderBackups(entries);
+    }).catch((error) => { if (!cancelled) setBackupError(String(error)); });
+    return () => { cancelled = true; };
+  }, []);
   const [part, setPart] = useState<Part>('form');
   const [profileMode, setProfileMode] = useState<ProfileMode>(startup.state.profileMode);
   const [segments, setSegments] = useState(startup.state.segments);
@@ -100,6 +111,23 @@ export function App() {
       applyEditorState(state);
       setProjectError(null);
     } catch (error) { setProjectError(`بازیابی نسخه ناموفق بود: ${String(error).slice(0, 180)}`); }
+  };
+  const restoreFolderBackup = async (name: string) => {
+    try {
+      const state = await (await desktopBackups(PATTERNS.map((p) => p.id))).restore(name);
+      if (!window.confirm('این بکاپ دسکتاپ بازیابی شود؟ وضعیت فعلیِ ذخیره‌نشده را ابتدا در فایل پروژه نگه دارید.')) return;
+      applyEditorState(state); setBackupError(null);
+    } catch (error) { setBackupError(`بازیابی بکاپ ناموفق بود: ${String(error).slice(0, 180)}`); }
+  };
+  const saveFolderBackup = async (state: EditorState) => {
+    setBackupPending((count) => count + 1);
+    try {
+      const repo = await desktopBackups(PATTERNS.map((p) => p.id));
+      const result = await repo.save(state);
+      setFolderBackups(await repo.list());
+      setBackupError(result.warnings.length ? result.warnings.join(' · ') : null);
+    } catch (error) { setBackupError(`بکاپ پوشه‌ای ناموفق بود؛ فایل پروژه را جداگانه ذخیره کنید: ${String(error).slice(0, 180)}`); }
+    finally { setBackupPending((count) => count - 1); }
   };
   const saveProjectFile = () => {
     try {
@@ -287,6 +315,7 @@ export function App() {
     try {
       const entries = localHistory().save({ profileMode, segments, wall, shrink, fill, patternId, tileSize });
       setHistoryEntries(entries); setAutosaveError(null); setSaved(true);
+      if (isDesktop()) void saveFolderBackup({ profileMode, segments, wall, shrink, fill, patternId, tileSize });
     } catch (error) {
       setSaved(false);
       setAutosaveError(`ذخیرهٔ محلی ناموفق بود؛ فایل پروژه را جداگانه دانلود کنید: ${String(error).slice(0, 180)}`);
@@ -508,6 +537,17 @@ export function App() {
           <button className="btn" onClick={() => restoreHistory(entry.id)}>بازیابی این نسخه</button>
         </div>)}
       </details>
+      {isDesktop() && <details className="history-panel">
+        <summary>بکاپ پوشهٔ برنامه — {folderBackups.length} نسخه {backupPending > 0 ? '— در حال نوشتن…' : ''}</summary>
+        <div className="hint">مسیر: AppLocalData / backups؛ تا ۱۰ نسخهٔ اخیر. این بکاپ روی همین دستگاه است، نه دیسک جداگانه.</div>
+        {backupError && <div className="hint" role="alert">⚠️ {backupError}</div>}
+        <button className="btn" disabled={backupPending > 0}
+          onClick={() => void saveFolderBackup({ profileMode, segments, wall, shrink, fill, patternId, tileSize })}>بکاپ اکنون / تلاش دوباره</button>
+        {folderBackups.map((entry) => <div className="history-entry" key={entry.name}>
+          <span dir="ltr">{entry.name}</span>
+          <button className="btn" disabled={backupPending > 0} onClick={() => void restoreFolderBackup(entry.name)}>بازیابی بکاپ</button>
+        </div>)}
+      </details>}
       <div className="main">
         {/* ── left: parts ── */}
         <aside className="panel left">

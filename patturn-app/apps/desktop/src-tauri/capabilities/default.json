@@ -18,6 +18,21 @@
     "updater:default",
     "fs:allow-read-file",
     "fs:allow-write-file",
-    "fs:allow-stat"
+    "fs:allow-stat",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-rename",
+    "fs:allow-remove",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        {
+          "path": "$APPLOCALDATA/backups"
+        },
+        {
+          "path": "$APPLOCALDATA/backups/**"
+        }
+      ]
+    }
   ]
 }
