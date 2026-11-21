@@ -1,3 +1,4 @@
+import { disposeViewportObject } from './viewport-resources';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -94,7 +95,7 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     st.controls = controls;
 
     const onResize = () => {
-      const w = host.clientWidth, h = host.clientHeight;
+      const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
@@ -114,7 +115,12 @@ export function Viewport({ mesh, mode, pattern }: Props) {
       cancelAnimationFrame(st.raf!);
       ro.disconnect();
       controls.dispose();
+      disposeViewportObject(grid);
+      disposeViewportObject(axes);
       renderer.dispose();
+      if (st.renderer === renderer) {
+        st.renderer = undefined; st.scene = undefined; st.camera = undefined; st.controls = undefined;
+      }
       host.removeChild(renderer.domElement);
     };
   }, []);
@@ -123,15 +129,8 @@ export function Viewport({ mesh, mode, pattern }: Props) {
   useEffect(() => {
     const st = stateRef.current;
     if (!st.scene) return;
-    if (st.current) {
-      st.scene.remove(st.current);
-      st.current.geometry.dispose();
-      const oldMat = st.current.material as THREE.Material;
-      if (st.current.userData['tex']) (st.current.userData['tex'] as THREE.Texture).dispose();
-      oldMat.dispose();
-      st.current = undefined;
-    }
     if (!mesh) return;
+    const scene = st.scene;
 
     let geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(mesh.positions, 3));
@@ -150,7 +149,9 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     if (pattern && mode === 'form') {
       // cylindrical unwrap → per-corner UVs (seam-safe) → de-indexed geometry
       const un = unwrapCylinder(mesh, { tileW: pattern.tileW });
-      geo = geo.toNonIndexed();
+      const indexed = geo;
+      geo = indexed.toNonIndexed();
+      indexed.dispose();
       const nCorner = geo.attributes['position']!.count;
       const uv = new Float32Array(nCorner * 2);
       const scale = 1 / pattern.tileW; // mm → tile units for RepeatWrapping
@@ -167,8 +168,13 @@ export function Viewport({ mesh, mode, pattern }: Props) {
 
     const m = new THREE.Mesh(geo, mat);
     if (tex) m.userData['tex'] = tex;
-    st.scene.add(m);
+    scene.add(m);
     st.current = m;
+    return () => {
+      scene.remove(m);
+      disposeViewportObject(m);
+      if (st.current === m) st.current = undefined;
+    };
   }, [mesh, mode, pattern]);
 
   return <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />;
