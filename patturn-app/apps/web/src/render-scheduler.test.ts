@@ -25,4 +25,20 @@ describe('On-demand viewport render scheduling',()=>{
     callback(0);s.invalidate();expect(render).not.toHaveBeenCalled();
     s.dispose();expect(cancel).toHaveBeenCalledTimes(1);
   });
+  it('cancels hidden work, ignores hidden invalidations and refreshes once on resume',()=>{
+    const q=queue(),render=vi.fn(),s=createRenderScheduler(render,q.request,q.cancel);
+    s.invalidate();s.setPaused(true);expect(q.size).toBe(0);
+    s.invalidate();s.invalidate();q.flush();expect(render).not.toHaveBeenCalled();
+    s.setPaused(false);s.setPaused(false);expect(q.size).toBe(1);
+    q.flush();expect(render).toHaveBeenCalledTimes(1);expect(q.size).toBe(0);
+    s.dispose();s.setPaused(true);s.setPaused(false);expect(q.size).toBe(0);
+  });
+  it('ignores a cancelled stale callback without losing a newer resumed frame',()=>{
+    const callbacks:FrameRequestCallback[]=[];const render=vi.fn();
+    const s=createRenderScheduler(render,(fn)=>{callbacks.push(fn);return callbacks.length;},()=>{});
+    s.invalidate();s.setPaused(true);s.setPaused(false);
+    callbacks[0]!(0);s.invalidate();expect(callbacks).toHaveLength(2);
+    callbacks[1]!(0);expect(render).toHaveBeenCalledTimes(1);
+  });
+
 });

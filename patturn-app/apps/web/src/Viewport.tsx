@@ -109,6 +109,9 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     const invalidate = () => scheduler.invalidate();
     st.invalidate = invalidate;
     controls.addEventListener('change', invalidate);
+    const onVisibilityChange = () => scheduler.setPaused(document.hidden);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    onVisibilityChange();
 
     const onResize = () => {
       const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
@@ -124,6 +127,7 @@ export function Viewport({ mesh, mode, pattern }: Props) {
 
     return () => {
       scheduler.dispose();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       controls.removeEventListener('change', invalidate);
       ro.disconnect();
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
