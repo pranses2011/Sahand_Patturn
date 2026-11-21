@@ -1,3 +1,4 @@
+import { zipErrorMessage } from './export-error';
 import { createPatternCanvas } from './pattern-canvas';
 import { useEditorMode } from './useEditorMode';
 import { EditorNavigation, type EditorSection as Part } from './EditorNavigation';
@@ -554,10 +555,10 @@ export function App() {
       }];
       const result = await toBuildZip({ project: profileMode, meshes, assemblies, files, instructions, dxfPatterns }, controller.signal);
       if (controller.signal.aborted) setZipError('بسته‌بندی لغو شد؛ فایلی دانلود نشد.');
-      else if (!result.ok) setZipError(result.error ?? 'خطای تولید ZIP');
+      else if (!result.ok) setZipError(zipErrorMessage(result.error ?? 'خطای تولید ZIP'));
       else download(result.filename, result.bytes!);
     } catch (error) {
-      setZipError(controller.signal.aborted ? 'بسته‌بندی لغو شد؛ فایلی دانلود نشد.' : String(error));
+      setZipError(controller.signal.aborted ? 'بسته‌بندی لغو شد؛ فایلی دانلود نشد.' : zipErrorMessage(error));
     } finally {
       if (zipController.current === controller) zipController.current = null;
       setZipBusy(false);
