@@ -178,3 +178,28 @@ test('pattern search filters locally without changing the selected project patte
   await expect(library.getByRole('radio',{name:'الهام از کومیکو',exact:true})).toBeChecked();
   await expect(page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true})).toHaveValue('40');
 });
+
+test('named pattern recipes reject duplicate names without overwriting and apply after reload',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  const name=page.getByRole('textbox',{name:'نام تنظیمات',exact:true});
+  const tile=page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true});
+  await name.fill('نمونهٔ من');await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  await expect(name).toHaveValue('');
+  const before=await page.evaluate(()=>localStorage.getItem('patturn:pattern-library:v1'));
+  await tile.fill('60');await tile.press('Enter');
+  await name.fill('  نمونهٔ من  ');await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  await expect(page.getByRole('alert').filter({hasText:'این نام قبلاً ذخیره شده است'})).toBeVisible();
+  expect(await page.evaluate(()=>localStorage.getItem('patturn:pattern-library:v1'))).toBe(before);
+  await expect(name).toHaveValue('  نمونهٔ من  ');
+  await page.reload();await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await tile.fill('60');await tile.press('Enter');
+  await page.getByRole('button',{name:'اعمال نمونهٔ من',exact:true}).click();await expect(tile).toHaveValue('40');
+  page.once('dialog',(dialog)=>dialog.dismiss());
+  await page.getByRole('button',{name:'حذف نمونهٔ من',exact:true}).click();
+  await expect(page.getByRole('button',{name:'اعمال نمونهٔ من',exact:true})).toBeVisible();
+  page.once('dialog',(dialog)=>dialog.accept());
+  await page.getByRole('button',{name:'حذف نمونهٔ من',exact:true}).click();
+  await expect(page.getByRole('button',{name:'اعمال نمونهٔ من',exact:true})).toHaveCount(0);
+});

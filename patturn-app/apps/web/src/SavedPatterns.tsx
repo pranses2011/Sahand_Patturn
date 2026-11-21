@@ -11,7 +11,15 @@ export function SavedPatterns({ patternId, tileSize, onApply }: {
   const repo = () => new PatternLibraryRepo(window.localStorage, PATTERNS.map((p) => p.id));
   const perform = (action: () => PatternRecipe[]) => {
     try { setEntries(action()); setError(null); return true; }
-    catch (e) { setError(`کتابخانه خوانده یا ذخیره نشد؛ دادهٔ قبلی پاک نشده است: ${String(e).slice(0, 120)}`); return false; }
+    catch (e) {
+      const code = e instanceof Error ? e.message : '';
+      setError(code === 'LIBRARY_NAME_EXISTS'
+        ? 'این نام قبلاً ذخیره شده است؛ نام دیگری انتخاب کنید. تنظیمات قبلی تغییر نکرد.'
+        : code === 'LIBRARY_FULL'
+          ? 'کتابخانه به سقف ۳۰ تنظیمات رسیده است؛ برای ذخیرهٔ جدید، ابتدا یکی از موارد قبلی را حذف کنید.'
+          : `کتابخانه خوانده یا ذخیره نشد؛ دادهٔ قبلی پاک نشده است: ${String(e).slice(0, 120)}`);
+      return false;
+    }
   };
   return <details className="saved-patterns" onToggle={(e) => { if (e.currentTarget.open) perform(() => repo().list()); }}>
     <summary>تنظیمات الگوی ذخیره‌شده</summary>
