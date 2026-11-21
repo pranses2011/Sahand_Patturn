@@ -34,6 +34,16 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run bundle:report
+      - name: Install Chromium for browser smoke tests
+        run: npx playwright install --with-deps chromium
+      - name: Browser smoke tests (WebGL deliberately disabled)
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-smoke-failure
+          path: patturn-app/test-results/
+          retention-days: 7
   windows:
     name: Windows compile and NSIS package (not installation test)
     runs-on: windows-latest

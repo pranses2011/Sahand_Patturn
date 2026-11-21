@@ -19,9 +19,11 @@
     "desktop:check": "npm run tauri -w @patturn/desktop -- build --no-bundle",
     "bundle:report": "node scripts/bundle-report.mjs",
     "desktop:installer": "npm run tauri -w @patturn/desktop -- build --ci --bundles nsis",
-    "installer:checksums": "node scripts/installer-checksums.mjs"
+    "installer:checksums": "node scripts/installer-checksums.mjs",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
