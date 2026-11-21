@@ -540,9 +540,9 @@ export function App() {
   };
 
   const doExportDxf = () => {
-    const res = toDxf(patternPaths, { width: 300, height: 300 });
+    const res = toDxf(patternPaths, { width: 300, height: 300 }, { bezierToleranceMm: 0.05 });
     if (!res.ok) {
-      setProjectError('خروجی DXF ساخته نشد: این نسخه فقط مسیرهای خطی، دایره و تک‌قوس دایروی را می‌پذیرد؛ موج Bézier و منحنی عمومی پشتیبانی نمی‌شوند. از SVG استفاده کنید.');
+      setProjectError('خروجی DXF ساخته نشد: این نسخه مسیر نامعتبر یا پشتیبانی‌نشده است یا تقریب منحنی به تلورانس نرسید. از SVG استفاده کنید.');
       return;
     }
     download(res.filename, res.bytes!); setProjectError(null);
@@ -719,8 +719,8 @@ export function App() {
                 ⬇ STL سه‌بعدی (اعتبارسنجی‌شده)</button></div>
               <div className="ctl"><button className="btn" style={{ width: '100%' }} onClick={doExportSvg}>
                 ⬇ SVG الگوی تخت ۳۰۰×۳۰۰mm</button></div>
-              <div className="ctl"><button className="btn" onClick={doExportDxf}>⬇ DXF الگو — خط، دایره و قوس</button></div>
-              <div className="hint">ورود DXF با واحد mm؛ مسیر مرکزی بدون ضخامت برش. خطوط و دایره‌ها به بوم ۳۰۰×۳۰۰ بریده می‌شوند؛ کانتور مرزی جدید ساخته نمی‌شود. منحنی پشتیبانی‌نشده کل خروجی را متوقف می‌کند.</div>
+              <div className="ctl"><button className="btn" onClick={doExportDxf}>⬇ DXF الگو — موج با تقریب ۰٫۰۵mm</button></div>
+              <div className="hint">ورود DXF با واحد mm؛ مسیر مرکزی بدون ضخامت برش. موج Bézier با تلورانس هندسی ۰٫۰۵mm پیش از برش، به خطوط تقریب زده می‌شود. هندسه به بوم ۳۰۰×۳۰۰ بریده می‌شود؛ کانتور مرزی جدید ساخته نمی‌شود. منحنی پشتیبانی‌نشده کل خروجی را متوقف می‌کند.</div>
               <div className="ctl"><button className="btn" disabled={!formMesh || pdfBusy} onClick={() => void exportDimensionPdf()}>
                 {pdfBusy ? '⏳ در حال آماده‌سازی PDF…' : '⬇ PDF برگهٔ ابعاد A4 — مقیاس ۱:۱'}</button></div>
               <div className="hint">چاپ با اندازهٔ واقعی ۱۰۰٪؛ Fit to page خاموش. خط‌کش ۱۰۰mm را کنترل کنید.

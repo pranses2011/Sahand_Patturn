@@ -1,9 +1,10 @@
+import { flattenCubic } from './bezier.js';
 import { clipLine, clipCircle, type DxfBounds } from './dxf-clip.js';
 import { exportName, type ExportResult } from './index.js';
 
 type Point = [number, number];
 /** Strict linear SVG subset. Curves are rejected, never silently flattened or dropped. */
-function polylines(d: string): { points: Point[]; closed: boolean }[] {
+function polylines(d: string, tolerance?: number): { points: Point[]; closed: boolean }[] {
   const tokens = d.match(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g) ?? [];
   if (d.replace(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g, '').replace(/[\s,]/g, '')) throw Error('DXF_INVALID_PATH');
   let i = 0, command = '', x = 0, y = 0;
@@ -20,13 +21,21 @@ function polylines(d: string): { points: Point[]; closed: boolean }[] {
   };
   while (i < tokens.length) {
     if (/^[a-zA-Z]$/.test(tokens[i]!)) command = tokens[i++]!;
-    if (!/^[MmLlHhVvZz]$/.test(command)) throw Error('DXF_UNSUPPORTED_COMMAND');
+    if (!/^[MmLlHhVvZzCc]$/.test(command)) throw Error('DXF_UNSUPPORTED_COMMAND');
     const op = command.toUpperCase(), relative = command !== op;
     if (op === 'Z') {
       if (!points.length) throw Error('DXF_INVALID_CLOSE');
       [x, y] = points[0]!; flush(true); command = ''; continue;
     }
     if (op !== 'M' && !points.length) throw Error('DXF_MISSING_MOVE');
+    if (op === 'C') {
+      if (tolerance === undefined) throw Error('DXF_CUBIC_REQUIRES_EXPLICIT_TOLERANCE');
+      const point = (): Point => [number() + (relative ? x : 0), number() + (relative ? y : 0)];
+      const b = point(), c = point(), end = point();
+      points.push(...flattenCubic([x,y],b,c,end,tolerance).slice(1));
+      [x,y] = end;
+      continue;
+    }
     if (op === 'M' || op === 'L') {
       const a = number(), b = number();
       x = a + (relative ? x : 0); y = b + (relative ? y : 0);
@@ -87,19 +96,21 @@ function circularArc(d: string): { x: number; y: number; radius: number; interva
 }
 
 /** R12 linear geometry and canonical circles, model coordinates in mm. */
-export function toDxf(paths: { d: string; fill?: boolean }[], bounds?: DxfBounds): ExportResult {
+export function toDxf(paths: { d: string; fill?: boolean }[], bounds?: DxfBounds, options: { bezierToleranceMm?: number } = {}): ExportResult {
   const filename = exportName('pattern', 'flat', 'mm', 'dxf');
   try {
+    if (options.bezierToleranceMm !== undefined && (!Number.isFinite(options.bezierToleranceMm) || options.bezierToleranceMm < 0.001 || options.bezierToleranceMm > 1)) throw Error('DXF_INVALID_BEZIER_TOLERANCE');
     if (bounds && ![bounds.width, bounds.height].every((n) => Number.isFinite(n) && n > 0)) throw Error('DXF_INVALID_BOUNDS');
     if (!paths.length) throw Error('DXF_EMPTY_DRAWING');
     // Parse everything first so unsupported geometry cannot yield a partial successful file.
     const parsed = paths.map((p) => {
       const c = circle(p.d);
       const arc = c ? null : circularArc(p.d);
-      return { arc, layer: p.fill ? 'outline' : 'detail', circle: c, lines: c || arc ? [] : polylines(p.d) };
+      return { arc, layer: p.fill ? 'outline' : 'detail', circle: c, lines: c || arc ? [] : polylines(p.d, options.bezierToleranceMm) };
     });
     const lines: string[] = [];
     const push = (...values: (string | number)[]) => lines.push(...values.map(String));
+    if (options.bezierToleranceMm !== undefined) push(999, `Cubic Bezier approximated by lines; tolerance ${options.bezierToleranceMm} mm before canvas clipping`);
     push(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$MEASUREMENT', 70, 1, 0, 'ENDSEC');
     push(0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LAYER', 70, 2);
     for (const [name, color] of [['outline', 7], ['detail', 1]] as const)
