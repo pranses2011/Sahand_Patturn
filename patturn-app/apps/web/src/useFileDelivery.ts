@@ -12,32 +12,38 @@ export function useFileDelivery(write: FileWriter) {
     mounted.current = true;
     return () => { mounted.current = false; failed.current = null; };
   }, []);
-  const [status,setStatus] = useState<{pending:boolean;error:boolean;message:string}>({pending:false,error:false,message:''});
+  const [status,setStatus] = useState<{pending:boolean;error:boolean;retryable:boolean;message:string}>({pending:false,error:false,retryable:false,message:''});
   const download = (name:string,bytes:Uint8Array) => {
     if (!mounted.current || busy.current) return; // Never open another picker or replace the pending payload.
     // Own an immutable-by-convention snapshot, independent of the caller and writer.
-    const snapshot = bytes.slice();
+    let snapshot: Uint8Array;
+    try { snapshot = bytes.slice(); }
+    catch {
+      failed.current = null;
+      setStatus({pending:false,error:true,retryable:false,message:`آماده‌سازی ${name} ناموفق بود؛ خروجی را دوباره بسازید. تنظیمات پروژه تغییر نکرد و ذخیره آغاز نشد.`});
+      return;
+    }
     busy.current = true;
     failed.current = null;
-    setStatus({pending:true,error:false,message:`در حال ذخیرهٔ ${name}…`});
+    setStatus({pending:true,error:false,retryable:false,message:`در حال ذخیرهٔ ${name}…`});
     void (async()=>{
       try {
         const outcome = await write(name,snapshot.slice());
         if (!mounted.current) return;
         const message = outcome === 'saved' ? `فایل ذخیره شد: ${name}` : outcome === 'cancelled'
           ? `ذخیره لغو شد؛ فایلی نوشته نشد: ${name}` : `درخواست دانلود به مرورگر ارسال شد: ${name}؛ ذخیرهٔ نهایی را در دانلودهای مرورگر بررسی کنید.`;
-        setStatus({pending:false,error:false,message});
+        setStatus({pending:false,error:false,retryable:false,message});
       } catch {
         if (!mounted.current) return;
         failed.current = {name,bytes:snapshot};
-        setStatus({pending:false,error:true,message:`ذخیرهٔ ${name} ناموفق بود؛ ممکن است فایل مقصد ناقص باشد. فضای آزاد و مجوز مسیر را بررسی و دوباره تلاش کنید.`});
+        setStatus({pending:false,error:true,retryable:true,message:`ذخیرهٔ ${name} ناموفق بود؛ ممکن است فایل مقصد ناقص باشد. فضای آزاد و مجوز مسیر را بررسی و دوباره تلاش کنید.`});
       } finally { busy.current = false; }
     })();
   };
   const discard = () => {
-    if (!mounted.current || busy.current || !failed.current) return;
+    if (!mounted.current || busy.current || !status.error) return;
     failed.current = null;
-    setStatus({pending:false,error:false,message:'خروجی ناموفق کنار گذاشته شد؛ برای ذخیره، خروجی را دوباره بسازید. تنظیمات پروژه تغییر نکرد.'});
+    setStatus({pending:false,error:false,retryable:false,message:'خروجی ناموفق کنار گذاشته شد؛ برای ذخیره، خروجی را دوباره بسازید. تنظیمات پروژه تغییر نکرد.'});
   };
   return {download,status,discard,retry:()=>{const file=failed.current;if(file)download(file.name,file.bytes);}};
 }

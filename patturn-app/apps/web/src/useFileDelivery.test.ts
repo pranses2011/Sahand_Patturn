@@ -76,6 +76,28 @@ describe('Output delivery status and retry',()=>{
     expect(h.api.status.error).toBe(true);act(()=>h.tree.unmount());
     act(()=>{h.api.retry();h.api.discard();});expect(writer).toHaveBeenCalledTimes(1);
   });
+  it('reports snapshot-copy failure without invoking the writer and permits a fresh request',async()=>{
+    const writer=vi.fn<FileWriter>().mockResolvedValue('saved'),h=setup(writer);
+    const input=new Uint8Array([1]);vi.spyOn(input,'slice').mockImplementation(()=>{throw new RangeError('allocation failed');});
+    act(()=>h.api.download('large.zip',input));
+    expect(writer).not.toHaveBeenCalled();expect(h.api.status.pending).toBe(false);
+    expect(h.api.status.error).toBe(true);expect(h.api.status.retryable).toBe(false);
+    expect(h.api.status.message).toContain('ذخیره آغاز نشد');
+    act(()=>h.api.retry());expect(writer).not.toHaveBeenCalled();
+    act(()=>h.api.discard());expect(h.api.status.error).toBe(false);
+    await act(async()=>h.api.download('small.svg',bytes));
+    expect(writer).toHaveBeenCalledExactlyOnceWith('small.svg',bytes);
+    act(()=>h.tree.unmount());
+  });
+  it('does not offer an older failed file when a new snapshot cannot be copied',async()=>{
+    const writer=vi.fn<FileWriter>().mockRejectedValueOnce(Error('write failed')).mockResolvedValue('saved');
+    const h=setup(writer);await act(async()=>h.api.download('old.zip',bytes));
+    expect(h.api.status.retryable).toBe(true);
+    const input=new Uint8Array([4]);vi.spyOn(input,'slice').mockImplementation(()=>{throw Error('copy failed');});
+    act(()=>h.api.download('new.zip',input));act(()=>h.api.retry());
+    expect(writer).toHaveBeenCalledTimes(1);expect(h.api.status.retryable).toBe(false);
+    expect(h.api.status.message).toContain('new.zip');act(()=>h.tree.unmount());
+  });
   it('a new request supersedes a failed retry without changing the earlier payload',async()=>{
     const writer=vi.fn<FileWriter>().mockRejectedValueOnce(Error('denied')).mockResolvedValue('saved');
     const h=setup(writer);

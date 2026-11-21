@@ -630,7 +630,7 @@ export function App() {
       {deliveryStatus.message && <div className="hint file-delivery" role={deliveryStatus.error ? 'alert' : 'status'}>
         {deliveryStatus.message}
         {deliveryStatus.pending && <span> تا پایان یا لغو ذخیره، درخواست خروجی دیگری پذیرفته نمی‌شود.</span>}
-        {deliveryStatus.error && <button className="btn" onClick={retryDelivery}>تلاش دوبارهٔ همان خروجی</button>}
+        {deliveryStatus.error && deliveryStatus.retryable && <button className="btn" onClick={retryDelivery}>تلاش دوبارهٔ همان خروجی</button>}
         {deliveryStatus.error && <button className="btn" onClick={discardDelivery}>کنارگذاشتن خروجی ناموفق</button>}
       </div>}
       {moldActive && moldError && <div className="hint" role="alert">
