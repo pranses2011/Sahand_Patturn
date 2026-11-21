@@ -40,14 +40,18 @@ export function clipProfileLine(a: [number, number], b: [number, number], tile: 
 
 export async function toDimensionPdf(profile: Profile, options: {
   project?: string;
+  signal?: AbortSignal;
   parameters?: { label: string; value: string }[];
 } = {}): Promise<ExportResult> {
   try {
+    const cancelled = () => { if (options.signal?.aborted) throw new Error('EXPORT_CANCELLED'); };
+    cancelled();
     const layout = dimensionSheetLayout(profile);
     // Keep PDF engine and embedded font out of the initial editor bundle.
     const [{ jsPDF }, { VAZIRMATN_BASE64 }] = await Promise.all([
       import('jspdf'), import('./fonts/vazirmatn.js'),
     ]);
+    cancelled();
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: false, precision: 5 });
     pdf.setCreationDate(new Date('2000-01-01T00:00:00Z'));
     pdf.setFileId('00000000000000000000000000000001');
@@ -91,6 +95,9 @@ export async function toDimensionPdf(profile: Profile, options: {
     fa('نقشهٔ پروفیل است، نه الگوی بازشدهٔ اسلب یا تأیید ساخت.', 262, 10);
     ruler();
     for (const tile of layout.tiles) {
+      // Yield between pages so browser UI/input can deliver a cancellation request.
+      if (options.signal) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      cancelled();
       pdf.addPage();
       fa('پروفیل با مقیاس واقعی ـ شبکهٔ ده میلی‌متری', 15, 14);
       latin(`Tile row ${tile.row + 1}, col ${tile.column + 1} | 1:1 mm`, 15, 24);
@@ -111,6 +118,7 @@ export async function toDimensionPdf(profile: Profile, options: {
       }
       ruler();
     }
+    cancelled();
     return { ok: true, filename: exportName(options.project ?? 'profile', 'dimensions', 'A4-1to1', 'pdf'), bytes: new Uint8Array(pdf.output('arraybuffer')) };
   } catch (error) { return { ok: false, filename: '', error: String(error) }; }
 }

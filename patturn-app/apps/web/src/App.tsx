@@ -445,7 +445,8 @@ export function App() {
     if (text) download(exportName(`mold-${profileMode}`, 'BOM', 'mm', 'txt'), new TextEncoder().encode('\uFEFF' + text));
   };
 
-  const makeDimensionPdf = () => toDimensionPdf(profile, {
+  const makeDimensionPdf = (signal?: AbortSignal) => toDimensionPdf(profile, {
+    signal,
     project: profileMode,
     parameters: [
       { label: 'تعداد قطعات قالب', value: String(splitPlan?.parts ?? '-') },
@@ -500,7 +501,7 @@ export function App() {
       text('BOM.txt', buildBom());
       files.push({ path: exportName(profileMode, 'project', 'v1', 'patturn'),
         bytes: encodeEditorProject({ profileMode, segments, wall, shrink, fill, patternId, tileSize }) });
-      const dimensionPdf = await makeDimensionPdf();
+      const dimensionPdf = await makeDimensionPdf(controller.signal);
       if (controller.signal.aborted) throw new Error('EXPORT_ABORTED');
       if (!dimensionPdf.ok) throw new Error(dimensionPdf.error);
       files.push({ path: `dimensions/${dimensionPdf.filename}`, bytes: dimensionPdf.bytes! });

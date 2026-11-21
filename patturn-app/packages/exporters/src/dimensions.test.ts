@@ -48,4 +48,22 @@ describe('Dimension PDF', () => {
     const p = referenceOuterProfile(8);
     expect((await toDimensionPdf(p)).bytes).toEqual((await toDimensionPdf(p)).bytes);
   });
+  it('D6: an already-cancelled request returns no PDF bytes',async()=>{
+    const controller=new AbortController();controller.abort();
+    const result=await toDimensionPdf(referenceOuterProfile(8),{signal:controller.signal});
+    expect(result.ok).toBe(false);expect(result.error).toContain('EXPORT_CANCELLED');expect(result.bytes).toBeUndefined();
+  });
+  it('D7: cancellation delivered while yielding pages discards the partial document',async()=>{
+    const controller=new AbortController();
+    const pending=toDimensionPdf(referenceOuterProfile(8),{signal:controller.signal});
+    const timer=setTimeout(()=>controller.abort(),0);
+    const result=await pending;clearTimeout(timer);
+    expect(result.ok).toBe(false);expect(result.error).toContain('EXPORT_CANCELLED');expect(result.bytes).toBeUndefined();
+  });
+  it('D8: adding a live signal does not alter deterministic output bytes',async()=>{
+    const profile=referenceOuterProfile(8);
+    expect((await toDimensionPdf(profile,{signal:new AbortController().signal})).bytes)
+      .toEqual((await toDimensionPdf(profile)).bytes);
+  });
+
 });
