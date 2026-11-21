@@ -716,3 +716,33 @@ test('saved recipe search matches Persian Arabic and Latin digits without renami
   await expect(list.getByRole('button',{name:'اعمال کاشی ۱۲',exact:true})).toBeVisible();
   await expect(list.getByRole('button',{name:'اعمال کاشی ۳۴',exact:true})).toBeVisible();
 });
+
+test('failed browser delivery can be discarded and a fresh output downloaded without changing the project',async({page})=>{
+  await page.addInitScript(()=>{
+    const create=URL.createObjectURL.bind(URL);let fail=true;
+    URL.createObjectURL=(blob)=>{
+      if(fail){fail=false;throw new Error('SIMULATED_BROWSER_DELIVERY_FAILURE');}
+      return create(blob);
+    };
+  });
+  await page.goto('/');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('7');await wall.press('Enter');
+  const undo=page.getByRole('button',{name:/^واگرد/});const title=await undo.getAttribute('title');
+  await page.getByRole('button',{name:'خروجی SVG الگو',exact:true}).click();
+  const failure=page.getByRole('alert').filter({hasText:'ممکن است فایل مقصد ناقص باشد'});
+  await expect(failure).toBeVisible();
+  await expect(failure.getByRole('button',{name:'تلاش دوبارهٔ همان خروجی',exact:true})).toBeVisible();
+  await failure.getByRole('button',{name:'کنارگذاشتن خروجی ناموفق',exact:true}).click();
+  await expect(failure).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'تلاش دوبارهٔ همان خروجی',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('status').filter({hasText:'خروجی ناموفق کنار گذاشته شد'})).toBeVisible();
+  await expect(wall).toHaveValue('7');await expect(undo).toHaveAttribute('title',title!);
+  const downloaded=page.waitForEvent('download');
+  await page.getByRole('button',{name:'خروجی SVG الگو',exact:true}).click();
+  const file=await downloaded;expect(file.suggestedFilename()).toMatch(/\.svg$/);
+  const path=await file.path();expect(path).not.toBeNull();
+  const svg=await readFile(path!,'utf8');expect(svg).toContain('<svg');expect(svg).toContain('<path');
+  await expect(page.getByRole('status').filter({hasText:'درخواست دانلود به مرورگر ارسال شد'})).toBeVisible();
+  await expect(wall).toHaveValue('7');await expect(undo).toHaveAttribute('title',title!);
+});
