@@ -1,15 +1,19 @@
 import type { Profile } from '@patturn/kernel';
 import { exportName, type ExportResult } from './index.js';
 
+export const MAX_PDF_PROFILE_POINTS = 10_000;
+export const MAX_PDF_COORDINATE_MM = 10_000_000;
 export const SHEET = { widthMm: 210, heightMm: 297, marginMm: 15, topMm: 35, tileWidthMm: 180, tileHeightMm: 230 } as const;
 export interface ProfileTile { column: number; row: number; xMin: number; xMax: number; yMin: number; yMax: number }
 
 /** Global profile coordinates in mm; no fit-to-page scaling. */
 export function dimensionSheetLayout(profile: Profile): { diameterMm: number; heightMm: number; tiles: ProfileTile[] } {
-  if (profile.length < 2 || profile.some((p, i) => !Number.isFinite(p.r) || !Number.isFinite(p.y) || p.r < 0 || (i > 0 && p.y < profile[i - 1]!.y))) {
+  if (profile.length > MAX_PDF_PROFILE_POINTS) throw new Error('PDF_TOO_MANY_POINTS');
+  if (profile.length < 2 || profile.some((p, i) => !Number.isFinite(p.r) || !Number.isFinite(p.y) || p.r > MAX_PDF_COORDINATE_MM || Math.abs(p.y) > MAX_PDF_COORDINATE_MM || p.r < 0 || (i > 0 && p.y < profile[i - 1]!.y))) {
     throw new Error('PDF_INVALID_PROFILE');
   }
-  const radius = Math.max(...profile.map((p) => p.r));
+  let radius = 0;
+  for (const point of profile) radius = Math.max(radius, point.r);
   const yMin = profile[0]!.y, yMax = profile[profile.length - 1]!.y;
   if (radius <= 0 || yMax <= yMin) throw new Error('PDF_EMPTY_PROFILE');
   const columns = Math.ceil(2 * radius / SHEET.tileWidthMm), rows = Math.ceil((yMax - yMin) / SHEET.tileHeightMm);
@@ -44,6 +48,7 @@ export async function toDimensionPdf(inputProfile: Profile, inputOptions: {
   parameters?: { label: string; value: string }[];
 } = {}): Promise<ExportResult> {
   try {
+    if (inputProfile.length > MAX_PDF_PROFILE_POINTS) throw new Error('PDF_TOO_MANY_POINTS');
     // Snapshot before the first await: callers retain ownership of mutable arrays.
     const options = { ...inputOptions, parameters: inputOptions.parameters?.map((row) => ({ ...row })) };
     const cancelled = () => { if (options.signal?.aborted) throw new Error('EXPORT_CANCELLED'); };

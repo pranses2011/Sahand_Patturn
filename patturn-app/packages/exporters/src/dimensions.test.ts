@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dimensionSheetLayout, clipProfileLine, toDimensionPdf, SHEET } from './index.js';
+import { dimensionSheetLayout, clipProfileLine, toDimensionPdf, SHEET, MAX_PDF_PROFILE_POINTS, MAX_PDF_COORDINATE_MM } from './index.js';
 import { referenceOuterProfile } from '@patturn/kernel';
 
 describe('Dimension PDF', () => {
@@ -78,6 +78,27 @@ describe('Dimension PDF', () => {
     const result=await pending;
     const expected=await toDimensionPdf(original,{project:'original',parameters:[{label:'ضخامت',value:'4 mm'}]});
     expect(result.ok).toBe(true);expect(result.filename).toBe(expected.filename);expect(result.bytes).toEqual(expected.bytes);
+  });
+
+  it('D10: enforces point budget before reading or copying point payloads',async()=>{
+    const oversized=Array(MAX_PDF_PROFILE_POINTS+1).fill({get r(){throw Error('SHOULD_NOT_READ');},y:0});
+    expect(()=>dimensionSheetLayout(oversized)).toThrow('PDF_TOO_MANY_POINTS');
+    const result=await toDimensionPdf(oversized);
+    expect(result.ok).toBe(false);expect(result.error).toContain('PDF_TOO_MANY_POINTS');expect(result.bytes).toBeUndefined();
+  });
+  it('D11: accepts the point-count boundary without spread argument limits',()=>{
+    const profile=Array.from({length:MAX_PDF_PROFILE_POINTS},(_,i)=>({r:20,y:i/100}));
+    expect(dimensionSheetLayout(profile).tiles).toHaveLength(1);
+  });
+  it('D12: rejects excessive finite coordinates including translated tiny profiles',async()=>{
+    for(const profile of [
+      [{r:1,y:MAX_PDF_COORDINATE_MM+1},{r:1,y:MAX_PDF_COORDINATE_MM+2}],
+      [{r:1,y:-MAX_PDF_COORDINATE_MM-2},{r:1,y:-MAX_PDF_COORDINATE_MM-1}],
+      [{r:MAX_PDF_COORDINATE_MM+1,y:0},{r:MAX_PDF_COORDINATE_MM+1,y:1}],
+    ]){
+      expect(()=>dimensionSheetLayout(profile)).toThrow('PDF_INVALID_PROFILE');
+      const result=await toDimensionPdf(profile);expect(result.ok).toBe(false);expect(result.bytes).toBeUndefined();
+    }
   });
 
 });
