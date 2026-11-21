@@ -980,3 +980,26 @@ test('chuck tool exports a validated tapered support independently of the projec
   await page.getByRole('button',{name:'🏺 فرم',exact:true}).click();
   await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
 });
+
+test('rounder tool exports a solid three-degree plug at the chosen nominal mouth diameter',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'📤 خروجی',exact:true}).click();
+  await page.getByText('رینگ‌روندر — پلاگ مخروطی با شیب ۳ درجه',{exact:true}).click();
+  const diameter=page.getByRole('spinbutton',{name:'قطر اسمی دهانهٔ رینگ‌روندر',exact:true});await diameter.fill('60');await diameter.press('Enter');
+  await expect(page.getByRole('img',{name:'مقطع شماتیک رینگ‌روندر با خط قطر اسمی در نیمهٔ ارتفاع',exact:true})).toBeVisible();
+  await expect(page.getByRole('status').filter({hasText:'مش رینگ‌روندر بسته و اعتبارسنجی‌شده است'})).toBeVisible();
+  const download=page.waitForEvent('download');await page.getByRole('button',{name:'دانلود STL رینگ‌روندر',exact:true}).click();
+  const file=await download;expect(file.suggestedFilename()).toBe('rounder_taper3deg_D60-H40mm.stl');
+  const path=await file.path();expect(path).not.toBeNull();const bytes=await readFile(path!);
+  expect(bytes.readUInt32LE(80)).toBe(384);expect(bytes.length).toBe(84+384*50);
+  let base=0,tip=0;
+  for(let offset=84;offset<bytes.length;offset+=50){
+    for(let v=0;v<3;v++){
+      const start=offset+12+12*v;const radius=Math.hypot(bytes.readFloatLE(start),bytes.readFloatLE(start+8));
+      const y=bytes.readFloatLE(start+4);expect([0,40]).toContain(y);
+      if(y===0)base=Math.max(base,radius);else tip=Math.max(tip,radius);
+    }
+  }
+  expect(base+tip).toBeCloseTo(60,4);expect(Math.atan((base-tip)/40)*180/Math.PI).toBeCloseTo(3,4);
+  await page.getByRole('button',{name:'🏺 فرم',exact:true}).click();
+  await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
+});

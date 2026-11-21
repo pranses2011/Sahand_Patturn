@@ -6,3 +6,4 @@ export * from './mesh-validate.js';
 export * from './unwrap.js';
 
 export * from './chuck.js';
+export * from './rounder.js';
