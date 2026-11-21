@@ -1,3 +1,4 @@
+import { orbitOffset } from './camera-orbit';
 import { cameraFit } from './camera-fit';
 import { createRenderScheduler } from './render-scheduler';
 import { disposeViewportObject } from './viewport-resources';
@@ -199,17 +200,16 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     };
   }, [mesh, mode, pattern]);
 
-  const moveCamera = (factor: number, angle = 0) => {
+  const moveCamera = (factor: number, angle = 0, pitch = 0) => {
     const { camera, controls, invalidate } = stateRef.current;
     if (!camera || !controls) return;
     const damping = controls.enableDamping;
     controls.enableDamping = false;
     controls.update();
-    const offset = camera.position.clone().sub(controls.target);
-    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+    const offset = orbitOffset(camera.position.clone().sub(controls.target), angle, pitch);
     const distance = offset.length();
     if (distance > 0) {
-      const next = Math.min(camera.far / 2, Math.max(camera.near * 2, distance * factor));
+      const next = factor === 1 ? distance : Math.min(camera.far / 2, Math.max(camera.near * 2, distance * factor));
       camera.position.copy(controls.target).addScaledVector(offset, next / distance);
       controls.update();
     }
@@ -225,6 +225,8 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     <button className="btn" type="button" onClick={() => moveCamera(1.25)}>دورتر</button>
     <button className="btn" type="button" onClick={() => moveCamera(1, -Math.PI / 12)}>چرخش به چپ</button>
     <button className="btn" type="button" onClick={() => moveCamera(1, Math.PI / 12)}>چرخش به راست</button>
+    <button className="btn" type="button" onClick={() => moveCamera(1, 0, -Math.PI / 12)}>دید بالاتر</button>
+    <button className="btn" type="button" onClick={() => moveCamera(1, 0, Math.PI / 12)}>دید پایین‌تر</button>
     <button className="btn" type="button" onClick={() => {
       const { controls, invalidate } = stateRef.current;
       if (!controls) return;
