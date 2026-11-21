@@ -124,4 +124,26 @@ describe('Build ZIP', () => {
     expect(backing.byteLength).toBe(300_002);
   });
 
+  it.each([
+    ['notes.txt','notes.txt/info.txt'],
+    ['notes.txt/info.txt','notes.txt'],
+    ['NOTES.TXT','notes.txt/info.txt'],
+    ['café.txt/info.txt','cafe\u0301.txt'],
+    ['README.txt/info.txt','other.txt'],
+    ['manifest.json/info.txt','other.txt'],
+  ])('rejects file/directory collisions for %s and %s',async(a,b)=>{
+    const data=input();data.files=[{path:a,bytes:new Uint8Array([1])},{path:b,bytes:new Uint8Array([2])}];
+    const result=await toBuildZip(data);
+    expect(result.ok).toBe(false);expect(result.error).toContain('BUNDLE_PATH_CONFLICT');expect(result.bytes).toBeUndefined();
+  });
+  it('allows shared directories and filenames that merely share a prefix',async()=>{
+    const data=input();data.files=[
+      {path:'notes.txt',bytes:new Uint8Array([1])},
+      {path:'notes.txt.backup/info.txt',bytes:new Uint8Array([2])},
+      {path:'notes.txt.backup/other.txt',bytes:new Uint8Array([3])},
+    ];
+    const result=await toBuildZip(data);expect(result.ok,result.error).toBe(true);
+    expect(unzipSync(result.bytes!)['notes.txt.backup/other.txt']).toEqual(new Uint8Array([3]));
+  });
+
 });

@@ -30,6 +30,12 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     }
     const key = path.normalize('NFC').toLowerCase();
     if (paths.has(key)) throw new Error(`BUNDLE_DUPLICATE_PATH:${path}`);
+    // A path cannot be both a regular file and a parent directory on extraction.
+    for (const existing of paths) {
+      if (key.startsWith(existing + '/') || existing.startsWith(key + '/')) {
+        throw new Error(`BUNDLE_PATH_CONFLICT:${path}`);
+      }
+    }
     paths.add(key);
     entries.set(path, bytes);
   };
