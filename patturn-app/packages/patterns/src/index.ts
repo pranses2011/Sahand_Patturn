@@ -251,7 +251,46 @@ export const seigaiha: PatternDef = {
   },
 };
 
-/** 12 base patterns (roadmap 2.3) — subset implemented here, rest follow same shape. */
+/** Domino tiling rotated into a herringbone lattice. Repeat vectors are
+ * (u,v)=(2,-2) and (2,2), mapped to tileW and tileH respectively.
+ * Like edge fans, polygons outside the canvas are retained for renderer clipping.
+ */
+export const herringbone: PatternDef = {
+  id: 'herringbone', label: 'Herringbone', defaults: { stroke: 1.5 },
+  build: (ctx) => {
+    const out: Path[] = [];
+    const nx = ctx.canvasW / ctx.tileW, ny = ctx.canvasH / ctx.tileH;
+    const map = (u: number, v: number) => `${f((u - v) * ctx.tileW / 4)} ${f((u + v) * ctx.tileH / 4)}`;
+    for (let u = -3; u <= Math.ceil(2 * (nx + ny)) + 3; u++) {
+      for (let v = Math.floor(-2 * nx) - 3; v <= Math.ceil(2 * ny) + 3; v++) {
+        const phase = ((u - v) % 4 + 4) % 4;
+        if (phase !== 0 && phase !== 3) continue;
+        const du = phase === 0 ? 2 : 1, dv = phase === 0 ? 1 : 2;
+        // Reject polygons whose bounding boxes cannot touch the canvas.
+        const xs = [u - v, u + du - v, u + du - v - dv, u - v - dv].map((n) => n * ctx.tileW / 4);
+        const ys = [u + v, u + du + v, u + du + v + dv, u + v + dv].map((n) => n * ctx.tileH / 4);
+        if (Math.max(...xs) < 0 || Math.min(...xs) > ctx.canvasW || Math.max(...ys) < 0 || Math.min(...ys) > ctx.canvasH) continue;
+        out.push({ d: `M${map(u, v)}L${map(u + du, v)}L${map(u + du, v + dv)}L${map(u, v + dv)}z`, fill: false });
+      }
+    }
+    return out;
+  },
+};
+
+/** Square geometric lattice inspired by kumiko, not a traditional joinery plan. */
+export const kumiko: PatternDef = {
+  id: 'kumiko', label: 'Kumiko-inspired', defaults: { stroke: 1.5 },
+  build: (ctx) => tile(ctx, (x, y) => {
+    const w = ctx.tileW, h = ctx.tileH, cx = x + w / 2, cy = y + h / 2;
+    return [
+      { d: `M${f(x)} ${f(y)}L${f(x + w)} ${f(y + h)}M${f(x + w)} ${f(y)}L${f(x)} ${f(y + h)}`, fill: false },
+      { d: `M${f(cx)} ${f(y)}L${f(x + w)} ${f(cy)}L${f(cx)} ${f(y + h)}L${f(x)} ${f(cy)}z`, fill: false },
+      { d: `M${f(cx)} ${f(y)}V${f(y + h)}M${f(x)} ${f(cy)}H${f(x + w)}`, fill: false },
+    ];
+  }),
+};
+
+/** Twelve base patterns; stencil manufacturability is evaluated separately. */
 export const PATTERNS: PatternDef[] = [
   dotGrid,
   stripes,
@@ -263,6 +302,8 @@ export const PATTERNS: PatternDef[] = [
   diamond,
   spiral,
   seigaiha,
+  herringbone,
+  kumiko,
 ];
 
 /**
