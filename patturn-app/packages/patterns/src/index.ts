@@ -326,3 +326,5 @@ export function isSeamlessX(def: PatternDef, tileW = 40, tileH = 40): boolean {
   // For symmetric tile-based patterns, doubling the canvas doubles the path count
   return double.length >= single.length * 2 - 1;
 }
+
+export * from './jigsaw.js';

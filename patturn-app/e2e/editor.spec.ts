@@ -1043,3 +1043,22 @@ test('horizontal split reports WASM failure independently and an explicit retry 
   await expect(page.getByRole('status').filter({hasText:'دو قطعه بسته و اعتبارسنجی شدند'})).toBeVisible({timeout:60_000});
   await expect(error).toHaveCount(0);
 });
+
+test('jigsaw tool exports deterministic shared-cut SVG and DXF with editable seed',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'📤 خروجی',exact:true}).click();
+  await page.getByText('الگوی پازل — اتصال jigsaw با seed قطعی',{exact:true}).click();
+  const preview=page.getByRole('img',{name:'پیش‌نمایش خطوط برش الگوی پازل',exact:true});
+  await expect(preview.locator('path')).toHaveCount(13);
+  const first=await preview.innerHTML();
+  const seed=page.getByRole('spinbutton',{name:'seed پازل',exact:true});await seed.fill('43');await seed.press('Enter');
+  expect(await preview.innerHTML()).not.toBe(first);
+  await seed.fill('42');await seed.press('Enter');expect(await preview.innerHTML()).toBe(first);
+  for(const format of ['SVG','DXF']){
+    const download=page.waitForEvent('download');await page.getByRole('button',{name:`دانلود ${format} پازل`,exact:true}).click();
+    const file=await download;expect(file.suggestedFilename()).toBe(`jigsaw_3x3_cell40-tab3-seed42mm.${format.toLowerCase()}`);
+    const path=await file.path();expect(path).not.toBeNull();const text=await readFile(path!,'utf8');
+    if(format==='SVG'){expect(text).toContain('width="120mm"');expect(text.match(/<path /g)).toHaveLength(13);}
+    else {expect(text).toContain('AC1009');expect(text).toContain('LINE');}
+  }
+  await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
+});
