@@ -15,6 +15,17 @@ test('software WebGL issues geometry draw calls and survives flat/surface remoun
   await page.goto('/');
   await expect(page.locator('.viewport canvas')).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>(window as unknown as {testDraws:number}).testDraws)).toBeGreaterThan(0);
+  // The software renderer should stop issuing draws once camera damping settles.
+  await expect.poll(async()=>page.evaluate(async()=>{
+    const state=window as unknown as {testDraws:number};
+    const before=state.testDraws;
+    await new Promise((resolve)=>setTimeout(resolve,150));
+    return state.testDraws-before;
+  }),{timeout:10_000}).toBe(0);
+  const before=await page.evaluate(()=>(window as unknown as {testDraws:number}).testDraws);
+  await page.locator('.viewport canvas').hover();
+  await page.mouse.wheel(0,150);
+  await expect.poll(()=>page.evaluate(()=>(window as unknown as {testDraws:number}).testDraws)).toBeGreaterThan(before);
   await page.getByText('🔷 الگو',{exact:true}).click();
   for(let i=0;i<3;i++){
     await expect(page.locator('.viewport canvas')).toHaveCount(0);

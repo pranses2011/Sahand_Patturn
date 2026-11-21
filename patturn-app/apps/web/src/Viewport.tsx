@@ -1,3 +1,4 @@
+import { createRenderScheduler } from './render-scheduler';
 import { disposeViewportObject } from './viewport-resources';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -51,7 +52,7 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     camera?: THREE.PerspectiveCamera;
     controls?: OrbitControls;
     current?: THREE.Mesh;
-    raf?: number;
+    invalidate?: () => void;
   }>({});
 
   // init once
@@ -100,26 +101,30 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     st.camera = camera;
     st.controls = controls;
 
+    const scheduler = createRenderScheduler(() => {
+      controls.update(); // change events schedule any remaining damping frames
+      try { renderer.render(scene, camera); }
+      catch { scheduler.dispose(); setRenderError(true); }
+    });
+    const invalidate = () => scheduler.invalidate();
+    st.invalidate = invalidate;
+    controls.addEventListener('change', invalidate);
+
     const onResize = () => {
       const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      invalidate();
     };
     onResize();
     const ro = new ResizeObserver(onResize);
     ro.observe(host);
 
-    const loop = () => {
-      st.raf = requestAnimationFrame(loop);
-      controls.update();
-      try { renderer.render(scene, camera); }
-      catch { setRenderError(true); }
-    };
-    loop();
 
     return () => {
-      cancelAnimationFrame(st.raf!);
+      scheduler.dispose();
+      controls.removeEventListener('change', invalidate);
       ro.disconnect();
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       controls.dispose();
@@ -127,7 +132,7 @@ export function Viewport({ mesh, mode, pattern }: Props) {
       disposeViewportObject(axes);
       renderer.dispose();
       if (st.renderer === renderer) {
-        st.renderer = undefined; st.scene = undefined; st.camera = undefined; st.controls = undefined;
+        st.renderer = undefined; st.scene = undefined; st.camera = undefined; st.controls = undefined; st.invalidate = undefined;
       }
       host.removeChild(renderer.domElement);
     };
@@ -178,8 +183,10 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     if (tex) m.userData['tex'] = tex;
     scene.add(m);
     st.current = m;
+    st.invalidate?.();
     return () => {
       scene.remove(m);
+      st.invalidate?.();
       disposeViewportObject(m);
       if (st.current === m) st.current = undefined;
     };
