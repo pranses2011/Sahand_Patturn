@@ -76,6 +76,8 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.target.set(0, 74, 0);
+    controls.update();
+    controls.saveState();
 
     // lights
     scene.add(new THREE.AmbientLight(0xfff4e6, 0.7));
@@ -197,5 +199,18 @@ export function Viewport({ mesh, mode, pattern }: Props) {
   }, [mesh, mode, pattern]);
 
   if (renderError) throw new Error('VIEWPORT_GRAPHICS_UNAVAILABLE');
-  return <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />;
+  return <>
+    <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />
+    <button className="btn viewport-reset" type="button" onClick={() => {
+      const { controls, invalidate } = stateRef.current;
+      if (!controls) return;
+      // Flush residual damping before resetting so the saved pose stays stationary.
+      const damping = controls.enableDamping;
+      controls.enableDamping = false;
+      controls.update();
+      controls.reset();
+      controls.enableDamping = damping;
+      invalidate?.();
+    }}>بازنشانی دوربین</button>
+  </>;
 }

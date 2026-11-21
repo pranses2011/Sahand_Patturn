@@ -92,3 +92,18 @@ test('visibility lifecycle suspends software draws during geometry edits and res
   await expect(page.locator('.viewport canvas')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('camera reset restores the initial view after zoom without changing project parameters',async({page})=>{
+  await page.goto('/');
+  const canvas=page.locator('.viewport canvas');await expect(canvas).toBeVisible();
+  const reset=page.getByRole('button',{name:'بازنشانی دوربین',exact:true});
+  // Compare the canvas region on the same software renderer, keeping overlay focus identical.
+  await reset.focus();await page.keyboard.press('Enter');
+  const initial=await canvas.screenshot();
+  await canvas.hover();await page.mouse.wheel(0,350);
+  await expect.poll(async()=>Buffer.compare(await canvas.screenshot(),initial),{timeout:10_000}).not.toBe(0);
+  await reset.focus();await page.keyboard.press('Enter');
+  await expect.poll(async()=>Buffer.compare(await canvas.screenshot(),initial),{timeout:10_000}).toBe(0);
+  await expect(page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true})).toHaveValue('4');
+  await expect(page.getByRole('spinbutton',{name:'شیرینک',exact:true})).toHaveValue('12');
+});
