@@ -73,3 +73,5 @@ export * from './native-files.js';
 export * from './backups.js';
 export * from './parameter-history.js';
 export * from './pattern-library.js';
+
+export * from './local-profile.js';

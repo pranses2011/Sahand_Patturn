@@ -921,3 +921,40 @@ test('optional support copies only the card number and reports clipboard denial 
   await button.click();await expect(panel.getByRole('alert')).toContainText('دستی انتخاب و کپی کنید');
   await expect(wall).toHaveValue('7');await expect(undo).toHaveAttribute('title',title!);
 });
+
+test('optional local profile persists separately and can be deleted without changing the project',async({page})=>{
+  await page.goto('/');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});await wall.fill('7');await wall.press('Enter');
+  const summary=page.getByText('پروفایل محلی و تنظیمات نمایش نام',{exact:true});await summary.click();
+  await page.getByLabel('نام پروفایل محلی',{exact:true}).fill('کاربر آزمایشی');
+  await page.getByLabel('ایمیل پروفایل محلی',{exact:true}).fill('local@example.com');
+  await page.getByRole('checkbox',{name:'نمایش نام ذخیره‌شده در این بخش',exact:true}).check();
+  await page.getByRole('button',{name:'ذخیرهٔ پروفایل محلی',exact:true}).click();
+  await expect(page.getByText('پروفایل محلی: کاربر آزمایشی',{exact:true})).toBeVisible();
+  const download=page.waitForEvent('download');await page.getByRole('button',{name:'ذخیرهٔ فایل پروژه',exact:true}).click();
+  const path=await (await download).path();expect(path).not.toBeNull();
+  const project=strFromU8(gunzipSync(new Uint8Array(await readFile(path!))));
+  expect(project).not.toContain('local@example.com');expect(project).not.toContain('کاربر آزمایشی');
+  await expect(page.locator('.saved')).toHaveText('✓ ذخیره شد');
+  await page.reload();await summary.click();
+  await expect(wall).toHaveValue('7');
+  await expect(page.getByLabel('نام پروفایل محلی',{exact:true})).toHaveValue('کاربر آزمایشی');
+  await expect(page.getByRole('checkbox',{name:'نمایش نام ذخیره‌شده در این بخش',exact:true})).toBeChecked();
+  page.once('dialog',(dialog)=>dialog.dismiss());await page.getByRole('button',{name:'حذف پروفایل محلی',exact:true}).click();
+  await expect(page.getByLabel('نام پروفایل محلی',{exact:true})).toHaveValue('کاربر آزمایشی');
+  page.once('dialog',(dialog)=>dialog.accept());await page.getByRole('button',{name:'حذف پروفایل محلی',exact:true}).click();
+  await expect(page.getByLabel('نام پروفایل محلی',{exact:true})).toHaveValue('');await expect(wall).toHaveValue('7');
+});
+
+test('corrupt local profile cannot be overwritten implicitly and explicit deletion recovers editing',async({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('patturn:local-profile:v1','{broken'));
+  await page.goto('/');await page.getByText('پروفایل محلی و تنظیمات نمایش نام',{exact:true}).click();
+  await expect(page.getByRole('alert').filter({hasText:'پروفایل محلی خوانده نشد'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'ذخیرهٔ پروفایل محلی',exact:true})).toBeDisabled();
+  expect(await page.evaluate(()=>localStorage.getItem('patturn:local-profile:v1'))).toBe('{broken');
+  page.once('dialog',(dialog)=>dialog.accept());await page.getByRole('button',{name:'حذف پروفایل محلی',exact:true}).click();
+  await expect(page.getByRole('button',{name:'ذخیرهٔ پروفایل محلی',exact:true})).toBeEnabled();
+  await page.getByLabel('نام پروفایل محلی',{exact:true}).fill('تازه');
+  await page.getByRole('button',{name:'ذخیرهٔ پروفایل محلی',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'پروفایل فقط روی همین دستگاه ذخیره شد'})).toBeVisible();
+});

@@ -1,3 +1,4 @@
+import { LocalProfilePanel } from './LocalProfilePanel';
 import { SupportPanel } from './SupportPanel';
 import { PrivacyNotice } from './PrivacyNotice';
 import { requestBrowserDownload } from './browser-download';
@@ -945,6 +946,7 @@ export function App() {
             </>
           )}
 
+          <LocalProfilePanel />
           <PrivacyNotice />
           <SupportPanel />
         </aside>
