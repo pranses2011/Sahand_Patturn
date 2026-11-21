@@ -25,7 +25,7 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
   const budget = createBundleBudget();
   const entries = new Map<string, Uint8Array>();
   const paths = new Set<string>(['readme.txt', 'manifest.json']);
-  const add = (path: string, bytes: Uint8Array, snapshot = false) => {
+  const reservePath = (path: string) => {
     // Reject traversal, Windows drive/ADS syntax, controls and unsafe segments.
     if (!path || path.includes('\\') || /[:\x00-\x1f\x7f]/.test(path) ||
         path.split('/').some((p) => !p || p === '.' || p === '..' || /[. ]$/.test(p) || /[<>"|?*]/.test(p) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(p))) {
@@ -39,14 +39,19 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
         throw new Error(`BUNDLE_PATH_CONFLICT:${path}`);
       }
     }
-    budget.add(bytes.byteLength);
     paths.add(key);
+  };
+  const add = (path: string, bytes: Uint8Array, snapshot = false) => {
+    budget.add(bytes.byteLength);
     entries.set(path, snapshot ? bytes.slice() : bytes);
   };
   try {
     const fileCount = input.meshes.length + (input.assemblies?.length ?? 0)
       + (input.dxfPatterns?.length ?? 0) + (input.files?.length ?? 0) + 2;
     if (fileCount > BUNDLE_LIMITS.files) throw new Error('BUNDLE_TOO_MANY_FILES');
+    for (const group of [input.meshes, input.assemblies, input.dxfPatterns, input.files]) {
+      for (const item of group ?? []) reservePath(item.path);
+    }
     // Reject already-known excess before generating geometry output or copying buffers.
     const sidecarBudget = createBundleBudget();
     for (const item of input.files ?? []) sidecarBudget.add(item.bytes.byteLength);

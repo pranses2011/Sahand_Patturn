@@ -169,4 +169,17 @@ describe('Build ZIP', () => {
     expect(result.error).toContain('BUNDLE_FILE_TOO_LARGE');expect(result.bytes).toBeUndefined();
   });
 
+  it.each([
+    [['../unsafe.txt'],'BUNDLE_UNSAFE_PATH'],
+    [['same.txt','SAME.TXT'],'BUNDLE_DUPLICATE_PATH'],
+    [['parent.txt/child.txt','parent.txt'],'BUNDLE_PATH_CONFLICT'],
+  ])('preflights sidecar paths %j before reading mesh data',(paths,code)=>{
+    const data=input();
+    Object.defineProperty(data.meshes[0]!,'mesh',{get:()=>{throw Error('MESH_MUST_NOT_BE_READ');}});
+    data.files=paths.map((path)=>({path,bytes:new Uint8Array()}));
+    return toBuildZip(data).then((result)=>{
+      expect(result.ok).toBe(false);expect(result.error).toContain(code);expect(result.bytes).toBeUndefined();
+    });
+  });
+
 });
