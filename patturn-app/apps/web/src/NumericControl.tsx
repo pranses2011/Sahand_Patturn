@@ -15,19 +15,24 @@ export function NumericControl({label,value,onChange,min,max,step=1,unit='mm',he
 }) {
   const id=useId();
   const [draft,setDraft]=useState(String(value));
+  const [notice,setNotice]=useState({value,text:''});
   useEffect(()=>setDraft(String(value)),[value]);
   const commit=(input:HTMLInputElement)=>{
     const n=input.valueAsNumber;
     if(Number.isFinite(n)){
       const next=normalizeControlValue(n,min,max,step);setDraft(String(next));
+      setNotice({value:next,text:next!==n ? `مقدار به ${new Intl.NumberFormat('fa-IR').format(next)} ${unit} در بازه و گام مجاز تنظیم شد.` : ''});
       if(next!==value)onChange(next);
-    }else setDraft(String(value));
+    }else {
+      setDraft(String(value));
+      setNotice({value,text:'ورودی خالی یا نامعتبر بود؛ مقدار قبلی حفظ شد.'});
+    }
     onEndEdit();
   };
   return <div className="ctl">
     <label htmlFor={id}><span>{label}</span><span className="val">{value} <span id={`${id}-unit`}>{unit}</span></span></label>
     <input id={id} aria-label={label} aria-describedby={`${id}-unit`} className="num" type="number" value={draft} min={min} max={max} step={step}
-      onFocus={onBeginEdit} onChange={(event)=>setDraft(event.currentTarget.value)}
+      onFocus={onBeginEdit} onChange={(event)=>{setNotice({value,text:''});setDraft(event.currentTarget.value);}}
       onBlur={(event)=>commit(event.currentTarget)} onKeyDown={(event)=>{
         if(event.nativeEvent.isComposing)return;
         if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur();}
@@ -40,6 +45,7 @@ export function NumericControl({label,value,onChange,min,max,step=1,unit='mm',he
       onKeyDown={(event)=>{if(!event.repeat && /^(Arrow|Home|End|Page)/.test(event.key))onBeginEdit();}}
       onKeyUp={onEndEdit}
       onChange={(event)=>{const n=event.currentTarget.valueAsNumber;if(Number.isFinite(n))onChange(normalizeControlValue(n,min,max,step));}} />
+    <span role="status" aria-live="polite">{notice.value===value ? notice.text : ''}</span>
     {help && <ParameterHelp topic={help} />}
   </div>;
 }

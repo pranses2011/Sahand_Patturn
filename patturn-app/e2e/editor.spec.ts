@@ -529,3 +529,19 @@ test('a cancelled project read ignores late failure and permits a successful ret
   await expect(page.getByRole('alert').filter({hasText:'بازکردن پروژه لغو شد'})).toHaveCount(0);
   await expect(page.getByRole('button',{name:'بازکردن پروژه',exact:true})).toBeEnabled();
 });
+
+test('numeric corrections report clamping and invalid drafts without adding empty history steps',async({page})=>{
+  await page.goto('/');
+  const number=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  const control=page.locator('.ctl').filter({has:number});
+  await number.fill('100');await number.press('Enter');
+  await expect(number).toHaveValue('20');
+  await expect(control.getByRole('status')).toContainText('مقدار به ۲۰ mm');
+  await number.fill('');await expect(control.getByRole('status')).toBeEmpty();
+  await number.press('Enter');await expect(number).toHaveValue('20');
+  await expect(control.getByRole('status')).toContainText('مقدار قبلی حفظ شد');
+  await page.getByRole('button',{name:/^واگرد/}).click();
+  await expect(number).toHaveValue('4');
+  await expect(control.getByRole('status')).toBeEmpty();
+  await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
+});
