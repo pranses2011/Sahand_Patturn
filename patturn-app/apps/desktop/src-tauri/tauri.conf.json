@@ -39,7 +39,7 @@
       "nsis": {
         "installMode": "currentUser",
         "languages": [
-          "Persian",
+          "Farsi",
           "English"
         ]
       },

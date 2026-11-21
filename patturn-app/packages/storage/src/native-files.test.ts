@@ -60,4 +60,17 @@ describe('Native file access adapter', () => {
     expect(scope.allow.map((p: {path: string}) => p.path)).toEqual(['$APPLOCALDATA/backups', '$APPLOCALDATA/backups/**']);
   });
 
+  it('N7: configured Windows icon exists and is a multi-size ICO', () => {
+    const folder = fileURLToPath(new URL('../../../apps/desktop/src-tauri/', import.meta.url));
+    const config = JSON.parse(readFileSync(path.join(folder, 'tauri.conf.json'), 'utf8'));
+    for (const icon of config.bundle.icon) {
+      const bytes = readFileSync(path.join(folder, icon));
+      expect(bytes.readUInt16LE(0)).toBe(0);
+      expect(bytes.readUInt16LE(2)).toBe(1);
+      expect(bytes.readUInt16LE(4)).toBeGreaterThan(1);
+    }
+    expect(config.bundle.windows.nsis.languages).toContain('Farsi');
+    expect(config.bundle.windows.nsis.languages).not.toContain('Persian');
+  });
+
 });
