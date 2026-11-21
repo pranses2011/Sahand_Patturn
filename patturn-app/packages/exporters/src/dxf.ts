@@ -60,6 +60,32 @@ function circle(d: string): { x: number; y: number; radius: number } | null {
   return {x:x!+rx!,y:y!,radius:rx!};
 }
 
+/** Single circular SVG arc; no concatenated commands or ellipses accepted.
+ * Endpoint conversion follows SVG radius correction for an undersized radius.
+ */
+function circularArc(d: string): { x: number; y: number; radius: number; intervals: [number, number][] } | null {
+  const n = '([-+]?(?:\\d*\\.\\d+|\\d+\\.?\\d*)(?:[eE][-+]?\\d+)?)';
+  const match = d.trim().match(new RegExp(`^M${n}[ ,]+${n}([Aa])${Array(7).fill(n).join('[ ,]+')}$`));
+  if (!match) return null;
+  const x1 = Number(match[1]), y1 = Number(match[2]), relative = match[3] === 'a';
+  const [rx, ry, rotation, large, sweep, ex, ey] = match.slice(4).map(Number) as [number,number,number,number,number,number,number];
+  if (![x1,y1,rx,ry,rotation,large,sweep,ex,ey].every(Number.isFinite) || rx <= 0 || rx !== ry || rotation !== 0 ||
+      ![0,1].includes(large) || ![0,1].includes(sweep)) return null;
+  const x2 = ex + (relative ? x1 : 0), y2 = ey + (relative ? y1 : 0);
+  const dx = x2-x1, dy = y2-y1, chord = Math.hypot(dx,dy);
+  if (!(chord > 0) || !Number.isFinite(chord)) return null;
+  const radius = Math.max(rx,chord/2);
+  const height = Math.sqrt(Math.max(0, (radius-chord/2)*(radius+chord/2)));
+  const sign = large === sweep ? -1 : 1;
+  const x = (x1+x2)/2-sign*dy/chord*height, y = (y1+y2)/2+sign*dx/chord*height;
+  if (![x,y,radius].every(Number.isFinite)) return null;
+  const tau = 2*Math.PI;
+  const angle = (px: number, py: number) => (Math.atan2(py-y,px-x)+tau)%tau;
+  const a = sweep ? angle(x1,y1) : angle(x2,y2), b = sweep ? angle(x2,y2) : angle(x1,y1);
+  const intervals: [number,number][] = a < b ? [[a,b]] : [[a,tau],[0,b]];
+  return {x,y,radius,intervals:intervals.filter(([lo,hi])=>hi-lo>1e-12)};
+}
+
 /** R12 linear geometry and canonical circles, model coordinates in mm. */
 export function toDxf(paths: { d: string; fill?: boolean }[], bounds?: DxfBounds): ExportResult {
   const filename = exportName('pattern', 'flat', 'mm', 'dxf');
@@ -69,7 +95,8 @@ export function toDxf(paths: { d: string; fill?: boolean }[], bounds?: DxfBounds
     // Parse everything first so unsupported geometry cannot yield a partial successful file.
     const parsed = paths.map((p) => {
       const c = circle(p.d);
-      return { layer: p.fill ? 'outline' : 'detail', circle: c, lines: c ? [] : polylines(p.d) };
+      const arc = c ? null : circularArc(p.d);
+      return { arc, layer: p.fill ? 'outline' : 'detail', circle: c, lines: c || arc ? [] : polylines(p.d) };
     });
     const lines: string[] = [];
     const push = (...values: (string | number)[]) => lines.push(...values.map(String));
@@ -86,6 +113,14 @@ export function toDxf(paths: { d: string; fill?: boolean }[], bounds?: DxfBounds
           if (end! - start! >= 2 * Math.PI - 1e-12)
             push(0, 'CIRCLE', 8, p.layer, 10, c.x, 20, c.y, 30, 0, 40, c.radius);
           else push(0, 'ARC', 8, p.layer, 10, c.x, 20, c.y, 30, 0, 40, c.radius, 50, start! * 180 / Math.PI, 51, end! * 180 / Math.PI);
+        }
+      }
+      if (p.arc) {
+        const c = p.arc;
+        const clips: [number,number][] = bounds ? clipCircle(c,bounds) : [[0,2*Math.PI]];
+        for (const [a,b] of c.intervals) for (const [lo,hi] of clips) {
+          const start = Math.max(a,lo), end = Math.min(b,hi);
+          if (end-start > 1e-12) push(0,'ARC',8,p.layer,10,c.x,20,c.y,30,0,40,c.radius,50,start*180/Math.PI,51,end*180/Math.PI);
         }
       }
       for (const line of p.lines) {
