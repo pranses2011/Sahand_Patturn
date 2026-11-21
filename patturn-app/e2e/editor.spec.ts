@@ -806,3 +806,24 @@ test('physical history fallback does not hijack Latin remapped or dead keys',asy
   })));
   expect(allowed).toBe(false);await expect(slider).toHaveValue('4');
 });
+
+test('saved recipe matches follow current pattern and tile values including undo and redo',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  for(const name of ['نقطه اول','نقطه دوم']){
+    await page.getByLabel('نام تنظیمات',{exact:true}).fill(name);
+    await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  }
+  const matches=page.locator('.saved-patterns li').filter({hasText:'مطابق تنظیمات فعلی'});
+  await expect(matches).toHaveCount(2);
+  await page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true}).check();
+  await expect(matches).toHaveCount(0);
+  await page.getByRole('button',{name:/^واگرد/}).click();await expect(matches).toHaveCount(2);
+  await page.getByRole('button',{name:/^ازنو/}).click();await expect(matches).toHaveCount(0);
+  await page.getByRole('button',{name:'اعمال نقطه اول',exact:true}).click();await expect(matches).toHaveCount(2);
+  const tile=page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true});
+  await tile.fill('41');await tile.press('Enter');await expect(matches).toHaveCount(0);
+  await page.getByRole('button',{name:/^واگرد/}).click();await expect(matches).toHaveCount(2);
+  await page.getByRole('button',{name:'اعمال نقطه دوم',exact:true}).click();
+  await expect(page.locator('.saved-patterns li')).toHaveCount(2);await expect(matches).toHaveCount(2);
+});

@@ -100,6 +100,7 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
     {visible.length === 0 && <p className="hint">تنظیماتی پیدا نشد؛ نام تنظیمات یا نوع الگو را جست‌وجو کنید.</p>}
     <ul>{visible.map((entry) => <li key={entry.name}>
       <b>{entry.name}</b> — {PATTERN_NAMES_FA[entry.patternId] ?? entry.patternId} — {new Intl.NumberFormat('fa-IR').format(entry.tileSize)} میلی‌متر
+      {entry.patternId === patternId && entry.tileSize === tileSize && <span className="hint"> — مطابق تنظیمات فعلی</span>}
       <button className="btn" onClick={() => onApply(entry)} aria-label={`اعمال ${entry.name}`}>اعمال</button>
       <button className="btn" onClick={() => {
         if (window.confirm(`نوع الگو و اندازهٔ کاشی فعلی جایگزین تنظیمات «${entry.name}» شود؟`)) {
