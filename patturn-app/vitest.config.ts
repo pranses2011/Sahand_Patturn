@@ -16,20 +16,20 @@ const tsExtensions = {
 
 export default defineConfig({
   plugins: [tsExtensions],
-  esbuild: { jsx: 'automatic' },
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     include: ['packages/*/src/**/*.test.ts', 'apps/web/src/**/*.test.ts'],
     environment: 'node',
   },
   resolve: {
     alias: {
-      '@patturn/config': path.resolve(__dirname, 'packages/config/src/index.ts'),
-      '@patturn/schema': path.resolve(__dirname, 'packages/schema/src/index.ts'),
-      '@patturn/kernel': path.resolve(__dirname, 'packages/kernel/src/index.ts'),
-      '@patturn/patterns': path.resolve(__dirname, 'packages/patterns/src/index.ts'),
-      '@patturn/molds': path.resolve(__dirname, 'packages/molds/src/index.ts'),
-      '@patturn/exporters': path.resolve(__dirname, 'packages/exporters/src/index.ts'),
-      '@patturn/storage': path.resolve(__dirname, 'packages/storage/src/index.ts'),
+      '@patturn/config': path.resolve(import.meta.dirname, 'packages/config/src/index.ts'),
+      '@patturn/schema': path.resolve(import.meta.dirname, 'packages/schema/src/index.ts'),
+      '@patturn/kernel': path.resolve(import.meta.dirname, 'packages/kernel/src/index.ts'),
+      '@patturn/patterns': path.resolve(import.meta.dirname, 'packages/patterns/src/index.ts'),
+      '@patturn/molds': path.resolve(import.meta.dirname, 'packages/molds/src/index.ts'),
+      '@patturn/exporters': path.resolve(import.meta.dirname, 'packages/exporters/src/index.ts'),
+      '@patturn/storage': path.resolve(import.meta.dirname, 'packages/storage/src/index.ts'),
     },
   },
 });

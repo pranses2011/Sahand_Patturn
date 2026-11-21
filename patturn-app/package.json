@@ -26,9 +26,12 @@
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.8"
+    "vitest": "^5.1.1"
   },
   "dependencies": {
     "manifold-3d": "^3.5.5"
+  },
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
   }
 }
