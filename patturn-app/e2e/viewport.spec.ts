@@ -111,13 +111,13 @@ test('camera reset restores the initial view after zoom without changing project
   await expect(page.getByRole('spinbutton',{name:'شیرینک',exact:true})).toHaveValue('12');
 });
 
-test('keyboard camera zoom controls change the view and reset without editing the project',async({page})=>{
+test('keyboard camera zoom and orbit controls change the view and reset without editing the project',async({page})=>{
   await page.goto('/');
   const canvas=page.locator('.viewport canvas');await expect(canvas).toBeVisible();
   const group=page.getByRole('group',{name:'کنترل دوربین',exact:true});
   const reset=group.getByRole('button',{name:'بازنشانی دوربین',exact:true});
   await reset.focus();await page.keyboard.press('Enter');const initial=await canvas.screenshot();
-  for(const label of ['نزدیک‌تر','دورتر']){
+  for(const label of ['نزدیک‌تر','دورتر','چرخش به چپ','چرخش به راست']){
     const button=group.getByRole('button',{name:label,exact:true});
     await button.focus();await page.keyboard.press('Enter');
     // Remove focus differences so the image comparison observes the view, not the outline.

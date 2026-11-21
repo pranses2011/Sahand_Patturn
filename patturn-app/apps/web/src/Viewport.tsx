@@ -199,13 +199,14 @@ export function Viewport({ mesh, mode, pattern }: Props) {
     };
   }, [mesh, mode, pattern]);
 
-  const zoomCamera = (factor: number) => {
+  const moveCamera = (factor: number, angle = 0) => {
     const { camera, controls, invalidate } = stateRef.current;
     if (!camera || !controls) return;
     const damping = controls.enableDamping;
     controls.enableDamping = false;
     controls.update();
     const offset = camera.position.clone().sub(controls.target);
+    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
     const distance = offset.length();
     if (distance > 0) {
       const next = Math.min(camera.far / 2, Math.max(camera.near * 2, distance * factor));
@@ -220,8 +221,10 @@ export function Viewport({ mesh, mode, pattern }: Props) {
   return <>
     <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />
     <div className="viewport-reset" role="group" aria-label="کنترل دوربین">
-    <button className="btn" type="button" onClick={() => zoomCamera(0.8)}>نزدیک‌تر</button>
-    <button className="btn" type="button" onClick={() => zoomCamera(1.25)}>دورتر</button>
+    <button className="btn" type="button" onClick={() => moveCamera(0.8)}>نزدیک‌تر</button>
+    <button className="btn" type="button" onClick={() => moveCamera(1.25)}>دورتر</button>
+    <button className="btn" type="button" onClick={() => moveCamera(1, -Math.PI / 12)}>چرخش به چپ</button>
+    <button className="btn" type="button" onClick={() => moveCamera(1, Math.PI / 12)}>چرخش به راست</button>
     <button className="btn" type="button" onClick={() => {
       const { controls, invalidate } = stateRef.current;
       if (!controls) return;
