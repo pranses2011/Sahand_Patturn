@@ -201,7 +201,9 @@ export function App() {
 
   const formMesh: Mesh | null = useMemo(() => {
     try {
-      const m = revolve(profile, { segments, closeBottom: true, closeTop: profileMode !== 'reference' });
+      // All presets are solid outer mold masters, including the reference profile.
+      // An open rim cannot be passed to manifold CSG or exported as a validated solid STL.
+      const m = revolve(profile, { segments, closeBottom: true, closeTop: true });
       const rep = validateMesh(m);
       setMeshErr(rep.ok ? null : rep.problems.join(' · '));
       return m;
