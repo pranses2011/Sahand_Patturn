@@ -1,7 +1,5 @@
-import { jsPDF } from 'jspdf';
 import type { Profile } from '@patturn/kernel';
 import { exportName, type ExportResult } from './index.js';
-import { VAZIRMATN_BASE64 } from './fonts/vazirmatn.js';
 
 export const SHEET = { widthMm: 210, heightMm: 297, marginMm: 15, topMm: 35, tileWidthMm: 180, tileHeightMm: 230 } as const;
 export interface ProfileTile { column: number; row: number; xMin: number; xMax: number; yMin: number; yMax: number }
@@ -40,12 +38,16 @@ export function clipProfileLine(a: [number, number], b: [number, number], tile: 
   return [a[0] + t0 * dx, a[1] + t0 * dy, a[0] + t1 * dx, a[1] + t1 * dy];
 }
 
-export function toDimensionPdf(profile: Profile, options: {
+export async function toDimensionPdf(profile: Profile, options: {
   project?: string;
   parameters?: { label: string; value: string }[];
-} = {}): ExportResult {
+} = {}): Promise<ExportResult> {
   try {
     const layout = dimensionSheetLayout(profile);
+    // Keep PDF engine and embedded font out of the initial editor bundle.
+    const [{ jsPDF }, { VAZIRMATN_BASE64 }] = await Promise.all([
+      import('jspdf'), import('./fonts/vazirmatn.js'),
+    ]);
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: false, precision: 5 });
     pdf.setCreationDate(new Date('2000-01-01T00:00:00Z'));
     pdf.setFileId('00000000000000000000000000000001');

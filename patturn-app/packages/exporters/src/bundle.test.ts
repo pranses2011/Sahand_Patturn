@@ -11,7 +11,7 @@ describe('Build ZIP', () => {
     const data = input();
     const project = encodeEditorProject({ profileMode: 'reference', segments: 96, wall: 4, shrink: 12, fill: 80, patternId: 'dot-grid', tileSize: 40 });
     data.files!.push({ path: 'project.patturn', bytes: project });
-    const pdf = toDimensionPdf(referenceOuterProfile(8));
+    const pdf = await toDimensionPdf(referenceOuterProfile(8));
     data.files!.push({ path: 'dimensions/profile.pdf', bytes: pdf.bytes! });
     const out = await toBuildZip(data);
     expect(out.ok, out.error).toBe(true);

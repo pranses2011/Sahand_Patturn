@@ -3,13 +3,13 @@ import { dimensionSheetLayout, clipProfileLine, toDimensionPdf, SHEET } from './
 import { referenceOuterProfile } from '@patturn/kernel';
 
 describe('Dimension PDF', () => {
-  it('D1: A4 reference profile fits one unscaled tile, plus summary', () => {
+  it('D1: A4 reference profile fits one unscaled tile, plus summary', async () => {
     const profile = referenceOuterProfile(16);
     const layout = dimensionSheetLayout(profile);
     expect(layout.diameterMm).toBeCloseTo(145);
     expect(layout.heightMm).toBeCloseTo(148);
     expect(layout.tiles).toHaveLength(1);
-    const out = toDimensionPdf(profile, { project: 'گلدان' });
+    const out = await toDimensionPdf(profile, { project: 'گلدان' });
     expect(out.ok, out.error).toBe(true);
     const pdf = new TextDecoder('latin1').decode(out.bytes!);
     expect(pdf.startsWith('%PDF-')).toBe(true);
@@ -38,14 +38,14 @@ describe('Dimension PDF', () => {
     expect(clipProfileLine([20, -5], [20, 240], tile)).toEqual([20, 0, 20, 230]);
     expect(clipProfileLine([-10, -10], [-5, -5], tile)).toBeNull();
   });
-  it('D4: invalid or excessive profiles fail without partial PDF', () => {
+  it('D4: invalid or excessive profiles fail without partial PDF', async () => {
     for (const profile of [[], [{ r: NaN, y: 0 }, { r: 2, y: 10 }], [{ r: 1, y: 10 }, { r: 2, y: 0 }], [{ r: 1e6, y: 0 }, { r: 1e6, y: 1e6 }]]) {
-      const out = toDimensionPdf(profile);
+      const out = await toDimensionPdf(profile);
       expect(out.ok).toBe(false); expect(out.bytes).toBeUndefined();
     }
   });
-  it('D5: reproducible bytes with Persian labels', () => {
+  it('D5: reproducible bytes with Persian labels', async () => {
     const p = referenceOuterProfile(8);
-    expect(toDimensionPdf(p).bytes).toEqual(toDimensionPdf(p).bytes);
+    expect((await toDimensionPdf(p)).bytes).toEqual((await toDimensionPdf(p)).bytes);
   });
 });

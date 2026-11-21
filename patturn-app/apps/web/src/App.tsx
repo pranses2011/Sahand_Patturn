@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   referenceOuterProfile,
   referenceProfile,
@@ -23,7 +23,7 @@ import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
 import { toBinaryStl, toSvg, exportName, toBuildZip, toDimensionPdf, toObj, type ObjPart, type BuildBundle } from '@patturn/exporters';
 import { AUTHOR, PLANS } from '@patturn/config';
-import { Viewport } from './Viewport';
+const Viewport = lazy(() => import('./Viewport').then((module) => ({ default: module.Viewport })));
 
 type Part = 'form' | 'pattern' | 'mold' | 'export';
 type ProfileMode = 'reference' | 'bucket' | 'vase';
@@ -400,10 +400,16 @@ export function App() {
       { label: 'تقسیمات مش', value: String(segments) },
     ],
   });
-  const exportDimensionPdf = () => {
-    const result = makeDimensionPdf();
-    if (result.ok) download(result.filename, result.bytes!);
-    else alert(`خطای برگهٔ ابعاد: ${result.error}`);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const exportDimensionPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const result = await makeDimensionPdf();
+      if (result.ok) download(result.filename, result.bytes!);
+      else alert(`خطای برگهٔ ابعاد: ${result.error}`);
+    } catch (error) { alert(`بارگذاری خروجی PDF ناموفق بود: ${String(error)}`); }
+    finally { setPdfBusy(false); }
   };
 
   const [zipBusy, setZipBusy] = useState(false);
@@ -439,7 +445,7 @@ export function App() {
       text('BOM.txt', buildBom());
       files.push({ path: exportName(profileMode, 'project', 'v1', 'patturn'),
         bytes: encodeEditorProject({ profileMode, segments, wall, shrink, fill, patternId, tileSize }) });
-      const dimensionPdf = makeDimensionPdf();
+      const dimensionPdf = await makeDimensionPdf();
       if (!dimensionPdf.ok) throw new Error(dimensionPdf.error);
       files.push({ path: `dimensions/${dimensionPdf.filename}`, bytes: dimensionPdf.bytes! });
       const pattern = toSvg(patternPaths, 300, 300);
@@ -649,8 +655,8 @@ export function App() {
                 ⬇ STL سه‌بعدی (اعتبارسنجی‌شده)</button></div>
               <div className="ctl"><button className="btn" style={{ width: '100%' }} onClick={doExportSvg}>
                 ⬇ SVG الگوی تخت ۳۰۰×۳۰۰mm</button></div>
-              <div className="ctl"><button className="btn" disabled={!formMesh} onClick={exportDimensionPdf}>
-                ⬇ PDF برگهٔ ابعاد A4 — مقیاس ۱:۱</button></div>
+              <div className="ctl"><button className="btn" disabled={!formMesh || pdfBusy} onClick={() => void exportDimensionPdf()}>
+                {pdfBusy ? '⏳ در حال آماده‌سازی PDF…' : '⬇ PDF برگهٔ ابعاد A4 — مقیاس ۱:۱'}</button></div>
               <div className="hint">چاپ با اندازهٔ واقعی ۱۰۰٪؛ Fit to page خاموش. خط‌کش ۱۰۰mm را کنترل کنید.
                 فرم‌های بزرگ چندصفحه‌ای هستند و کوچک نمی‌شوند.</div>
               <div className="ctl"><button className="btn" disabled={!formMesh} onClick={() => exportObj('form')}>⬇ OBJ فرم با رنگ رأس</button></div>
@@ -750,6 +756,7 @@ export function App() {
 
         {/* ── center: viewport ── */}
         <section className="viewport">
+          <Suspense fallback={<div className="hint" role="status">در حال بارگذاری نمایشگر سه‌بعدی…</div>}>
           <Viewport
             mesh={mesh}
             mode={part === 'mold' ? 'mold' : 'form'}
@@ -757,6 +764,7 @@ export function App() {
               ? { paths: patternPaths, tileW: tileSize, strokeMm: typeof patternDef.defaults['stroke'] === 'number' ? patternDef.defaults['stroke'] : 1.5 }
               : null}
           />
+          </Suspense>
 
           {part === 'pattern' && (
             <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: '#14110e' }}>

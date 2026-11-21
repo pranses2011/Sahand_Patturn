@@ -16,7 +16,8 @@
     "dev": "npm run dev -w @patturn/web",
     "desktop:dev": "npm run tauri dev -w @patturn/desktop",
     "desktop:build": "npm run tauri build -w @patturn/desktop",
-    "desktop:check": "npm run tauri -w @patturn/desktop -- build --no-bundle"
+    "desktop:check": "npm run tauri -w @patturn/desktop -- build --no-bundle",
+    "bundle:report": "node scripts/bundle-report.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

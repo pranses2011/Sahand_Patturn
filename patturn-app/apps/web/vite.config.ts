@@ -17,5 +17,5 @@ export default defineConfig({
     strictPort: false,
     allowedHosts: true as unknown as string[], // allow preview tunnel hosts
   },
-  build: { outDir: 'dist', sourcemap: false },
+  build: { outDir: 'dist', sourcemap: false, manifest: true },
 });

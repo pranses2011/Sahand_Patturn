@@ -13,7 +13,7 @@ permissions:
   contents: read
 concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   web:
     name: Tests and web build
@@ -33,6 +33,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run bundle:report
   windows:
     name: Windows executable compile (not installation test)
     runs-on: windows-latest
