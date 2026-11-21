@@ -1,3 +1,4 @@
+import { createPatternCanvas } from './pattern-canvas';
 import { useEditorMode } from './useEditorMode';
 import { EditorNavigation, type EditorSection as Part } from './EditorNavigation';
 import { NumericControl } from './NumericControl';
@@ -30,7 +31,7 @@ import {
 import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES, EditorHistory, ParameterHistory, desktopFiles, isDesktop, desktopBackups, type BackupEntry, type HistoryEntry } from '@patturn/storage';
 import type { EditorState } from '@patturn/schema';
 import { unwrapCylinder } from '@patturn/kernel';
-import { PATTERNS, type PatternContext } from '@patturn/patterns';
+import { PATTERNS } from '@patturn/patterns';
 import { toBinaryStl, toSvg, toDxf, exportName, toBuildZip, toDimensionPdf, toObj, type ObjPart, type BuildBundle } from '@patturn/exporters';
 import { AUTHOR, PLANS } from '@patturn/config';
 const Viewport = lazy(() => import('./Viewport').then((module) => ({ default: module.Viewport })));
@@ -354,14 +355,7 @@ export function App() {
   const patternDef = useMemo(() => PATTERNS.find((p) => p.id === patternId) ?? PATTERNS[0]!, [patternId]);
   const previewPattern = usePreviewPattern(patternDef, tileSize);
   const patternStrokeMm = previewPattern.strokeMm;
-  const patternPaths = useMemo(() => {
-    const def = patternDef;
-    const ctx: PatternContext = {
-      canvasW: 300, canvasH: 300, tileW: tileSize, tileH: tileSize, seed: 42,
-      params: { ...def.defaults },
-    };
-    return def.build(ctx);
-  }, [patternDef, tileSize]);
+  const getPatternPaths = useMemo(() => createPatternCanvas(patternDef, tileSize), [patternDef, tileSize]);
 
   // cylindrical unwrap of the form for this tile size (distortion index, checklist 4.8)
   const unwrapInfo = useMemo(
@@ -478,7 +472,7 @@ export function App() {
   const zipController = useRef<AbortController | null>(null);
   // Cancel a pending export if any captured geometry/pattern source is replaced.
   useEffect(() => () => { zipController.current?.abort(); },
-    [formMesh, moldParts, motherResults, barrierResult, patternPaths, shrink]);
+    [formMesh, moldParts, motherResults, barrierResult, getPatternPaths, shrink]);
 
   const exportBuildZip = async () => {
     if (!formMesh || !moldParts || !splitPlan || moldBusy || zipBusy || motherBusy || barrierRequest !== null) return;
@@ -509,7 +503,7 @@ export function App() {
       const dimensionPdf = await makeDimensionPdf();
       if (!dimensionPdf.ok) throw new Error(dimensionPdf.error);
       files.push({ path: `dimensions/${dimensionPdf.filename}`, bytes: dimensionPdf.bytes! });
-      const pattern = toSvg(patternPaths, 300, 300, { strokeMm: patternStrokeMm });
+      const pattern = toSvg(getPatternPaths(), 300, 300, { strokeMm: patternStrokeMm });
       if (!pattern.ok) throw new Error(pattern.error);
       files.push({ path: `pattern/${pattern.filename}`, bytes: pattern.bytes! });
       files.push({ path: 'parameters.json', bytes: new TextEncoder().encode(JSON.stringify({
@@ -542,7 +536,7 @@ export function App() {
         { path: `obj/${exportName(`mold-${profileMode}`, 'assembly', 'mm', 'obj')}`, parts: moldObjParts() },
       ];
       const dxfPatterns: NonNullable<BuildBundle['dxfPatterns']> = [{
-        path: `pattern/${exportName('pattern', 'flat', 'mm', 'dxf')}`, paths: patternPaths,
+        path: `pattern/${exportName('pattern', 'flat', 'mm', 'dxf')}`, paths: getPatternPaths(),
         bounds: { width: 300, height: 300 }, bezierToleranceMm: 0.05,
       }];
       const result = await toBuildZip({ project: profileMode, meshes, assemblies, files, instructions, dxfPatterns }, controller.signal);
@@ -558,7 +552,7 @@ export function App() {
   };
 
   const doExportDxf = () => {
-    const res = toDxf(patternPaths, { width: 300, height: 300 }, { bezierToleranceMm: 0.05 });
+    const res = toDxf(getPatternPaths(), { width: 300, height: 300 }, { bezierToleranceMm: 0.05 });
     if (!res.ok) {
       setProjectError('خروجی DXF ساخته نشد: این نسخه مسیر نامعتبر یا پشتیبانی‌نشده است یا تقریب منحنی به تلورانس نرسید. از SVG استفاده کنید.');
       return;
@@ -567,7 +561,7 @@ export function App() {
   };
 
   const doExportSvg = () => {
-    const res = toSvg(patternPaths, 300, 300, { strokeMm: patternStrokeMm });
+    const res = toSvg(getPatternPaths(), 300, 300, { strokeMm: patternStrokeMm });
     if (!res.ok) { setProjectError(`خروجی SVG ناموفق بود: ${res.error}`); return; }
     download(res.filename, res.bytes!);
     setProjectError(null);
@@ -835,7 +829,7 @@ export function App() {
           </Suspense></ViewportBoundary>}
 
           {part === 'pattern' && patternView === 'flat' && (
-            <FlatPatternPreview paths={patternPaths} strokeMm={patternStrokeMm} />
+            <FlatPatternPreview paths={getPatternPaths()} strokeMm={patternStrokeMm} />
           )}
 
           {/* 2D profile strip */}
