@@ -57,3 +57,20 @@ test('numeric draft supports clearing, decimal typing, escape and committed undo
   await shrink.press('Enter');await expect(page.locator('footer')).toContainText('Shrink 12.5%');
   await page.getByRole('button',{name:/^واگرد/}).click();await expect(shrink).toHaveValue('12');
 });
+
+test('section navigation works with Tab, Enter and Space and reports the current section',async({page})=>{
+  await page.goto('/');
+  const nav=page.getByRole('navigation',{name:'بخش‌های طراحی',exact:true});
+  const form=nav.getByRole('button',{name:'🏺 فرم',exact:true});
+  await expect(form).toHaveAttribute('aria-current','page');
+  await form.focus();await page.keyboard.press('Tab');
+  const pattern=nav.getByRole('button',{name:'🔷 الگو',exact:true});
+  await expect(pattern).toBeFocused();await page.keyboard.press('Enter');
+  await expect(pattern).toHaveAttribute('aria-current','page');
+  await expect(page.getByRole('img',{name:'پیش‌نمایش تخت الگو روی بوم ۳۰۰ در ۳۰۰ میلی‌متر'})).toBeVisible();
+  await page.keyboard.press('Tab');
+  const mold=nav.getByRole('button',{name:'🧱 قالب',exact:true});
+  await expect(mold).toBeFocused();await page.keyboard.press('Space');
+  await expect(mold).toHaveAttribute('aria-current','page');
+  await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+});

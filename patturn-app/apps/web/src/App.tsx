@@ -1,3 +1,4 @@
+import { EditorNavigation, type EditorSection as Part } from './EditorNavigation';
 import { NumericControl } from './NumericControl';
 import { usePreviewPattern } from './usePreviewPattern';
 import { useFileDelivery, type DeliveryOutcome } from './useFileDelivery';
@@ -33,7 +34,6 @@ import { toBinaryStl, toSvg, toDxf, exportName, toBuildZip, toDimensionPdf, toOb
 import { AUTHOR, PLANS } from '@patturn/config';
 const Viewport = lazy(() => import('./Viewport').then((module) => ({ default: module.Viewport })));
 
-type Part = 'form' | 'pattern' | 'mold' | 'export';
 type ProfileMode = 'reference' | 'bucket' | 'vase';
 
 const PRESETS: Record<ProfileMode, Profile> = {
@@ -639,18 +639,7 @@ export function App() {
         {/* ── left: parts ── */}
         <aside className="panel left">
           <h3 className="sec">🧩 قطعات</h3>
-          <ul className="parts">
-            {([
-              ['form', '🏺 فرم', 'Form'],
-              ['pattern', '🔷 الگو', 'Pattern'],
-              ['mold', '🧱 قالب', 'Mold'],
-              ['export', '📤 خروجی', 'Export'],
-            ] as [Part, string, string][]).map(([id, label]) => (
-              <li key={id} className={part === id ? 'active' : ''} onClick={() => setPart(id)}>
-                <span>{label}</span>
-              </li>
-            ))}
-          </ul>
+          <EditorNavigation section={part} onChange={setPart} />
 
           {part === 'form' && (
             <>
