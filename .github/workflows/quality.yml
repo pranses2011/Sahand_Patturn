@@ -35,7 +35,7 @@ jobs:
       - run: npm run build
       - run: npm run bundle:report
   windows:
-    name: Windows executable compile (not installation test)
+    name: Windows compile and NSIS package (not installation test)
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -71,3 +71,17 @@ jobs:
           path: |
             patturn-app/apps/desktop/src-tauri/target/release/patturn-desktop.exe
             patturn-app/apps/desktop/src-tauri/Cargo.lock
+      - name: Build unsigned NSIS test installer
+        run: npm run desktop:installer
+      - name: Generate checksums and test guide
+        run: npm run installer:checksums
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-nsis-test
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+            patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+            patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/README-WINDOWS-TEST.txt
+            patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/build-info.json
