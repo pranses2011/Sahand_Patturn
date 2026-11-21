@@ -1,3 +1,4 @@
+import { PatternViewSwitch, FlatPatternPreview, type PatternView } from './PatternPreview';
 import { SavedPatterns } from './SavedPatterns';
 import { PatternLibrary } from './PatternLibrary';
 import { ParameterHelp, type HelpTopic } from './ParameterHelp';
@@ -88,6 +89,7 @@ export function App() {
     }).catch((error) => { if (!cancelled) setBackupError(String(error)); });
     return () => { cancelled = true; };
   }, []);
+  const [patternView, setPatternView] = useState<PatternView>('flat');
   const [editorMode, setEditorMode] = useState<EditorMode>('simple');
   const [part, setPart] = useState<Part>('form');
   const [profileMode, setProfileMode] = useState<ProfileMode>(startup.state.profileMode);
@@ -665,6 +667,7 @@ export function App() {
           {part === 'pattern' && (
             <>
               <h3 className="sec">کتابخانهٔ الگو</h3>
+              <PatternViewSwitch value={patternView} onChange={setPatternView} />
               <PatternLibrary selectedId={patternId} onSelect={(id) => { setPatternId(id); markDirty(); }} />
               <SavedPatterns patternId={patternId} tileSize={tileSize} onApply={(recipe) => {
                 parameterHistory.endGroup(); setPatternId(recipe.patternId); setTileSize(recipe.tileSize); markDirty();
@@ -827,7 +830,7 @@ export function App() {
 
         {/* ── center: viewport ── */}
         <section className="viewport">
-          <Suspense fallback={<div className="hint" role="status">در حال بارگذاری نمایشگر سه‌بعدی…</div>}>
+          {(part !== 'pattern' || patternView === 'surface') && <Suspense fallback={<div className="hint" role="status">در حال بارگذاری نمایشگر سه‌بعدی…</div>}>
           <Viewport
             mesh={mesh}
             mode={part === 'mold' ? 'mold' : 'form'}
@@ -835,18 +838,10 @@ export function App() {
               ? { paths: patternPaths, tileW: tileSize, strokeMm: patternStrokeMm }
               : null}
           />
-          </Suspense>
+          </Suspense>}
 
-          {part === 'pattern' && (
-            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: '#14110e' }}>
-              <svg width="420" height="420" viewBox="0 0 300 300" style={{ background: '#f7f3ec', borderRadius: 12 }}>
-                {patternPaths.map((p, i) => (
-                  <path key={i} d={p.d}
-                    fill={p.fill ? '#1c1917' : 'none'}
-                    stroke={p.fill ? 'none' : '#c4622d'} strokeWidth={patternStrokeMm} strokeLinecap="round" strokeLinejoin="round" />
-                ))}
-              </svg>
-            </div>
+          {part === 'pattern' && patternView === 'flat' && (
+            <FlatPatternPreview paths={patternPaths} strokeMm={patternStrokeMm} />
           )}
 
           {/* 2D profile strip */}

@@ -119,3 +119,7 @@ h3.sec { font-size: 13px; color: var(--clay-dark); margin: 18px 0 10px; letter-s
 .saved-patterns input { width: 100%; margin-block: 6px; padding: 6px; }
 .saved-patterns ul { list-style: none; padding: 0; overflow-wrap: anywhere; }
 .saved-patterns li { padding-block: 8px; border-bottom: 1px solid var(--line); }
+.pattern-view-switch { margin: 0 0 14px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+.pattern-view-switch label { display: block; padding-block: 4px; cursor: pointer; }
+.flat-pattern-preview { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: #14110e; }
+.flat-pattern-preview svg { display: block; width: min(100%, 520px); max-height: 100%; aspect-ratio: 1; background: var(--bg); border-radius: 12px; }
