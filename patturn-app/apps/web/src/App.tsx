@@ -13,6 +13,7 @@ import {
   type Profile,
 } from '@patturn/kernel';
 import { analyzeUndercut, keyTopRadius, initCsg, buildSingleMold } from '@patturn/molds';
+import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
 import { toBinaryStl, toSvg } from '@patturn/exporters';
 import { AUTHOR, PLANS } from '@patturn/config';
@@ -109,14 +110,21 @@ export function App() {
   const undercut = useMemo(() => analyzeUndercut(profile), [profile]);
 
   // pattern canvas paths (SVG preview)
+  const patternDef = useMemo(() => PATTERNS.find((p) => p.id === patternId) ?? PATTERNS[0]!, [patternId]);
   const patternPaths = useMemo(() => {
-    const def = PATTERNS.find((p) => p.id === patternId) ?? PATTERNS[0]!;
+    const def = patternDef;
     const ctx: PatternContext = {
       canvasW: 300, canvasH: 300, tileW: tileSize, tileH: tileSize, seed: 42,
       params: { ...def.defaults },
     };
     return def.build(ctx);
-  }, [patternId, tileSize]);
+  }, [patternDef, tileSize]);
+
+  // cylindrical unwrap of the form for this tile size (distortion index, checklist 4.8)
+  const unwrapInfo = useMemo(
+    () => (formMesh ? unwrapCylinder(formMesh, { tileW: tileSize }) : null),
+    [formMesh, tileSize],
+  );
 
   const markDirty = useCallback(() => setSaved(false), []);
 
@@ -221,6 +229,20 @@ export function App() {
                   </label>
                 </div>
               ))}
+              <h3 className="sec">نگاشت روی فرم (unwrap استوانه‌ای)</h3>
+              <div className="hint">
+                {unwrapInfo ? (
+                  <>
+                    شاخص اعوجاج: <b>{(unwrapInfo.distortion * 100).toFixed(1)}٪</b>
+                    {' '}(میانگین {(unwrapInfo.meanDistortion * 100).toFixed(1)}٪)
+                    <br />تعداد کاشی دور فرم: <b>{unwrapInfo.tileCount}</b>
+                    {' '}× {tileSize}mm = {unwrapInfo.circumference.toFixed(1)}mm محیط مرجع
+                    <br /> seam بدون پارگی بافت (continuity per-triangle)
+                  </>
+                ) : (
+                  'فرم بارگذاری نشده'
+                )}
+              </div>
             </>
           )}
 
@@ -266,7 +288,13 @@ export function App() {
 
         {/* ── center: viewport ── */}
         <section className="viewport">
-          <Viewport mesh={part === 'pattern' ? null : mesh} mode={part === 'mold' ? 'mold' : 'form'} />
+          <Viewport
+            mesh={mesh}
+            mode={part === 'mold' ? 'mold' : 'form'}
+            pattern={part === 'pattern' && patternDef
+              ? { paths: patternPaths, tileW: tileSize, strokeMm: typeof patternDef.defaults['stroke'] === 'number' ? patternDef.defaults['stroke'] : 1.5 }
+              : null}
+          />
 
           {part === 'pattern' && (
             <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: '#14110e' }}>

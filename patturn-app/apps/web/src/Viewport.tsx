@@ -1,15 +1,47 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { Mesh } from '@patturn/kernel';
+import { unwrapCylinder, type Mesh } from '@patturn/kernel';
+import type { Path } from '@patturn/patterns';
 
 interface Props {
   mesh: Mesh | null;
   mode: 'form' | 'mold';
+  /** when set, the pattern is wrapped onto the form (cylindrical UV) */
+  pattern?: { paths: Path[]; tileW: number; strokeMm: number } | null;
+}
+
+/** Rasterise one pattern tile (mm) to a repeating canvas texture. */
+function buildPatternTexture(paths: Path[], tileW: number, strokeMm: number): THREE.Texture {
+  const pxPerMm = Math.min(16, Math.max(2, Math.round(512 / tileW)));
+  const size = Math.round(tileW * pxPerMm);
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.scale(size / tileW, size / tileW); // work in mm
+  ctx.fillStyle = '#1c1917';
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = strokeMm;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  for (const p of paths) {
+    const path = new Path2D(p.d);
+    if (p.fill) ctx.fill(path);
+    else ctx.stroke(path);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
 }
 
 /** three.js viewport: dark studio, mm grid, clay-colored form. */
-export function Viewport({ mesh, mode }: Props) {
+export function Viewport({ mesh, mode, pattern }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<{
     renderer?: THREE.WebGLRenderer;
@@ -87,22 +119,24 @@ export function Viewport({ mesh, mode }: Props) {
     };
   }, []);
 
-  // swap geometry when mesh changes
+  // swap geometry when mesh / pattern changes
   useEffect(() => {
     const st = stateRef.current;
     if (!st.scene) return;
     if (st.current) {
       st.scene.remove(st.current);
       st.current.geometry.dispose();
-      (st.current.material as THREE.Material).dispose();
+      const oldMat = st.current.material as THREE.Material;
+      if (st.current.userData['tex']) (st.current.userData['tex'] as THREE.Texture).dispose();
+      oldMat.dispose();
       st.current = undefined;
     }
     if (!mesh) return;
 
-    const geo = new THREE.BufferGeometry();
+    let geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(mesh.positions, 3));
     geo.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
-    geo.computeVertexNormals();
+    geo.computeVertexNormals(); // smooth normals while still indexed
 
     const mat = new THREE.MeshStandardMaterial({
       color: mode === 'mold' ? 0xb8b0a4 : 0xc4622d,
@@ -111,10 +145,31 @@ export function Viewport({ mesh, mode }: Props) {
       side: THREE.DoubleSide,
       flatShading: false,
     });
+
+    let tex: THREE.Texture | undefined;
+    if (pattern && mode === 'form') {
+      // cylindrical unwrap → per-corner UVs (seam-safe) → de-indexed geometry
+      const un = unwrapCylinder(mesh, { tileW: pattern.tileW });
+      geo = geo.toNonIndexed();
+      const nCorner = geo.attributes['position']!.count;
+      const uv = new Float32Array(nCorner * 2);
+      const scale = 1 / pattern.tileW; // mm → tile units for RepeatWrapping
+      for (let i = 0; i < nCorner; i++) {
+        uv[i * 2] = un.cornerUvs[i * 2]! * scale;
+        uv[i * 2 + 1] = un.cornerUvs[i * 2 + 1]! * scale;
+      }
+      geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      geo.computeVertexNormals(); // per-corner (still visually smooth enough at 96 seg)
+      tex = buildPatternTexture(pattern.paths, pattern.tileW, pattern.strokeMm);
+      mat.map = tex; // white bg × clay color = clay form; dark lines × clay = dark grooves
+      mat.roughness = 0.6;
+    }
+
     const m = new THREE.Mesh(geo, mat);
+    if (tex) m.userData['tex'] = tex;
     st.scene.add(m);
     st.current = m;
-  }, [mesh, mode]);
+  }, [mesh, mode, pattern]);
 
   return <div ref={hostRef} style={{ position: 'absolute', inset: 0 }} />;
 }
