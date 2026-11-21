@@ -7,7 +7,7 @@
     "beforeDevCommand": "npm run dev -w @patturn/web",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "npm run build -w @patturn/web",
-    "frontendDist": "../web/dist"
+    "frontendDist": "../../web/dist"
   },
   "app": {
     "windows": [
@@ -18,7 +18,8 @@
         "minWidth": 960,
         "minHeight": 640,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "label": "main"
       }
     ],
     "security": {
@@ -27,14 +28,24 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
-    "icon": ["icons/icon.ico"],
+    "targets": [
+      "nsis",
+      "msi"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["Persian", "English"]
+        "languages": [
+          "Persian",
+          "English"
+        ]
       },
-      "webviewInstallMode": { "type": "downloadBootstrapper" }
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
     }
   },
   "plugins": {

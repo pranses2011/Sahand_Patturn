@@ -17,7 +17,7 @@ import {
   chooseSplitPlanes, buildSplitMold, buildMotherMold, plasterForCavity, motherAssemblyGuide,
   type SplitPlan, type MotherMoldResult, type OffsetBarrierResult,
 } from '@patturn/molds';
-import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES, EditorHistory, type HistoryEntry } from '@patturn/storage';
+import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES, EditorHistory, desktopFiles, isDesktop, type HistoryEntry } from '@patturn/storage';
 import type { EditorState } from '@patturn/schema';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
@@ -42,12 +42,18 @@ const PRESETS: Record<ProfileMode, Profile> = {
 };
 
 function download(name: string, bytes: Uint8Array) {
-  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' });
+  if (isDesktop()) {
+    void desktopFiles().then((files) => files.save(name, bytes)).catch((error) => {
+      alert(`ذخیرهٔ فایل ناموفق بود: ${String(error).slice(0, 220)}`);
+    });
+    return;
+  }
+  const blob = new Blob([bytes.slice().buffer], { type: 'application/octet-stream' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 const DEFAULT_EDITOR: EditorState = {
@@ -102,15 +108,22 @@ export function App() {
       setProjectError(null);
     } catch (error) { setProjectError(`ذخیرهٔ پروژه ناموفق بود: ${String(error)}`); }
   };
-  const openProjectFile = async (file: File) => {
+  const applyProjectBytes = (bytes: Uint8Array) => {
+    const state = decodeEditorProject(bytes, PATTERNS.map((p) => p.id));
+    if (!window.confirm('تنظیمات فعلی با فایل انتخاب‌شده جایگزین شود؟ برای نگه‌داشتن وضعیت فعلی ابتدا آن را ذخیره کنید.')) return;
+    applyEditorState(state);
+  };
+  const openProjectFile = async (file?: File) => {
     setProjectLoading(true);
     setProjectError(null);
     try {
-      if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('PROJECT_FILE_TOO_LARGE');
-      const state = decodeEditorProject(new Uint8Array(await file.arrayBuffer()), PATTERNS.map((p) => p.id));
-      if (!window.confirm('تنظیمات فعلی با فایل انتخاب‌شده جایگزین شود؟ برای نگه‌داشتن وضعیت فعلی ابتدا آن را ذخیره کنید.')) return;
-      // One validated state, applied as a batched React update; derived meshes regenerate.
-      applyEditorState(state);
+      if (file) {
+        if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('PROJECT_FILE_TOO_LARGE');
+        applyProjectBytes(new Uint8Array(await file.arrayBuffer()));
+      } else {
+        const bytes = await (await desktopFiles()).openProject();
+        if (bytes !== null) applyProjectBytes(bytes);
+      }
     } catch (error) { setProjectError(`فایل پروژه باز نشد؛ تنظیمات فعلی تغییر نکرد: ${String(error).slice(0, 220)}`); }
     finally { setProjectLoading(false); }
   };
@@ -476,7 +489,7 @@ export function App() {
             const file = event.target.files?.[0]; event.target.value = '';
             if (file) void openProjectFile(file);
           }} />
-        <button className="btn" disabled={projectLoading} onClick={() => projectInput.current?.click()}>
+        <button className="btn" disabled={projectLoading} onClick={() => { if (isDesktop()) void openProjectFile(); else projectInput.current?.click(); }}>
           {projectLoading ? 'در حال خواندن…' : 'بازکردن پروژه'}</button>
         <button className="btn" onClick={saveProjectFile}>ذخیرهٔ فایل پروژه</button>
         <button className="btn" onClick={doExportSvg}>خروجی SVG الگو</button>
