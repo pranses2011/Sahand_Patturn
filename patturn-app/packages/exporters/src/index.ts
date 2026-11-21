@@ -98,3 +98,4 @@ export function toDxf(paths: { d: string; fill?: boolean }[]): ExportResult {
 }
 
 export * from './bundle.js';
+export * from './dimensions.js';

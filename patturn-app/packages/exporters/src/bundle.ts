@@ -36,7 +36,7 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     }
     for (const item of input.files ?? []) {
       // Extra files must not bypass STL validation or introduce arbitrary archives.
-      if (!/\.(txt|json|svg)$/i.test(item.path)) throw new Error('BUNDLE_EXTRA_EXTENSION');
+      if (!/\.(txt|json|svg|pdf)$/i.test(item.path)) throw new Error('BUNDLE_EXTRA_EXTENSION');
       add(item.path, item.bytes);
     }
     entries.set('README.txt', strToU8('\uFEFF' + input.instructions));

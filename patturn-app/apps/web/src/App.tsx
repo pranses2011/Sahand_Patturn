@@ -19,7 +19,7 @@ import {
 } from '@patturn/molds';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
-import { toBinaryStl, toSvg, exportName, toBuildZip, type BuildBundle } from '@patturn/exporters';
+import { toBinaryStl, toSvg, exportName, toBuildZip, toDimensionPdf, type BuildBundle } from '@patturn/exporters';
 import { AUTHOR, PLANS } from '@patturn/config';
 import { Viewport } from './Viewport';
 
@@ -271,6 +271,20 @@ export function App() {
     if (text) download(exportName(`mold-${profileMode}`, 'BOM', 'mm', 'txt'), new TextEncoder().encode('\uFEFF' + text));
   };
 
+  const makeDimensionPdf = () => toDimensionPdf(profile, {
+    project: profileMode,
+    parameters: [
+      { label: 'تعداد قطعات قالب', value: String(splitPlan?.parts ?? '-') },
+      { label: 'جبران انقباض قالب ـ درصد', value: String(shrink) },
+      { label: 'تقسیمات مش', value: String(segments) },
+    ],
+  });
+  const exportDimensionPdf = () => {
+    const result = makeDimensionPdf();
+    if (result.ok) download(result.filename, result.bytes!);
+    else alert(`خطای برگهٔ ابعاد: ${result.error}`);
+  };
+
   const [zipBusy, setZipBusy] = useState(false);
   const [zipError, setZipError] = useState<string | null>(null);
   const zipController = useRef<AbortController | null>(null);
@@ -302,6 +316,9 @@ export function App() {
         files.push({ path: 'mother-offset/report.json', bytes: new TextEncoder().encode(JSON.stringify({ moldPart: barrierResult.index + 1, ...metadata }, null, 2)) });
       }
       text('BOM.txt', buildBom());
+      const dimensionPdf = makeDimensionPdf();
+      if (!dimensionPdf.ok) throw new Error(dimensionPdf.error);
+      files.push({ path: `dimensions/${dimensionPdf.filename}`, bytes: dimensionPdf.bytes! });
       const pattern = toSvg(patternPaths, 300, 300);
       files.push({ path: `pattern/${pattern.filename}`, bytes: pattern.bytes! });
       files.push({ path: 'parameters.json', bytes: new TextEncoder().encode(JSON.stringify({
@@ -315,6 +332,7 @@ export function App() {
         `فرم: ${profileMode}؛ تعداد قطعات گچی: ${moldParts.length}؛ جبران انقباض: ${shrink}%`,
         'form/: فرم اصلی بدون جبران انقباض. parts/: قالب گچی با جبران انقباض؛ فاصله‌گذاری نمایشی صادر نشده است.',
         'BOM.txt: برآورد گچ و آب، بدون پرت. pattern/: الگوی تخت ۳۰۰×۳۰۰mm؛ نگاشت برجسته روی STL اعمال نشده است.',
+        'dimensions/: برگهٔ ابعاد PDF آ۴؛ چاپ اندازهٔ واقعی ۱۰۰٪، خاموش‌کردن Fit to page و اندازه‌گیری خط‌کش ۱۰۰mm الزامی است.',
         'parameters.json: ثبت تنظیمات مؤثر خروجی؛ فایل پروژهٔ قابل بازیابی در برنامه نیست.',
         `محفظهٔ جعبه‌ای صادرشده: ${motherResults?.length ?? 0} از ${moldParts.length} قطعه.`,
         `مادرقالب هم‌فاصلهٔ صادرشده: ${barrierResult ? `فقط قطعهٔ ${barrierResult.index + 1}` : 'هیچ‌کدام؛ هنوز ساخته نشده است'}.`,
@@ -471,6 +489,10 @@ export function App() {
                 ⬇ STL سه‌بعدی (اعتبارسنجی‌شده)</button></div>
               <div className="ctl"><button className="btn" style={{ width: '100%' }} onClick={doExportSvg}>
                 ⬇ SVG الگوی تخت ۳۰۰×۳۰۰mm</button></div>
+              <div className="ctl"><button className="btn" disabled={!formMesh} onClick={exportDimensionPdf}>
+                ⬇ PDF برگهٔ ابعاد A4 — مقیاس ۱:۱</button></div>
+              <div className="hint">چاپ با اندازهٔ واقعی ۱۰۰٪؛ Fit to page خاموش. خط‌کش ۱۰۰mm را کنترل کنید.
+                فرم‌های بزرگ چندصفحه‌ای هستند و کوچک نمی‌شوند.</div>
               <h3 className="sec">قطعات قالب</h3>
               {moldBusy && <div className="hint">⏳ در حال ساخت قطعات قالب…</div>}
               {!moldBusy && moldParts?.map((_, i) => (

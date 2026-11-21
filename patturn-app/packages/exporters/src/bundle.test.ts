@@ -1,22 +1,26 @@
 import { describe, it, expect } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
 import { referenceOuterProfile, revolve } from '@patturn/kernel';
-import { toBuildZip, type BuildBundle } from './index.js';
+import { toBuildZip, toDimensionPdf, type BuildBundle } from './index.js';
 const mesh = revolve(referenceOuterProfile(8), { segments: 16, closeBottom: true, closeTop: true });
 const input = (): BuildBundle => ({ project: 'گلدان', meshes: [{ path: 'parts/part-1.stl', mesh }], instructions: 'راهنمای فارسی؛ واحد mm', files: [{ path: 'BOM.txt', bytes: new TextEncoder().encode('گچ و آب') }] });
 
 describe('Build ZIP', () => {
   it('Z1: round-trip archive contains validated STL, UTF-8 guide, BOM and manifest', async () => {
-    const out = await toBuildZip(input());
+    const data = input();
+    const pdf = toDimensionPdf(referenceOuterProfile(8));
+    data.files!.push({ path: 'dimensions/profile.pdf', bytes: pdf.bytes! });
+    const out = await toBuildZip(data);
     expect(out.ok, out.error).toBe(true);
     const entries = unzipSync(out.bytes!);
-    expect(Object.keys(entries).sort()).toEqual(['BOM.txt', 'README.txt', 'manifest.json', 'parts/part-1.stl']);
+    expect(Object.keys(entries).sort()).toEqual(['BOM.txt', 'README.txt', 'dimensions/profile.pdf', 'manifest.json', 'parts/part-1.stl']);
     expect(strFromU8(entries['README.txt']!)).toContain('راهنمای فارسی');
     const stl = entries['parts/part-1.stl']!;
     expect(stl.length).toBe(84 + mesh.indices.length / 3 * 50);
     const manifest = JSON.parse(strFromU8(entries['manifest.json']!));
     expect(manifest.stlValidated).toBe(true);
     expect(manifest.units).toBe('mm');
+    expect(entries['dimensions/profile.pdf']).toEqual(pdf.bytes);
     for (const file of manifest.files) expect(entries[file.path]!.length).toBe(file.bytes);
   });
   it('Z2: deterministic bytes for identical input', async () => {
