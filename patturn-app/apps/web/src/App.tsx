@@ -122,6 +122,8 @@ export function App() {
   const projectInput = useRef<HTMLInputElement | null>(null);
   const [projectError, setProjectError] = useState<string | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
+  const projectRead = useRef<AbortController | null>(null);
+  useEffect(() => () => { projectRead.current?.abort(); }, []);
   const applyEditorState = (state: EditorState, resetPart = true) => {
     parameterHistory.endGroup();
     setProfileMode(state.profileMode); setSegments(state.segments); setWall(state.wall);
@@ -188,18 +190,26 @@ export function App() {
     applyEditorState(state);
   };
   const openProjectFile = async (file?: File) => {
+    if (projectRead.current) return;
+    const controller = new AbortController();
+    projectRead.current = controller;
     setProjectLoading(true);
     setProjectError(null);
     try {
       if (file) {
         if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('PROJECT_FILE_TOO_LARGE');
-        applyProjectBytes(new Uint8Array(await file.arrayBuffer()));
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (!controller.signal.aborted) applyProjectBytes(bytes);
       } else {
         const bytes = await (await desktopFiles()).openProject();
-        if (bytes !== null) applyProjectBytes(bytes);
+        if (bytes !== null && !controller.signal.aborted) applyProjectBytes(bytes);
       }
-    } catch (error) { setProjectError(`فایل پروژه باز نشد؛ تنظیمات فعلی تغییر نکرد: ${String(error).slice(0, 220)}`); }
-    finally { setProjectLoading(false); }
+    } catch (error) {
+      if (!controller.signal.aborted) setProjectError(`فایل پروژه باز نشد؛ تنظیمات فعلی تغییر نکرد: ${String(error).slice(0, 220)}`);
+    } finally {
+      if (projectRead.current === controller) projectRead.current = null;
+      setProjectLoading(false);
+    }
   };
 
   const profile = useMemo(() => PRESETS[profileMode], [profileMode]);
@@ -602,13 +612,17 @@ export function App() {
         <button className="btn history-command" disabled={!parameterHistory.canRedo} aria-keyshortcuts="Control+Y Control+Shift+Z Meta+Shift+Z"
           title={parameterHistory.redoTitle ?? 'چیزی برای ازنو نیست'} onClick={() => stepParameterHistory('redo')}>
           ازنو{parameterHistory.redoTitle ? `: ${parameterHistory.redoTitle}` : ''}</button>
-        <input ref={projectInput} type="file" accept=".patturn" hidden aria-label="انتخاب فایل پروژه"
+        <input ref={projectInput} disabled={projectLoading} type="file" accept=".patturn" hidden aria-label="انتخاب فایل پروژه"
           onChange={(event) => {
             const file = event.target.files?.[0]; event.target.value = '';
             if (file) void openProjectFile(file);
           }} />
         <button className="btn" disabled={projectLoading} onClick={() => { if (isDesktop()) void openProjectFile(); else projectInput.current?.click(); }}>
           {projectLoading ? 'در حال خواندن…' : 'بازکردن پروژه'}</button>
+        {projectLoading && <button className="btn" onClick={() => {
+          projectRead.current?.abort();
+          setProjectError('بازکردن پروژه لغو شد؛ تنظیمات فعلی تغییر نکرد. تا پایان خواندن قبلی، درخواست دیگری پذیرفته نمی‌شود.');
+        }}>لغو بازکردن پروژه</button>}
         <button className="btn" onClick={saveProjectFile}>ذخیرهٔ فایل پروژه</button>
         <button className="btn" onClick={doExportSvg}>خروجی SVG الگو</button>
         <button className="btn primary" onClick={doExportStl}>⬇ خروجی STL فرم</button>

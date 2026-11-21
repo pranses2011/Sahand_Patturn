@@ -449,3 +449,29 @@ test('physical history shortcuts handle Persian key values without intercepting 
   await slider.evaluate((element)=>element.dispatchEvent(new KeyboardEvent('keydown',{key:'ظ',code:'KeyZ',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true})));
   await expect(slider).toHaveValue('5');
 });
+
+test('cancelling a delayed project read preserves current edits and suppresses replacement prompts',async({page})=>{
+  await page.addInitScript(()=>{
+    const original=File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer=async function(){
+      if(this.name==='delayed.patturn')await new Promise<void>((resolve)=>{
+        (window as unknown as {testReleaseProjectRead:()=>void}).testReleaseProjectRead=resolve;
+      });
+      return original.call(this);
+    };
+  });
+  await page.goto('/');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('6');await wall.press('Enter');
+  const event=page.waitForEvent('download');await page.getByRole('button',{name:'ذخیرهٔ فایل پروژه',exact:true}).click();
+  const path=await (await event).path();expect(path).not.toBeNull();const bytes=await readFile(path!);
+  await wall.fill('8');await wall.press('Enter');
+  let dialogs=0;page.on('dialog',async(dialog)=>{dialogs++;await dialog.dismiss();});
+  await page.getByLabel('انتخاب فایل پروژه',{exact:true}).setInputFiles({name:'delayed.patturn',mimeType:'application/octet-stream',buffer:bytes});
+  await page.getByRole('button',{name:'لغو بازکردن پروژه',exact:true}).click();
+  await expect(page.getByRole('alert').filter({hasText:'بازکردن پروژه لغو شد'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'در حال خواندن…',exact:true})).toBeDisabled();
+  await page.evaluate(()=>{(window as unknown as {testReleaseProjectRead:()=>void}).testReleaseProjectRead();});
+  await expect(page.getByRole('button',{name:'بازکردن پروژه',exact:true})).toBeEnabled();
+  await expect(wall).toHaveValue('8');expect(dialogs).toBe(0);
+});
