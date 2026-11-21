@@ -14,8 +14,8 @@ import {
 } from '@patturn/kernel';
 import {
   analyzeUndercut, keyTopRadius, initCsg,
-  chooseSplitPlanes, buildSplitMold, plasterForCavity,
-  type SplitPlan,
+  chooseSplitPlanes, buildSplitMold, buildMotherMold, plasterForCavity,
+  type SplitPlan, type MotherMoldResult,
 } from '@patturn/molds';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
@@ -78,6 +78,30 @@ export function App() {
   const [moldParts, setMoldParts] = useState<Mesh[] | null>(null);
   const [splitPlan, setSplitPlan] = useState<SplitPlan | null>(null);
   const [moldBusy, setMoldBusy] = useState(false);
+  const [motherResults, setMotherResults] = useState<MotherMoldResult[] | null>(null);
+  const [motherBusy, setMotherBusy] = useState(false);
+  const [motherError, setMotherError] = useState<string | null>(null);
+  useEffect(() => {
+    setMotherResults(null);
+    setMotherError(null);
+    setMotherBusy(false);
+  }, [moldParts]);
+  useEffect(() => {
+    if (!motherBusy || !moldParts) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const results: MotherMoldResult[] = [];
+        for (const master of moldParts) results.push(await buildMotherMold(master));
+        if (!cancelled) setMotherResults(results);
+      } catch (e) {
+        if (!cancelled) setMotherError(String(e));
+      } finally {
+        if (!cancelled) setMotherBusy(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [motherBusy, moldParts]);
   useEffect(() => {
     if ((part !== 'mold' && part !== 'export') || !formMesh) {
       setMoldParts(null);
@@ -353,6 +377,29 @@ export function App() {
               ))}
               <div className="ctl"><button className="btn" disabled={moldBusy || !moldParts} onClick={exportBom}>
                 ⬇ فهرست قطعات و مواد (BOM)</button></div>
+              <h3 className="sec">محفظهٔ ریختن سیلیکون</h3>
+              <div className="hint">
+                محفظهٔ جعبه‌ای دوتکه: دیواره ۱۰، فلنج ۱۵ و فاصلهٔ حداقل ۲mm؛ دهانهٔ ریختن ۱۲ و دو هواکش ۴mm.
+                پوستهٔ هم‌فاصله و مانع جداساز مستقل هنوز پیاده نشده‌اند.
+                مهار مکانیکی، آب‌بندی درز و جداساز سطح قبل از ساخت لازم است.
+              </div>
+              <div className="ctl"><button className="btn" disabled={moldBusy || motherBusy || !moldParts}
+                onClick={() => { setMotherError(null); setMotherBusy(true); }}>
+                {motherBusy ? '⏳ در حال ساخت محفظه…' : 'ساخت محفظه برای قطعات گچی'}</button></div>
+              {motherError && <div className="hint" role="alert">⚠️ {motherError}</div>}
+              {motherResults?.map((result, i) => (
+                <div className="ctl" key={`mother-${i}`}>
+                  <div className="hint">قطعهٔ {i + 1}: سیلیکون برآوردی {result.siliconeKg.toFixed(3)} kg
+                    (بدون پرت و راهگاه؛ چگالی ۱٫۱۵ kg/L)</div>
+                  {result.jacket.map((jacket, j) => (
+                    <button className="btn" key={j} onClick={() => {
+                      const output = toBinaryStl(jacket, `mother-${profileMode}-part-${i + 1}-half-${j + 1}`);
+                      if (output.ok) download(output.filename, output.bytes!);
+                      else alert(output.error);
+                    }}>⬇ نیمهٔ {j + 1} محفظه</button>
+                  ))}
+                </div>
+              ))}
               <div className="hint">
                 هر خروجی STL قبل از دانلود روی watertight بودن بررسی میشود.
                 {meshErr && <><br />⚠️ مش فعلی: {meshErr}</>}

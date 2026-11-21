@@ -192,7 +192,7 @@ export async function buildSingleMold(formMesh: Mesh, opts?: Partial<BlockOption
   };
   const man = toManifold(scaled);
   const bb = man.boundingBox();
-  const block = buildBlock({ min: bb.min, max: bb.max, wall: opts?.wall, base: opts?.base });
+  const block = buildBlock({ min: bb.min, max: bb.max, wall: opts?.wall, base: opts?.base, draftDeg: opts?.draftDeg });
   const mold = block.subtract(man); // man is already a ManifoldT
   return toValidatedMesh(mold);
 }
@@ -274,4 +274,74 @@ export async function buildSplitMold(formMesh: Mesh, plan: SplitPlan, opts?: Spl
   }
   const [a, b] = applyKeys(neg!, pos!, positions, 8, 10, 4, 0.2, axis);
   return [toValidatedMesh(a), toValidatedMesh(b)];
+}
+
+export interface MotherMoldOptions {
+  wallMm?: number;
+  flangeMm?: number;
+  barrierMm?: number;
+  sprueDia?: number;
+  ventDia?: number;
+  siliconeDensity?: number;
+}
+
+export interface MotherMoldResult {
+  /** Exact positive plaster part, in assembly coordinates. */
+  master: Mesh;
+  /** Rectangular casting-space solid, not a conformal offset surface. */
+  castingSpace: Mesh;
+  jacket: [Mesh, Mesh];
+  siliconeVolumeMm3: number;
+  siliconeKg: number;
+  cavityBounds: { min: [number, number, number]; max: [number, number, number] };
+}
+
+/**
+ * Rectangular silicone casting jacket around ONE positive plaster master.
+ * Two flanged halves split at the master bbox mid-Z, a top pouring port and
+ * two top vents. barrierMm is minimum bbox clearance, NOT a uniform offset.
+ * The silicone estimate excludes feed/vent channels and process waste.
+ */
+export async function buildMotherMold(master: Mesh, opts: MotherMoldOptions = {}): Promise<MotherMoldResult> {
+  const wall = opts.wallMm ?? 10, flange = opts.flangeMm ?? 15;
+  const gap = opts.barrierMm ?? 2, sprue = opts.sprueDia ?? 12, vent = opts.ventDia ?? 4;
+  const density = opts.siliconeDensity ?? 1.15;
+  if (![wall, flange, gap, sprue, vent, density].every((n) => Number.isFinite(n) && n > 0)) {
+    throw new Error('MOTHER_INVALID_OPTIONS');
+  }
+  const report = validateMesh(master);
+  if (!report.ok) throw new Error(`MOTHER_INVALID_MASTER: ${report.problems.join(',')}`);
+  await initCsg();
+  const w = requireWasm();
+  const man = toManifold(master);
+  const bb = man.boundingBox();
+  const min = bb.min.map((v) => v - gap) as [number, number, number];
+  const max = bb.max.map((v) => v + gap) as [number, number, number];
+  const size = max.map((v, i) => v - min[i]!) as [number, number, number];
+  // Keep ports distinct, with solid wall between each opening and cavity sides.
+  if (sprue + 2 * vent + 4 * wall >= size[0] || Math.max(sprue, vent) + 2 * wall >= size[2]) {
+    throw new Error('MOTHER_PORTS_DO_NOT_FIT');
+  }
+  const cavity = w.Manifold.cube(size, false).translate(min);
+  const outside = w.Manifold.cube(size.map((v) => v + 2 * wall) as [number, number, number], false)
+    .translate(min.map((v) => v - wall) as [number, number, number]);
+  const midZ = (min[2] + max[2]) / 2;
+  // A rectangular ring around the splitting plane forms matching clamp flanges.
+  const flangeOuter = w.Manifold.cube([size[0] + 2 * (wall + flange), size[1] + 2 * (wall + flange), 2 * wall], false)
+    .translate([min[0] - wall - flange, min[1] - wall - flange, midZ - wall]);
+  let jacket = outside.add(flangeOuter).subtract(cavity);
+  const cx = (min[0] + max[0]) / 2;
+  const port = (x: number, diameter: number) => w.Manifold.cylinder(wall + flange + 2, diameter / 2, diameter / 2, 32, false)
+    .rotate([-90, 0, 0]).translate([x, max[1] - 1, midZ]);
+  jacket = jacket.subtract(port(cx, sprue));
+  const ventX = size[0] / 2 - wall - vent / 2;
+  jacket = jacket.subtract(port(cx - ventX, vent)).subtract(port(cx + ventX, vent));
+  const [positive, negative] = jacket.splitByPlane([0, 0, 1], midZ);
+  const siliconeVolumeMm3 = cavity.volume() - man.volume();
+  return {
+    master, castingSpace: toValidatedMesh(cavity),
+    jacket: [toValidatedMesh(negative!), toValidatedMesh(positive!)],
+    siliconeVolumeMm3, siliconeKg: siliconeVolumeMm3 / 1e6 * density,
+    cavityBounds: { min, max },
+  };
 }
