@@ -27,8 +27,11 @@ export function useFileDelivery(write: FileWriter) {
     failed.current = null;
     setStatus({pending:true,error:false,retryable:false,message:`در حال ذخیرهٔ ${name}…`});
     void (async()=>{
+      let writerStarted = false;
       try {
-        const outcome = await write(name,snapshot.slice());
+        const payload = snapshot.slice();
+        writerStarted = true;
+        const outcome = await write(name,payload);
         if (!mounted.current) return;
         const message = outcome === 'saved' ? `فایل ذخیره شد: ${name}` : outcome === 'cancelled'
           ? `ذخیره لغو شد؛ فایلی نوشته نشد: ${name}` : `درخواست دانلود به مرورگر ارسال شد: ${name}؛ ذخیرهٔ نهایی را در دانلودهای مرورگر بررسی کنید.`;
@@ -36,7 +39,9 @@ export function useFileDelivery(write: FileWriter) {
       } catch {
         if (!mounted.current) return;
         failed.current = {name,bytes:snapshot};
-        setStatus({pending:false,error:true,retryable:true,message:`ذخیرهٔ ${name} ناموفق بود؛ ممکن است فایل مقصد ناقص باشد. فضای آزاد و مجوز مسیر را بررسی و دوباره تلاش کنید.`});
+        setStatus({pending:false,error:true,retryable:true,message:writerStarted
+          ? `ذخیرهٔ ${name} ناموفق بود؛ ممکن است فایل مقصد ناقص باشد. فضای آزاد و مجوز مسیر را بررسی و دوباره تلاش کنید.`
+          : `آماده‌سازی نسخهٔ تحویل ${name} ناموفق بود؛ ذخیره آغاز نشد. نسخهٔ خروجی برای تلاش دوباره نگه داشته شد.`});
       } finally { busy.current = false; }
     })();
   };
