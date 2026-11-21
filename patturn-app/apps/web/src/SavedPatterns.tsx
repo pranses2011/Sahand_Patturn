@@ -75,7 +75,7 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
   }, []);
   return <details className="saved-patterns" onToggle={(e) => { if (e.currentTarget.open) perform(() => repo().list()); }}>
     <summary>تنظیمات الگوی ذخیره‌شده</summary>
-    <p className="hint">حداکثر ۳۰ ترکیب نام‌دار، فقط در همین دستگاه؛ شامل نوع الگو و اندازهٔ کاشی، نه مسیر سفارشی. فایل پروژه فقط تنظیمات فعال را دارد؛ پشتیبان JSON تمام موارد این کتابخانه را نگه می‌دارد. ورود JSON فقط موارد جدید را ادغام می‌کند؛ برخورد نام با مقادیر متفاوت رد می‌شود.</p>
+    <p className="hint">حداکثر ۳۰ ترکیب نام‌دار، فقط در همین دستگاه؛ شامل نوع الگو و اندازهٔ کاشی، نه مسیر سفارشی. فایل پروژه فقط تنظیمات فعال را دارد؛ پشتیبان JSON تمام موارد این کتابخانه را نگه می‌دارد. فیلتر جست‌وجو روی محتوای پشتیبان اثر ندارد؛ موارد پنهان هم در فایل هستند. ورود JSON فقط موارد جدید را ادغام می‌کند؛ برخورد نام با مقادیر متفاوت رد می‌شود.</p>
     <form onSubmit={(e) => { e.preventDefault(); if (perform(() => repo().save({ name, patternId, tileSize }))) setName(''); }}>
       <label>نام تنظیمات<input value={name} maxLength={60} required onChange={(e) => setName(e.currentTarget.value)} /></label>
       <button className="btn" type="submit" disabled={!name.trim()}>ذخیرهٔ تنظیمات فعلی</button>

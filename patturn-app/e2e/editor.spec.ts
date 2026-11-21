@@ -629,3 +629,30 @@ test('clearing pattern search by keyboard restores input focus and permits immed
   await page.keyboard.type('grid');
   await expect(search).toHaveValue('grid');await expect(library.getByRole('radio')).toHaveCount(2);
 });
+
+test('library backup includes hidden recipes while a search filter is active',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await page.getByLabel('نام تنظیمات',{exact:true}).fill('آشکار');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  await page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true}).check();
+  await page.getByLabel('نام تنظیمات',{exact:true}).fill('پنهان');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  const search=page.getByLabel('جست‌وجوی تنظیمات ذخیره‌شده',{exact:true});
+  await search.fill('آشکار');
+  const list=page.locator('.saved-patterns li');await expect(list).toHaveCount(1);
+  const download=page.waitForEvent('download');
+  await page.getByRole('button',{name:'دانلود پشتیبان کتابخانهٔ الگو',exact:true}).click();
+  const file=await download;expect(file.suggestedFilename()).toBe('patturn-pattern-library-v1.json');
+  const path=await file.path();expect(path).not.toBeNull();
+  expect(JSON.parse(await readFile(path!,'utf8'))).toEqual({
+    format:'patturn-pattern-library',version:1,entries:[
+      {name:'آشکار',patternId:'dot-grid',tileSize:40},
+      {name:'پنهان',patternId:'grid',tileSize:40},
+    ],
+  });
+  await expect(search).toHaveValue('آشکار');await expect(list).toHaveCount(1);
+  await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
+  await page.getByRole('button',{name:'پاک‌کردن جست‌وجوی تنظیمات',exact:true}).click();
+  await expect(list).toHaveCount(2);
+});
