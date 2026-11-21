@@ -12,10 +12,14 @@ import {
   type Mesh,
   type Profile,
 } from '@patturn/kernel';
-import { analyzeUndercut, keyTopRadius, initCsg, buildSingleMold } from '@patturn/molds';
+import {
+  analyzeUndercut, keyTopRadius, initCsg,
+  chooseSplitPlanes, buildSplitMold, plasterForCavity,
+  type SplitPlan,
+} from '@patturn/molds';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
-import { toBinaryStl, toSvg } from '@patturn/exporters';
+import { toBinaryStl, toSvg, exportName } from '@patturn/exporters';
 import { AUTHOR, PLANS } from '@patturn/config';
 import { Viewport } from './Viewport';
 
@@ -70,22 +74,28 @@ export function App() {
     }
   }, [profile, segments, profileMode]);
 
-  // real boolean mold (block − form) when Mold tab is active
-  const [moldMesh, setMoldMesh] = useState<Mesh | null>(null);
+  // real boolean mold (block − form, split by plan) when Mold tab is active
+  const [moldParts, setMoldParts] = useState<Mesh[] | null>(null);
+  const [splitPlan, setSplitPlan] = useState<SplitPlan | null>(null);
   const [moldBusy, setMoldBusy] = useState(false);
   useEffect(() => {
-    if (part !== 'mold' || !formMesh) {
-      setMoldMesh(null);
+    if ((part !== 'mold' && part !== 'export') || !formMesh) {
+      setMoldParts(null);
+      setSplitPlan(null);
       return;
     }
     let cancelled = false;
+    setMoldParts(null);
+    setSplitPlan(null);
     setMoldBusy(true);
     (async () => {
       try {
         await initCsg();
-        const m = await buildSingleMold(formMesh, { shrink: shrink / 100 });
+        const plan = chooseSplitPlanes(profile);
+        const parts = await buildSplitMold(formMesh, plan, { shrink: shrink / 100, profile });
         if (!cancelled) {
-          setMoldMesh(m);
+          setSplitPlan(plan);
+          setMoldParts(parts);
           setMeshErr(null);
         }
       } catch (e) {
@@ -97,9 +107,35 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [part, formMesh, shrink]);
+  }, [part, formMesh, shrink, profile]);
 
-  const mesh: Mesh | null = part === 'mold' ? moldMesh : formMesh;
+  // exploded view: merge parts with display offsets (B up / ±z apart)
+  const moldDisplay: Mesh | null = useMemo(() => {
+    if (!moldParts || !splitPlan) return null;
+    if (splitPlan.kind === 'none') return moldParts[0] ?? null;
+    const offsets: [number, number, number][] = splitPlan.kind === 'horizontal'
+      ? [[0, 0, 0], [0, 18, 0]]
+      : [[0, 0, -15], [0, 0, 15]];
+    let vCount = 0, iCount = 0;
+    for (const p of moldParts) { vCount += p.positions.length / 3; iCount += p.indices.length; }
+    const positions = new Float32Array(vCount * 3);
+    const indices = new Uint32Array(iCount);
+    let vo = 0, io = 0;
+    moldParts.forEach((p, k) => {
+      const [ox, oy, oz] = offsets[k] ?? [0, 0, 0];
+      const n = p.positions.length / 3;
+      for (let i = 0; i < n; i++) {
+        positions[(vo + i) * 3] = p.positions[i * 3]! + ox;
+        positions[(vo + i) * 3 + 1] = p.positions[i * 3 + 1]! + oy;
+        positions[(vo + i) * 3 + 2] = p.positions[i * 3 + 2]! + oz;
+      }
+      for (let i = 0; i < p.indices.length; i++) indices[io + i] = p.indices[i]! + vo;
+      vo += n; io += p.indices.length;
+    });
+    return { positions, indices };
+  }, [moldParts, splitPlan]);
+
+  const mesh: Mesh | null = part === 'mold' ? moldDisplay : formMesh;
 
   // metrics
   const innerProfile = useMemo(() => referenceProfile(128), []);
@@ -147,6 +183,36 @@ export function App() {
     if (!res.ok) { alert(`خروجی نامعتبر: ${res.error}`); return; }
     download(res.filename, res.bytes!);
     markDirty();
+  };
+
+  const exportMoldPart = (index: number) => {
+    const p = moldParts?.[index];
+    if (!p || moldBusy) return;
+    const result = toBinaryStl(p, `mold-${profileMode}-part-${index + 1}`);
+    if (!result.ok) { alert(`خروجی نامعتبر: ${result.error}`); return; }
+    download(result.filename, result.bytes!);
+  };
+
+  const exportBom = () => {
+    if (!moldParts || !splitPlan || moldBusy) return;
+    const lines = [
+      'فهرست قطعات قالب — Patturn',
+      `فرم: ${profileMode} | واحد: mm | جبران انقباض: ${shrink}%`,
+      `طرح تقسیم: ${splitPlan.reason} | تعداد: ${moldParts.length}`,
+      'مختصات STL مونتاژی است؛ فاصله‌گذاری نمایشی صادر نمی‌شود.',
+      'مواد زیر برآورد گچ برای حجم خالص قطعات است؛ پرت و راهگاه جداگانه محاسبه شود.',
+    ];
+    let total = 0;
+    moldParts.forEach((p, i) => {
+      const volume = p.meta?.volumeMm3 ?? 0;
+      total += volume;
+      const material = plasterForCavity(volume);
+      const name = exportName(`mold-${profileMode}-part-${i + 1}`, 'mesh', 'mm', 'stl');
+      lines.push(`${i + 1}. ${name} | حجم: ${material.volumeL.toFixed(3)} L | گچ: ${material.plasterKg.toFixed(3)} kg | آب: ${material.waterKg.toFixed(3)} kg`);
+    });
+    const material = plasterForCavity(total);
+    lines.push(`جمع: ${material.volumeL.toFixed(3)} L | گچ: ${material.plasterKg.toFixed(3)} kg | آب: ${material.waterKg.toFixed(3)} kg`);
+    download(exportName(`mold-${profileMode}`, 'BOM', 'mm', 'txt'), new TextEncoder().encode('\uFEFF' + lines.join('\n')));
   };
 
   const doExportSvg = () => {
@@ -250,7 +316,7 @@ export function App() {
             <>
               <h3 className="sec">تحلیل قالب</h3>
               <div className="hint">
-                {moldBusy ? '⏳ در حال محاسبهٔ Boolean (block − form)…' : moldMesh ? '✅ قالب سه‌بعدی ساخته شد — در viewport ببینید' : null}
+                {moldBusy ? '⏳ در حال محاسبهٔ Boolean (block − form)…' : moldParts ? '✅ قالب سه‌بعدی ساخته شد — در viewport ببینید' : null}
                 {moldBusy ? null : (
                   <>
                     {undercut.dropOutSafe ? (
@@ -258,6 +324,7 @@ export function App() {
                     ) : (
                       <>⚠️ زیر برش: {undercut.problemBands.length} ناحیه → پیشنهاد <b>{undercut.suggestedParts} قطعه</b></>
                     )}
+                    <br />{splitPlan && `طرح تقسیم: ${splitPlan.reason} — ${splitPlan.parts} قطعه`}
                     <br />کلید ثبت Ø16 با تلورانس 0.2mm
                     <br />r_top = {keyTopRadius().toFixed(4)} mm
                   </>
@@ -278,6 +345,14 @@ export function App() {
                 ⬇ STL سه‌بعدی (اعتبارسنجی‌شده)</button></div>
               <div className="ctl"><button className="btn" style={{ width: '100%' }} onClick={doExportSvg}>
                 ⬇ SVG الگوی تخت ۳۰۰×۳۰۰mm</button></div>
+              <h3 className="sec">قطعات قالب</h3>
+              {moldBusy && <div className="hint">⏳ در حال ساخت قطعات قالب…</div>}
+              {!moldBusy && moldParts?.map((_, i) => (
+                <div className="ctl" key={i}><button className="btn" onClick={() => exportMoldPart(i)}>
+                  ⬇ STL قطعهٔ {i + 1}</button></div>
+              ))}
+              <div className="ctl"><button className="btn" disabled={moldBusy || !moldParts} onClick={exportBom}>
+                ⬇ فهرست قطعات و مواد (BOM)</button></div>
               <div className="hint">
                 هر خروجی STL قبل از دانلود روی watertight بودن بررسی میشود.
                 {meshErr && <><br />⚠️ مش فعلی: {meshErr}</>}

@@ -40,6 +40,76 @@ export function analyzeUndercut(profile: Profile, tolerance = 0.001): UndercutRe
   return { dropOutSafe, problemBands: bands, suggestedParts };
 }
 
+export interface SplitPlan {
+  kind: 'none' | 'horizontal' | 'vertical';
+  /** profile-space y of the horizontal parting plane (mm); 0 for vertical/none */
+  y: number;
+  normal: [number, number, number];
+  offset: number;
+  parts: number;
+  /** lower is better: none=10, horizontal=20, vertical=21 */
+  score: number;
+  /** min-side volume fraction 0..0.5 (0 for none) */
+  balance: number;
+  reason: string;
+}
+
+/**
+ * Automatic split selection (checklist 6.4) — score function over parting candidates.
+ * - drop-out safe → single piece (score 10)
+ * - else best horizontal plane at an interior profile vertex (score 20)
+ * - else vertical plane through the axis (score 21; always works for axisymmetric forms)
+ */
+export function chooseSplitPlanes(profile: Profile, tolerance = 0.001): SplitPlan {
+  const rep = analyzeUndercut(profile, tolerance);
+  if (rep.dropOutSafe) {
+    return {
+      kind: 'none', y: 0, normal: [0, 1, 0], offset: 0, parts: 1, score: 10,
+      balance: 0, reason: 'drop-out safe — قالب تک‌تکه',
+    };
+  }
+  // per-segment slopes (null for zero-height segments)
+  const slopes: (number | null)[] = [];
+  for (let i = 0; i < profile.length - 1; i++) {
+    const a = profile[i]!, b = profile[i + 1]!;
+    const dy = b.y - a.y;
+    slopes.push(dy > 0 ? (b.r - a.r) / dy : null);
+  }
+  // a horizontal split at vertex i is valid iff no undercut below it
+  // (slopes ≥ −tol) and no undercut above it when inverted (slopes ≤ +tol)
+  let bestY: number | null = null;
+  for (let i = 1; i < profile.length - 1; i++) {
+    const belowOk = slopes.slice(0, i).every((s) => s === null || s >= -tolerance);
+    const aboveOk = slopes.slice(i).every((s) => s === null || s <= tolerance);
+    if (belowOk && aboveOk) {
+      const y = profile[i]!.y;
+      if (bestY === null || y > bestY) bestY = y;
+    }
+  }
+  if (bestY !== null) {
+    // balance = min-side fraction of ∫ r² dy (volume proxy)
+    let total = 0, below = 0;
+    for (let i = 0; i < profile.length - 1; i++) {
+      const a = profile[i]!, b = profile[i + 1]!;
+      const dy = b.y - a.y;
+      if (dy <= 0) continue;
+      const seg = ((a.r * a.r + b.r * b.r) / 2) * dy;
+      total += seg;
+      if (b.y <= bestY) below += seg;
+      else if (a.y < bestY) below += (seg * (bestY - a.y)) / dy;
+    }
+    const balance = total > 0 ? Math.min(below, total - below) / total : 0;
+    return {
+      kind: 'horizontal', y: bestY, normal: [0, 1, 0], offset: bestY, parts: 2, score: 20,
+      balance, reason: `افقی در y=${bestY.toFixed(1)}mm`,
+    };
+  }
+  return {
+    kind: 'vertical', y: 0, normal: [0, 0, 1], offset: 0, parts: 2, score: 21,
+    balance: 0.5, reason: 'عمودی از محور (z=0)',
+  };
+}
+
 export interface KeySpec {
   type: 'tapered-cylinder' | 'hemisphere';
   /** base radius mm (site default Ø16 → r=8) */

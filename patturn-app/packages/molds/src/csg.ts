@@ -3,8 +3,9 @@
  * mold = block − form (scaled by 1/(1−shrink)); split by plane; keys added.
  * Async init (WASM load) → call initCsg() once at app startup.
  */
-import type { Mesh } from '@patturn/kernel';
+import type { Mesh, Profile } from '@patturn/kernel';
 import { validateMesh } from '@patturn/kernel';
+import type { SplitPlan } from './index.js';
 
 type ManifoldT = {
   volume(): number;
@@ -80,21 +81,42 @@ export interface BlockOptions {
   max: [number, number, number];
   wall?: number; // default 25
   base?: number; // default 20
+  draftDeg?: number; // default 1.5 — side taper so the block releases from the mother mold
 }
 
-/** Solid block around the form: w+2wall, d+2wall, h+base+wall (site spec). */
+/** Keep the half-space a·x+b·y+c·z ≤ d (trimByPlane keeps p·n̂ ≥ offset; n̂ auto-normalized). */
+function trimKeepLE(man: ManifoldT, a: number, b: number, c: number, d: number): ManifoldT {
+  const n = Math.hypot(a, b, c);
+  return man.trimByPlane([-a, -b, -c], -d / n);
+}
+
+/**
+ * Solid block around the form: w+2wall, d+2wall, h+base+wall (site spec),
+ * with draft taper on the four side faces (edge(y) = half − tan(draft)·(y − ybot)).
+ */
 export function buildBlock(opts: BlockOptions): ManifoldT {
   const w = requireWasm();
   const wall = opts.wall ?? 25;
   const base = opts.base ?? 20;
+  const draftDeg = opts.draftDeg ?? 1.5;
   const bw = opts.max[0] - opts.min[0] + wall * 2;
   const bd = opts.max[2] - opts.min[2] + wall * 2;
   const bh = opts.max[1] - opts.min[1] + base + wall;
   const cx = (opts.min[0] + opts.max[0]) / 2;
   const cz = (opts.min[2] + opts.max[2]) / 2;
+  const ybot = opts.min[1] - base;
   const box = w.Manifold.cube([bw, bh, bd], false);
   // cube(size, false) spans [0,size] — shift so it is centered on X/Z and sits below the form
-  return box.translate([cx - bw / 2, opts.min[1] - base, cz - bd / 2]);
+  let block = box.translate([cx - bw / 2, ybot, cz - bd / 2]);
+  const t = Math.tan((draftDeg * Math.PI) / 180);
+  if (t > 0) {
+    const hx = bw / 2, hz = bd / 2;
+    block = trimKeepLE(block, 1, t, 0, cx + hx + t * ybot); // +x face
+    block = trimKeepLE(block, -1, t, 0, -(cx - hx) + t * ybot); // −x face
+    block = trimKeepLE(block, 0, t, 1, cz + hz + t * ybot); // +z face
+    block = trimKeepLE(block, 0, t, -1, -(cz - hz) + t * ybot); // −z face
+  }
+  return block;
 }
 
 /**
@@ -110,17 +132,22 @@ export function splitMold(mold: ManifoldT, normal: [number, number, number], off
   return mold.splitByPlane(normal, offset);
 }
 
-/** Registration key: tapered cylinder along +Y (site: r=8, h=10, taper 4°). */
-export function makeKeyMale(r = 8, h = 10, taperDeg = 4): ManifoldT {
+/**
+ * Registration key: tapered cylinder (site: r=8, h=10, taper 4°).
+ * axis 'y' → height along +Y (horizontal parting plane);
+ * axis 'z' → height along +Z (vertical parting plane, no rotation).
+ */
+export function makeKeyMale(r = 8, h = 10, taperDeg = 4, axis: 'y' | 'z' = 'y'): ManifoldT {
   const w = requireWasm();
   const rTop = r + h * Math.tan((taperDeg * Math.PI) / 180);
   // manifold cylinder is along Z — rotate to Y so height maps to Y
-  return w.Manifold.cylinder(h, r, rTop, 32, false).rotate([-90, 0, 0]);
+  const cyl = w.Manifold.cylinder(h, r, rTop, 32, false);
+  return axis === 'y' ? cyl.rotate([-90, 0, 0]) : cyl;
 }
 
 /** Female socket = male + clearance (site default 0.2mm radial). */
-export function makeKeyFemale(r = 8, h = 10, taperDeg = 4, clearance = 0.2): ManifoldT {
-  return makeKeyMale(r + clearance, h + clearance, taperDeg);
+export function makeKeyFemale(r = 8, h = 10, taperDeg = 4, clearance = 0.2, axis: 'y' | 'z' = 'y'): ManifoldT {
+  return makeKeyMale(r + clearance, h + clearance, taperDeg, axis);
 }
 
 /** Place keys on a parting plane: subtract females from part B, union males onto part A. */
@@ -132,12 +159,13 @@ export function applyKeys(
   h = 10,
   taperDeg = 4,
   clearance = 0.2,
+  axis: 'y' | 'z' = 'y',
 ): [ManifoldT, ManifoldT] {
   let a = partA;
   let b = partB;
   for (const pos of positions) {
-    const male = makeKeyMale(r, h, taperDeg).translate(pos);
-    const female = makeKeyFemale(r, h, taperDeg, clearance).translate(pos);
+    const male = makeKeyMale(r, h, taperDeg, axis).translate(pos);
+    const female = makeKeyFemale(r, h, taperDeg, clearance, axis).translate(pos);
     a = a.add(male);
     b = b.subtract(female);
   }
@@ -167,4 +195,83 @@ export async function buildSingleMold(formMesh: Mesh, opts?: Partial<BlockOption
   const block = buildBlock({ min: bb.min, max: bb.max, wall: opts?.wall, base: opts?.base });
   const mold = block.subtract(man); // man is already a ManifoldT
   return toValidatedMesh(mold);
+}
+
+export interface SplitMoldOptions {
+  shrink?: number; // 0..1 — form scaled by 1/(1−s) like buildSingleMold
+  wall?: number;
+  base?: number;
+  draftDeg?: number;
+  /** profile-space (unshrunk) profile — required for key placement */
+  profile?: Profile;
+}
+
+/**
+ * Multi-part mold (checklist 6.4): block − form, split by the plan plane,
+ * registration keys on the parting face. Returns [A, B] where A is the
+ * negative side (gets male keys) and B the positive side (female sockets).
+ * plan.kind 'none' → single piece, identical to buildSingleMold.
+ */
+export async function buildSplitMold(formMesh: Mesh, plan: SplitPlan, opts?: SplitMoldOptions): Promise<Mesh[]> {
+  await initCsg();
+  if (plan.kind === 'none') return [await buildSingleMold(formMesh, opts)];
+  const shrink = opts?.shrink ?? 0;
+  const s = shrink > 0 ? 1 / (1 - shrink) : 1;
+  const wall = opts?.wall ?? 25;
+  const base = opts?.base ?? 20;
+  const draftDeg = opts?.draftDeg ?? 1.5;
+  const scaled: Mesh = {
+    ...formMesh,
+    positions: Float32Array.from(formMesh.positions, (v) => v * s),
+  };
+  const man = toManifold(scaled);
+  const bb = man.boundingBox();
+  const block = buildBlock({ min: bb.min, max: bb.max, wall, base, draftDeg });
+  const mold = block.subtract(man);
+  const offset = plan.kind === 'horizontal' ? plan.offset * s : plan.offset;
+  const [pos, neg] = mold.splitByPlane(plan.normal, offset);
+
+  // key placement helpers (all in scaled/mesh space)
+  const t = Math.tan((draftDeg * Math.PI) / 180);
+  const ybot = bb.min[1] - base;
+  const halfX = (bb.max[0] - bb.min[0]) / 2 + wall;
+  const halfZ = (bb.max[2] - bb.min[2]) / 2 + wall;
+  const edge = (y: number) => Math.min(halfX, halfZ) - t * (y - ybot);
+  const profile = opts?.profile;
+  const radiusAt = (y: number): number => {
+    if (!profile || profile.length < 2) return 0;
+    const py = y / s;
+    for (let i = 0; i < profile.length - 1; i++) {
+      const a = profile[i]!, b = profile[i + 1]!;
+      if (py >= a.y && py <= b.y && b.y > a.y) {
+        return (a.r + ((b.r - a.r) * (py - a.y)) / (b.y - a.y)) * s;
+      }
+    }
+    return profile[profile.length - 1]!.r * s;
+  };
+  const maxRadiusOver = (y0: number, y1: number): number => {
+    let m = radiusAt(y1);
+    for (let y = y0; y < y1; y += 2) m = Math.max(m, radiusAt(y));
+    return m;
+  };
+
+  let positions: [number, number, number][] = [];
+  let axis: 'y' | 'z' = 'y';
+  if (plan.kind === 'horizontal') {
+    const y0 = plan.y * s;
+    const r0 = radiusAt(y0);
+    const rk = Math.min(r0 + wall / 2, edge(y0) - 9);
+    positions = [[rk, y0, 0], [0, y0, rk], [-rk, y0, 0], [0, y0, -rk]];
+    axis = 'y';
+  } else {
+    const yMin = bb.min[1], yMax = bb.max[1];
+    const ys = [yMin + (yMax - yMin) / 3, yMin + (2 * (yMax - yMin)) / 3];
+    for (const y of ys) {
+      const xk = Math.min(maxRadiusOver(y - 9, y + 9) + wall / 2, edge(y) - 9);
+      positions.push([xk, y, 0], [-xk, y, 0]);
+    }
+    axis = 'z';
+  }
+  const [a, b] = applyKeys(neg!, pos!, positions, 8, 10, 4, 0.2, axis);
+  return [toValidatedMesh(a), toValidatedMesh(b)];
 }
