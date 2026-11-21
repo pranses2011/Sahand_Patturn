@@ -17,7 +17,8 @@ import {
   chooseSplitPlanes, buildSplitMold, buildMotherMold, plasterForCavity, motherAssemblyGuide,
   type SplitPlan, type MotherMoldResult, type OffsetBarrierResult,
 } from '@patturn/molds';
-import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES } from '@patturn/storage';
+import { encodeEditorProject, decodeEditorProject, MAX_PROJECT_FILE_BYTES, EditorHistory, type HistoryEntry } from '@patturn/storage';
+import type { EditorState } from '@patturn/schema';
 import { unwrapCylinder } from '@patturn/kernel';
 import { PATTERNS, type PatternContext } from '@patturn/patterns';
 import { toBinaryStl, toSvg, exportName, toBuildZip, toDimensionPdf, toObj, type ObjPart, type BuildBundle } from '@patturn/exporters';
@@ -49,21 +50,51 @@ function download(name: string, bytes: Uint8Array) {
   URL.revokeObjectURL(a.href);
 }
 
+const DEFAULT_EDITOR: EditorState = {
+  profileMode: 'reference', segments: 96, wall: 4, shrink: 12, fill: 80,
+  patternId: PATTERNS[0]!.id, tileSize: 40,
+};
+const localHistory = () => new EditorHistory(window.localStorage, PATTERNS.map((p) => p.id));
+function loadEditorStartup() {
+  try {
+    const entries = localHistory().list();
+    return { state: entries[0]?.state ?? DEFAULT_EDITOR, entries, error: null as string | null };
+  } catch (error) {
+    return { state: DEFAULT_EDITOR, entries: [] as HistoryEntry[], error: `بازیابی ذخیرهٔ محلی ناموفق بود؛ دادهٔ قبلی بازنویسی نشده است: ${String(error).slice(0, 180)}` };
+  }
+}
+
 export function App() {
+  const [startup] = useState(loadEditorStartup);
+  const [historyEntries, setHistoryEntries] = useState(startup.entries);
+  const [autosaveError, setAutosaveError] = useState(startup.error);
   const [part, setPart] = useState<Part>('form');
-  const [profileMode, setProfileMode] = useState<ProfileMode>('reference');
-  const [segments, setSegments] = useState(96);
-  const [wall, setWall] = useState(4);
-  const [shrink, setShrink] = useState(12); // %
-  const [fill, setFill] = useState(80); // %
-  const [patternId, setPatternId] = useState(PATTERNS[0]!.id);
-  const [tileSize, setTileSize] = useState(40);
-  const [saved, setSaved] = useState(true);
+  const [profileMode, setProfileMode] = useState<ProfileMode>(startup.state.profileMode);
+  const [segments, setSegments] = useState(startup.state.segments);
+  const [wall, setWall] = useState(startup.state.wall);
+  const [shrink, setShrink] = useState(startup.state.shrink);
+  const [fill, setFill] = useState(startup.state.fill);
+  const [patternId, setPatternId] = useState(startup.state.patternId);
+  const [tileSize, setTileSize] = useState(startup.state.tileSize);
+  const [saved, setSaved] = useState(startup.entries.length > 0);
   const [meshErr, setMeshErr] = useState<string | null>(null);
 
   const projectInput = useRef<HTMLInputElement | null>(null);
   const [projectError, setProjectError] = useState<string | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
+  const applyEditorState = (state: EditorState) => {
+    setProfileMode(state.profileMode); setSegments(state.segments); setWall(state.wall);
+    setShrink(state.shrink); setFill(state.fill); setPatternId(state.patternId); setTileSize(state.tileSize);
+    setPart('form'); setSaved(false);
+  };
+  const restoreHistory = (id: string) => {
+    try {
+      const state = localHistory().restore(id);
+      if (!window.confirm('این نسخه بازیابی شود؟ نسخه‌های ذخیره‌شدهٔ جدیدتر در تاریخچه باقی می‌مانند.')) return;
+      applyEditorState(state);
+      setProjectError(null);
+    } catch (error) { setProjectError(`بازیابی نسخه ناموفق بود: ${String(error).slice(0, 180)}`); }
+  };
   const saveProjectFile = () => {
     try {
       const bytes = encodeEditorProject({ profileMode, segments, wall, shrink, fill, patternId, tileSize });
@@ -79,9 +110,7 @@ export function App() {
       const state = decodeEditorProject(new Uint8Array(await file.arrayBuffer()), PATTERNS.map((p) => p.id));
       if (!window.confirm('تنظیمات فعلی با فایل انتخاب‌شده جایگزین شود؟ برای نگه‌داشتن وضعیت فعلی ابتدا آن را ذخیره کنید.')) return;
       // One validated state, applied as a batched React update; derived meshes regenerate.
-      setProfileMode(state.profileMode); setSegments(state.segments); setWall(state.wall);
-      setShrink(state.shrink); setFill(state.fill); setPatternId(state.patternId); setTileSize(state.tileSize);
-      setPart('form'); setSaved(false);
+      applyEditorState(state);
     } catch (error) { setProjectError(`فایل پروژه باز نشد؛ تنظیمات فعلی تغییر نکرد: ${String(error).slice(0, 220)}`); }
     finally { setProjectLoading(false); }
   };
@@ -241,18 +270,28 @@ export function App() {
 
   const markDirty = useCallback(() => setSaved(false), []);
 
-  // autosave every 2s when idle (site contract)
+  const saveLocalState = () => {
+    try {
+      const entries = localHistory().save({ profileMode, segments, wall, shrink, fill, patternId, tileSize });
+      setHistoryEntries(entries); setAutosaveError(null); setSaved(true);
+    } catch (error) {
+      setSaved(false);
+      setAutosaveError(`ذخیرهٔ محلی ناموفق بود؛ فایل پروژه را جداگانه دانلود کنید: ${String(error).slice(0, 180)}`);
+    }
+  };
+  // Debounced autosave: report success only after the atomic storage write succeeds.
   useEffect(() => {
     if (saved) return;
-    const t = setTimeout(() => {
-      localStorage.setItem(
-        'patturn:last',
-        JSON.stringify({ profileMode, segments, wall, shrink, fill, patternId, tileSize, at: Date.now() }),
-      );
-      setSaved(true);
-    }, 2000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(saveLocalState, 2000);
+    return () => clearTimeout(timer);
   }, [saved, profileMode, segments, wall, shrink, fill, patternId, tileSize]);
+
+  useEffect(() => {
+    if (saved) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [saved]);
 
   const doExportStl = () => {
     if (!mesh) return;
@@ -430,7 +469,7 @@ export function App() {
       {/* ── header ── */}
       <header className="header">
         <span className="brand">🏺 Patturn</span>
-        <span className="saved">{saved ? '✓ ذخیره شد' : '…در حال ذخیره'}</span>
+        <span className="saved">{autosaveError ? '⚠ ذخیره نشد' : saved ? '✓ ذخیره شد' : '…در حال ذخیره'}</span>
         <span className="spacer" />
         <input ref={projectInput} type="file" accept=".patturn" hidden aria-label="انتخاب فایل پروژه"
           onChange={(event) => {
@@ -445,6 +484,17 @@ export function App() {
       </header>
 
       {projectError && <div className="hint" role="alert">⚠️ {projectError}</div>}
+      {autosaveError && <div className="hint" role="alert">
+        {autosaveError} <button className="btn" onClick={saveLocalState}>تلاش دوباره</button>
+      </div>}
+      <details className="history-panel">
+        <summary>تاریخچهٔ محلی — {historyEntries.length} نسخه از ۱۰ نسخهٔ اخیر</summary>
+        <div className="hint">این نسخه‌ها فقط در همین محیط مرورگر نگهداری می‌شوند؛ جایگزین فایل پروژه یا پوشهٔ بکاپ ویندوز نیستند.</div>
+        {historyEntries.map((entry, i) => <div className="history-entry" key={entry.id}>
+          <span>{i === 0 ? 'آخرین ذخیره' : `نسخهٔ ${i + 1}`} — {new Date(entry.savedAt).toLocaleString('fa-IR')} — {entry.state.profileMode}</span>
+          <button className="btn" onClick={() => restoreHistory(entry.id)}>بازیابی این نسخه</button>
+        </div>)}
+      </details>
       <div className="main">
         {/* ── left: parts ── */}
         <aside className="panel left">

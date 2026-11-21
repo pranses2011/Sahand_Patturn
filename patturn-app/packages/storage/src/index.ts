@@ -68,3 +68,4 @@ export function parseProject(text: string): ProjectRecord {
 }
 
 export * from './portable.js';
+export * from './history.js';

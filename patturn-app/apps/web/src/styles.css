@@ -89,3 +89,7 @@ h3.sec { font-size: 13px; color: var(--clay-dark); margin: 18px 0 10px; letter-s
 }
 .profile-2d svg { display: block; }
 .profile-2d .cap { font-size: 11px; color: var(--ink2); text-align: center; margin-top: 2px; }
+
+.history-panel { padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--surface); max-height: 220px; overflow-y: auto; flex-shrink: 0; }
+.history-panel summary { cursor: pointer; font-size: 13px; }
+.history-entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; font-size: 12px; }
