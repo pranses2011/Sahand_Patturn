@@ -13,11 +13,11 @@ export function useFileDelivery(write: FileWriter) {
     return () => { mounted.current = false; failed.current = null; };
   }, []);
   const [status,setStatus] = useState<{pending:boolean;error:boolean;retryable:boolean;message:string}>({pending:false,error:false,retryable:false,message:''});
-  const download = (name:string,bytes:Uint8Array) => {
+  const deliver = (name:string,bytes:Uint8Array, ownedSnapshot = false) => {
     if (!mounted.current || busy.current) return; // Never open another picker or replace the pending payload.
     // Own an immutable-by-convention snapshot, independent of the caller and writer.
     let snapshot: Uint8Array;
-    try { snapshot = bytes.slice(); }
+    try { snapshot = ownedSnapshot ? bytes : bytes.slice(); }
     catch {
       failed.current = null;
       setStatus({pending:false,error:true,retryable:false,message:`آماده‌سازی ${name} ناموفق بود؛ خروجی را دوباره بسازید. تنظیمات پروژه تغییر نکرد و ذخیره آغاز نشد.`});
@@ -50,5 +50,11 @@ export function useFileDelivery(write: FileWriter) {
     failed.current = null;
     setStatus({pending:false,error:false,retryable:false,message:'خروجی ناموفق کنار گذاشته شد؛ برای ذخیره، خروجی را دوباره بسازید. تنظیمات پروژه تغییر نکرد.'});
   };
-  return {download,status,discard,retry:()=>{const file=failed.current;if(file)download(file.name,file.bytes);}};
+  return {
+    download:(name:string,bytes:Uint8Array)=>deliver(name,bytes),
+    status,discard,
+    // This payload is already owned; only copy for the untrusted writer, never
+    // re-copy the retry snapshot and risk discarding it on allocation failure.
+    retry:()=>{const file=failed.current;if(file)deliver(file.name,file.bytes,true);},
+  };
 }

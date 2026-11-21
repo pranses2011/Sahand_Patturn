@@ -115,6 +115,25 @@ describe('Output delivery status and retry',()=>{
     expect(writer).toHaveBeenCalledExactlyOnceWith('snapshot.zip',bytes);
     expect(h.api.status.error).toBe(false);act(()=>h.tree.unmount());
   });
+  it('copies only for the writer on retry and retains the snapshot if that copy fails',async()=>{
+    const writer=vi.fn<FileWriter>().mockRejectedValueOnce(Error('disk full')).mockResolvedValue('saved');
+    const h=setup(writer);await act(async()=>h.api.download('retained.zip',bytes));
+    const spy=vi.spyOn(Uint8Array.prototype,'slice').mockImplementation(()=>{throw new RangeError('copy failed');});
+    try {
+      await act(async()=>h.api.retry());
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally { spy.mockRestore(); }
+    expect(writer).toHaveBeenCalledTimes(1);expect(h.api.status.retryable).toBe(true);
+    expect(h.api.status.message).toContain('نسخهٔ خروجی برای تلاش دوباره نگه داشته شد');
+    const count=vi.spyOn(Uint8Array.prototype,'slice');
+    try {
+      await act(async()=>h.api.retry());
+      expect(count).toHaveBeenCalledTimes(1);
+    } finally { count.mockRestore(); }
+    expect(writer).toHaveBeenLastCalledWith('retained.zip',bytes);
+    expect(writer).toHaveBeenCalledTimes(2);expect(h.api.status.error).toBe(false);
+    act(()=>h.tree.unmount());
+  });
   it('a new request supersedes a failed retry without changing the earlier payload',async()=>{
     const writer=vi.fn<FileWriter>().mockRejectedValueOnce(Error('denied')).mockResolvedValue('saved');
     const h=setup(writer);
