@@ -340,3 +340,33 @@ test('library backup import requires confirmation, deduplicates and rejects conf
   await page.getByRole('button',{name:'اعمال واردشده',exact:true}).click();
   await expect(page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true})).toHaveValue('60');
 });
+
+test('leaving the pattern section discards a late backup read without prompting or writing',async({page})=>{
+  await page.addInitScript(()=>{
+    const original=File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer=async function(){
+      if(this.name==='delayed.json'){
+        await new Promise<void>((resolve)=>{
+          (window as unknown as {testReleaseFileRead:()=>void}).testReleaseFileRead=resolve;
+        });
+      }
+      const result=await original.call(this);
+      (window as unknown as {testFileReadFinished:boolean}).testFileReadFinished=true;
+      return result;
+    };
+  });
+  let dialogs=0;page.on('dialog',async(dialog)=>{dialogs++;await dialog.dismiss();});
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  const backup={name:'delayed.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({format:'patturn-pattern-library',version:1,entries:[{name:'دیررس',patternId:'wave',tileSize:60}]}))};
+  await page.getByLabel('انتخاب پشتیبان کتابخانهٔ الگو',{exact:true}).setInputFiles(backup);
+  await expect(page.getByRole('button',{name:'در حال خواندن پشتیبان…',exact:true})).toBeDisabled();
+  await page.getByRole('button',{name:'🏺 فرم',exact:true}).click();
+  await page.evaluate(()=>{(window as unknown as {testReleaseFileRead:()=>void}).testReleaseFileRead();});
+  await expect.poll(()=>page.evaluate(()=>(window as unknown as {testFileReadFinished:boolean}).testFileReadFinished)).toBe(true);
+  await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await expect(page.getByRole('button',{name:'ورود پشتیبان کتابخانهٔ الگو',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'اعمال دیررس',exact:true})).toHaveCount(0);
+  expect(dialogs).toBe(0);expect(await page.evaluate(()=>localStorage.getItem('patturn:pattern-library:v1'))).toBeNull();
+});

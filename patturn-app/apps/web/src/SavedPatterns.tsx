@@ -9,18 +9,21 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const importToken = useRef(0);
   const [importing, setImporting] = useState(false);
   const importFile = async (file: File) => {
+    const token = ++importToken.current;
     setImporting(true);
     try {
       if (file.size > MAX_PATTERN_BACKUP_BYTES) throw new Error('LIBRARY_BACKUP_TOO_LARGE');
       const bytes = new Uint8Array(await file.arrayBuffer());
+      if (token !== importToken.current) return;
       const preview = repo().previewImport(bytes);
       if (window.confirm(`${preview.added} تنظیمات جدید افزوده شود؟ مجموع پس از ادغام: ${preview.total}. موارد یکسان تکرار نمی‌شوند و پروژهٔ باز تغییر نمی‌کند.`)) {
         perform(() => repo().importDocument(bytes));
       }
-    } catch (e) { perform(() => { throw e; }); }
-    finally { setImporting(false); }
+    } catch (e) { if (token === importToken.current) perform(() => { throw e; }); }
+    finally { if (token === importToken.current) setImporting(false); }
   };
   const repo = () => new PatternLibraryRepo(window.localStorage, PATTERNS.map((p) => p.id));
   const perform = (action: () => PatternRecipe[]) => {
@@ -47,7 +50,10 @@ export function SavedPatterns({ patternId, tileSize, onApply, onExport }: {
       if (event.key === PATTERN_LIBRARY_KEY || event.key === null) perform(() => repo().list());
     };
     window.addEventListener('storage', refresh);
-    return () => window.removeEventListener('storage', refresh);
+    return () => {
+      importToken.current++; // A late File.arrayBuffer result must not prompt or write after unmount.
+      window.removeEventListener('storage', refresh);
+    };
   }, []);
   return <details className="saved-patterns" onToggle={(e) => { if (e.currentTarget.open) perform(() => repo().list()); }}>
     <summary>تنظیمات الگوی ذخیره‌شده</summary>
