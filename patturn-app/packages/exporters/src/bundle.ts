@@ -1,4 +1,4 @@
-import { createBundleBudget } from './bundle-budget.js';
+import { BUNDLE_LIMITS, createBundleBudget } from './bundle-budget.js';
 export { BUNDLE_LIMITS } from './bundle-budget.js';
 import { toDxf } from './dxf.js';
 import { zip, strToU8, type Zippable } from 'fflate';
@@ -44,6 +44,12 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     entries.set(path, snapshot ? bytes.slice() : bytes);
   };
   try {
+    const fileCount = input.meshes.length + (input.assemblies?.length ?? 0)
+      + (input.dxfPatterns?.length ?? 0) + (input.files?.length ?? 0) + 2;
+    if (fileCount > BUNDLE_LIMITS.files) throw new Error('BUNDLE_TOO_MANY_FILES');
+    // Reject already-known excess before generating geometry output or copying buffers.
+    const sidecarBudget = createBundleBudget();
+    for (const item of input.files ?? []) sidecarBudget.add(item.bytes.byteLength);
     for (const item of input.meshes) {
       if (!item.path.toLowerCase().endsWith('.stl')) throw new Error('BUNDLE_STL_EXTENSION');
       const output = toBinaryStl(item.mesh, item.path);

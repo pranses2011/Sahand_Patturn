@@ -152,4 +152,21 @@ describe('Build ZIP', () => {
     expect(result.ok).toBe(false);expect(result.error).toContain('BUNDLE_TOO_MANY_FILES');expect(result.bytes).toBeUndefined();
   });
 
+  it('rejects an excessive file count before accessing any mesh payload',async()=>{
+    const data=input();
+    Object.defineProperty(data.meshes[0]!,'mesh',{get:()=>{throw Error('MESH_SHOULD_NOT_BE_READ');}});
+    data.files=Array.from({length:BUNDLE_LIMITS.files},(_,i)=>({path:`${i}.txt`,bytes:new Uint8Array()}));
+    const result=await toBuildZip(data);
+    expect(result.error).toContain('BUNDLE_TOO_MANY_FILES');expect(result.bytes).toBeUndefined();
+  });
+  it('rejects excessive sidecar byte sizes before accessing mesh payloads or copying buffers',async()=>{
+    const data=input();
+    Object.defineProperty(data.meshes[0]!,'mesh',{get:()=>{throw Error('MESH_SHOULD_NOT_BE_READ');}});
+    // Synthetic size avoids a 64MiB test allocation; no byte data may be read or copied.
+    const bytes=new Uint8Array();Object.defineProperty(bytes,'byteLength',{value:BUNDLE_LIMITS.fileBytes+1});
+    data.files=[{path:'large.txt',bytes}];
+    const result=await toBuildZip(data);
+    expect(result.error).toContain('BUNDLE_FILE_TOO_LARGE');expect(result.bytes).toBeUndefined();
+  });
+
 });
