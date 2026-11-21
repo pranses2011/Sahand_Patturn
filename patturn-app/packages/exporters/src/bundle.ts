@@ -28,7 +28,7 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
   const reservePath = (path: string) => {
     // Reject traversal, Windows drive/ADS syntax, controls and unsafe segments.
     if (!path || path.includes('\\') || /[:\x00-\x1f\x7f]/.test(path) ||
-        path.split('/').some((p) => !p || p === '.' || p === '..' || /[. ]$/.test(p) || /[<>"|?*]/.test(p) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(p))) {
+        path.split('/').some((p) => !p || p === '.' || p === '..' || /[. ]$/.test(p) || /[<>"|?*]/.test(p) || /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)/i.test(p))) {
       throw new Error(`BUNDLE_UNSAFE_PATH:${path}`);
     }
     const key = path.normalize('NFC').toLowerCase();

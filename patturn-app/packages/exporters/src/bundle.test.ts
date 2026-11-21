@@ -182,4 +182,15 @@ describe('Build ZIP', () => {
     });
   });
 
+  it.each(['COM¹.txt','com².txt','CoM³.txt','LPT¹.txt','lpt².txt','LPT³.txt','folder/COM¹/report.txt'])('rejects Windows superscript device alias %s',async(path)=>{
+    const data=input();data.files=[{path,bytes:new Uint8Array()}];
+    const result=await toBuildZip(data);expect(result.ok).toBe(false);
+    expect(result.error).toContain('BUNDLE_UNSAFE_PATH');expect(result.bytes).toBeUndefined();
+  });
+  it('permits ordinary names that merely resemble device aliases',async()=>{
+    const data=input();data.files=['COM10.txt','LPT0.txt','my-COM1.txt','COM⁴.txt'].map((path)=>({path,bytes:new Uint8Array([1])}));
+    const result=await toBuildZip(data);expect(result.ok,result.error).toBe(true);
+    expect(unzipSync(result.bytes!)['COM10.txt']).toEqual(new Uint8Array([1]));
+  });
+
 });
