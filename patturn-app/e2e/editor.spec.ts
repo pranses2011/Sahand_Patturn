@@ -958,3 +958,25 @@ test('corrupt local profile cannot be overwritten implicitly and explicit deleti
   await page.getByRole('button',{name:'ذخیرهٔ پروفایل محلی',exact:true}).click();
   await expect(page.getByRole('status').filter({hasText:'پروفایل فقط روی همین دستگاه ذخیره شد'})).toBeVisible();
 });
+
+test('chuck tool exports a validated tapered support independently of the project form',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'📤 خروجی',exact:true}).click();
+  await page.getByText('چاک‌ساز — شیب ۲ درجه و سوراخ تخلیه',{exact:true}).click();
+  const height=page.getByRole('spinbutton',{name:'ارتفاع چاک',exact:true});await height.fill('50');await height.press('Enter');
+  await expect(page.getByRole('img',{name:'مقطع شماتیک چاک؛ سوراخ محوری در هر دو سر باز است',exact:true})).toBeVisible();
+  await expect(page.getByRole('status').filter({hasText:'مش بسته و اعتبارسنجی‌شده؛ سوراخ تخلیه باز است'})).toBeVisible();
+  const download=page.waitForEvent('download');await page.getByRole('button',{name:'دانلود STL چاک',exact:true}).click();
+  const file=await download;expect(file.suggestedFilename()).toBe('chuck_taper2deg_D80-H50-drain8mm.stl');
+  const path=await file.path();expect(path).not.toBeNull();const bytes=await readFile(path!);
+  expect(bytes.readUInt32LE(80)).toBe(768);expect(bytes.length).toBe(84+768*50);
+  const ys:number[]=[];
+  for(let offset=84;offset<bytes.length;offset+=50){
+    for(let v=0;v<3;v++){
+      const start=offset+12+12*v;const x=bytes.readFloatLE(start),y=bytes.readFloatLE(start+4),z=bytes.readFloatLE(start+8);
+      expect(Math.hypot(x,z)).toBeGreaterThan(3.999);ys.push(y);
+    }
+  }
+  expect(Math.min(...ys)).toBe(0);expect(Math.max(...ys)).toBe(50);
+  await page.getByRole('button',{name:'🏺 فرم',exact:true}).click();
+  await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
+});

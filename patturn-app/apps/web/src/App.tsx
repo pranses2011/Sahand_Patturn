@@ -1,3 +1,4 @@
+import { ChuckTool } from './ChuckTool';
 import { LocalProfilePanel } from './LocalProfilePanel';
 import { SupportPanel } from './SupportPanel';
 import { PrivacyNotice } from './PrivacyNotice';
@@ -741,6 +742,7 @@ export function App() {
           {part === 'export' && (
             <>
               <h3 className="sec">خروجی‌ها</h3>
+              <ChuckTool onExport={download} />
               <div className="ctl"><button className="btn primary" disabled={zipBusy || moldBusy || motherBusy || barrierRequest !== null || !formMesh || !moldParts}
                 onClick={exportBuildZip}>{zipBusy ? '⏳ در حال بسته‌بندی…' : '⬇ ZIP ساخت: قطعات، مواد و راهنما'}</button></div>
               {zipBusy && <button className="btn" onClick={() => zipController.current?.abort()}>لغو بسته‌بندی</button>}

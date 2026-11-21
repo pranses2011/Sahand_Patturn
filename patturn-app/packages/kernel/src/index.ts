@@ -4,3 +4,5 @@ export * from './revolve.js';
 export * from './volume.js';
 export * from './mesh-validate.js';
 export * from './unwrap.js';
+
+export * from './chuck.js';
