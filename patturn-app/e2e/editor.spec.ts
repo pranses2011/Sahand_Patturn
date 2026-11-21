@@ -281,3 +281,23 @@ test('renaming a saved recipe supports cancel and preserves its values across re
   const tile=page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true});await tile.fill('60');await tile.press('Enter');
   await page.getByRole('button',{name:'اعمال جدید',exact:true}).click();await expect(tile).toHaveValue('40');
 });
+
+test('updating a named recipe requires confirmation and preserves the saved name after reload',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await page.getByRole('textbox',{name:'نام تنظیمات',exact:true}).fill('قابل ویرایش');
+  await page.getByRole('button',{name:'ذخیرهٔ تنظیمات فعلی',exact:true}).click();
+  const tile=page.getByRole('spinbutton',{name:'اندازهٔ کاشی',exact:true});
+  await tile.fill('60');await tile.press('Enter');
+  await page.getByRole('radio',{name:'موج',exact:true}).check();
+  const update=page.getByRole('button',{name:'به‌روزرسانی قابل ویرایش با مقادیر فعلی',exact:true});
+  const before=await page.evaluate(()=>localStorage.getItem('patturn:pattern-library:v1'));
+  page.once('dialog',(dialog)=>dialog.dismiss());await update.click();
+  expect(await page.evaluate(()=>localStorage.getItem('patturn:pattern-library:v1'))).toBe(before);
+  page.once('dialog',(dialog)=>dialog.accept());await update.click();
+  await page.reload();await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByText('تنظیمات الگوی ذخیره‌شده',{exact:true}).click();
+  await tile.fill('40');await tile.press('Enter');await page.getByRole('radio',{name:'لوزی',exact:true}).check();
+  await page.getByRole('button',{name:'اعمال قابل ویرایش',exact:true}).click();
+  await expect(tile).toHaveValue('60');await expect(page.getByRole('radio',{name:'موج',exact:true})).toBeChecked();
+});

@@ -44,6 +44,11 @@ export function SavedPatterns({ patternId, tileSize, onApply }: {
       <b>{entry.name}</b> — {entry.tileSize} mm
       <button className="btn" onClick={() => onApply(entry)} aria-label={`اعمال ${entry.name}`}>اعمال</button>
       <button className="btn" onClick={() => {
+        if (window.confirm(`نوع الگو و اندازهٔ کاشی فعلی جایگزین تنظیمات «${entry.name}» شود؟`)) {
+          perform(() => repo().update(entry.name, { patternId, tileSize }));
+        }
+      }} aria-label={`به‌روزرسانی ${entry.name} با مقادیر فعلی`}>به‌روزرسانی با مقادیر فعلی</button>
+      <button className="btn" onClick={() => {
         const nextName = window.prompt('نام جدید تنظیمات:', entry.name);
         if (nextName !== null) perform(() => repo().rename(entry.name, nextName));
       }} aria-label={`تغییر نام ${entry.name}`}>تغییر نام</button>

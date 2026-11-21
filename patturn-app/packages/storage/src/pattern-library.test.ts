@@ -54,4 +54,23 @@ describe('Named pattern recipes',()=>{
     data.set(PATTERN_LIBRARY_KEY,'{broken');expect(()=>repo.rename(recipe.name,'new')).toThrow();expect(data.get(PATTERN_LIBRARY_KEY)).toBe('{broken');
   });
 
+  it('updates recipe values in place without changing its name or neighbors',()=>{
+    const {repo}=setup();repo.save(recipe);repo.save({...recipe,name:'دوم'});
+    expect(repo.update(recipe.name,{patternId:'grid',tileSize:60})).toEqual([
+      {...recipe,patternId:'grid',tileSize:60},{...recipe,name:'دوم'},
+    ]);
+  });
+  it('rejects invalid or missing updates and retains previous bytes on denied writes',()=>{
+    const {repo,data,storage}=setup();repo.save(recipe);const before=data.get(PATTERN_LIBRARY_KEY);
+    for(const [name,values] of [[recipe.name,{patternId:'unknown',tileSize:12}],[recipe.name,{patternId:'wave',tileSize:NaN}],['missing',{patternId:'wave',tileSize:12}]] as const){
+      expect(()=>repo.update(name,values)).toThrow();expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);
+    }
+    storage.setItem=()=>{throw Error('quota');};
+    expect(()=>repo.update(recipe.name,{patternId:'grid',tileSize:60})).toThrow('quota');expect(data.get(PATTERN_LIBRARY_KEY)).toBe(before);
+  });
+  it('does not write when updating unchanged values',()=>{
+    const {repo,storage}=setup();repo.save(recipe);storage.setItem=()=>{throw Error('should not write');};
+    expect(repo.update(recipe.name,{patternId:recipe.patternId,tileSize:recipe.tileSize})).toEqual([recipe]);
+  });
+
 });
