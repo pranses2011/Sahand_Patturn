@@ -43,3 +43,17 @@ test('flat pattern selection and SVG/DXF downloads work without WebGL', async ({
   expect(text).toContain('tolerance 0.05 mm');expect(text).toContain('\nLINE\n');
   await expect(page.getByRole('status').filter({hasText:'درخواست دانلود به مرورگر ارسال شد'})).toBeVisible();
 });
+
+test('numeric draft supports clearing, decimal typing, escape and committed undo',async({page})=>{
+  await page.goto('/');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('');await expect(wall).toHaveValue('');
+  await expect(page.locator('footer')).toContainText('Wall 4');
+  await wall.press('Tab');await expect(wall).toHaveValue('4');
+  await wall.fill('12');await wall.press('Escape');await expect(wall).toHaveValue('4');
+  const shrink=page.getByRole('spinbutton',{name:'شیرینک',exact:true});
+  await shrink.fill('');await shrink.pressSequentially('12.5');
+  await expect(page.locator('footer')).toContainText('Shrink 12%');
+  await shrink.press('Enter');await expect(page.locator('footer')).toContainText('Shrink 12.5%');
+  await page.getByRole('button',{name:/^واگرد/}).click();await expect(shrink).toHaveValue('12');
+});

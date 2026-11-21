@@ -1,10 +1,11 @@
+import { NumericControl } from './NumericControl';
 import { usePreviewPattern } from './usePreviewPattern';
 import { useFileDelivery, type DeliveryOutcome } from './useFileDelivery';
 import { ViewportBoundary } from './ViewportBoundary';
 import { PatternViewSwitch, FlatPatternPreview, type PatternView } from './PatternPreview';
 import { SavedPatterns } from './SavedPatterns';
 import { PatternLibrary } from './PatternLibrary';
-import { ParameterHelp, type HelpTopic } from './ParameterHelp';
+import type { HelpTopic } from './ParameterHelp';
 import { EditorModeSwitch, AdvancedControls, type EditorMode } from './EditorMode';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -572,22 +573,9 @@ export function App() {
   };
 
   const numCtl = (label: string, value: number, set: (n: number) => void, min: number, max: number, step = 1, unit = 'mm', help?: HelpTopic) => (
-    <div className="ctl">
-      <label>
-        <span>{label}</span>
-        <span className="val">
-          {value} {unit}
-          <input
-            className="num" type="number" onFocus={() => parameterHistory.beginGroup()} onBlur={finishParameterGroup} value={value} min={min} max={max} step={step}
-            onChange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) { set(Math.min(max, Math.max(min, Math.round(n / step) * step))); markDirty(); } }}
-            style={{ marginRight: 6 }}
-          />
-        </span>
-      </label>
-      <input type="range" aria-label={label} onPointerDown={() => parameterHistory.beginGroup()} onPointerUp={finishParameterGroup} onPointerCancel={finishParameterGroup} onBlur={finishParameterGroup} min={min} max={max} step={step} value={value}
-        onChange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) { set(Math.min(max, Math.max(min, Math.round(n / step) * step))); markDirty(); } }} />
-      {help && <ParameterHelp topic={help} />}
-    </div>
+    <NumericControl label={label} value={value} onChange={(n) => { set(n); markDirty(); }}
+      min={min} max={max} step={step} unit={unit} help={help}
+      onBeginEdit={() => parameterHistory.beginGroup()} onEndEdit={finishParameterGroup} />
   );
 
   return (
