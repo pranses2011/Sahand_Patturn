@@ -1,3 +1,4 @@
+import { PATTERN_NAMES_FA } from '@patturn/config';
 import { EditorState, type EditorState as State } from '@patturn/schema';
 
 const LABELS: Record<keyof State, string> = {
@@ -9,6 +10,7 @@ const PROFILE_NAMES: Record<State['profileMode'], string> = {
 };
 const value = (key: keyof State, v: string | number) => key === 'profileMode'
   ? PROFILE_NAMES[v as State['profileMode']]
+  : key === 'patternId' ? PATTERN_NAMES_FA[String(v)] ?? v
   : typeof v === 'number' ? new Intl.NumberFormat('fa-IR').format(v) : v;
 
 /** In-memory editing history; unrelated to autosave and folder backups. */

@@ -1,3 +1,4 @@
+import { PATTERN_NAMES_FA } from '@patturn/config';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -14,6 +15,10 @@ describe('Pattern selection cards', () => {
     expect(html).toContain('اندازهٔ واقعی پروژه');
     expect(html).not.toMatch(/https?:|<img|<script/);
     expect(html).toContain('شبکهٔ نقطه‌ای');
+  });
+  it('has one Persian display name for every built-in pattern and no stale names',()=>{
+    expect(Object.keys(PATTERN_NAMES_FA).sort()).toEqual(PATTERNS.map((p)=>p.id).sort());
+    expect(Object.values(PATTERN_NAMES_FA).every((name)=>/[\u0600-\u06ff]/.test(name))).toBe(true);
   });
   it('is deterministic and does not mutate pattern defaults', () => {
     const before = PATTERNS.map((p) => JSON.stringify(p.defaults));

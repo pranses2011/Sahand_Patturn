@@ -559,3 +559,13 @@ test('profile undo and redo commands display Persian form names',async({page})=>
   await page.getByRole('button',{name:'ازنو: فرم: گلدان مرجع ← سطل گشاد',exact:true}).click();
   await expect(page.getByRole('radio',{name:'سطل گشاد',exact:true})).toBeChecked();
 });
+
+test('pattern undo and redo use the same Persian names as the pattern library',async({page})=>{
+  await page.goto('/');
+  await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true}).check();
+  await page.getByRole('button',{name:'واگرد: الگو: شبکهٔ نقطه‌ای ← شبکهٔ مربعی',exact:true}).click();
+  await expect(page.getByRole('radio',{name:'شبکهٔ نقطه‌ای',exact:true})).toBeChecked();
+  await page.getByRole('button',{name:'ازنو: الگو: شبکهٔ نقطه‌ای ← شبکهٔ مربعی',exact:true}).click();
+  await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
+});

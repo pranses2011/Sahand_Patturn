@@ -53,3 +53,9 @@ export const UNITS = {
   defaultWall: 4,
   defaultSegments: 96,
 };
+
+/** User-facing names; persisted pattern IDs stay language independent. */
+export const PATTERN_NAMES_FA: Record<string, string> = {
+  'dot-grid': 'شبکهٔ نقطه‌ای', stripes: 'راه‌راه', grid: 'شبکهٔ مربعی',
+  chevron: 'زیگزاگ', hex: 'شش‌ضلعی', scale: 'فلس', wave: 'موج', diamond: 'لوزی', spiral: 'مارپیچ', seigaiha: 'موج ژاپنی', herringbone: 'جناغی', kumiko: 'الهام از کومیکو',
+};

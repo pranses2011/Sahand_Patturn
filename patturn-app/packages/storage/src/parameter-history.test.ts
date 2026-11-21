@@ -1,3 +1,4 @@
+import { PATTERN_NAMES_FA } from '@patturn/config';
 import { describe, expect, it } from 'vitest';
 import { ParameterHistory } from './index.js';
 import type { EditorState } from '@patturn/schema';
@@ -14,6 +15,17 @@ describe('Named parameter undo/redo',()=>{
     expect(h.undo()).toEqual(initial);
     expect(h.redoTitle).toBe(`فرم: ${fromName} ← ${toName}`);
     expect(h.redo()!.profileMode).toBe(to);
+  });
+  it.each(Object.entries(PATTERN_NAMES_FA).filter(([id])=>id!==state.patternId))('localizes pattern %s while preserving its ID',(id,name)=>{
+    const h=new ParameterHistory(state);h.record({...state,patternId:id});
+    expect(h.undoTitle).toBe(`الگو: شبکهٔ نقطه‌ای ← ${name}`);
+    expect(h.undo()).toEqual(state);
+    expect(h.redoTitle).toBe(`الگو: شبکهٔ نقطه‌ای ← ${name}`);
+    expect(h.redo()!.patternId).toBe(id);
+  });
+  it('keeps unknown pattern IDs readable rather than showing undefined',()=>{
+    const h=new ParameterHistory(state);h.record({...state,patternId:'future-pattern'});
+    expect(h.undoTitle).toBe('الگو: شبکهٔ نقطه‌ای ← future-pattern');
   });
   it('UHI1: named undo and redo restore complete snapshots',()=>{
     const h=new ParameterHistory(state);
