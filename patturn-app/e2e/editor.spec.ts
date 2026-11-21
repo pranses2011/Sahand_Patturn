@@ -1943,3 +1943,61 @@ test('developable slab exports real mm SVG and DXF and stays separate from proje
   }
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('loft and arc sweep export closed-tool STL and leave project history unchanged', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('Loft / Sweep — دو مقطع بیضوی یا مسیر قوسی', { exact: true }).click();
+  await expect(
+    page.getByRole('img', { name: 'پیش‌نمایش خطی Loft/Sweep', exact: true }).locator('polyline'),
+  ).toHaveCount(2);
+  for (const mode of ['loft', 'sweep']) {
+    await page.getByLabel('روش ساخت Loft/Sweep', { exact: true }).selectOption(mode);
+    const download = page.waitForEvent('download');
+    await page
+      .getByRole('button', {
+        name: `دانلود STL ${mode === 'loft' ? 'Loft' : 'Sweep'}`,
+        exact: true,
+      })
+      .click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe(
+      mode === 'loft' ? 'tool_loft_B30x20-T50x35-H100-X0.stl' : 'tool_sweep_R60-r8-A180.stl',
+    );
+    const path = await file.path();
+    expect(path).not.toBeNull();
+    const bytes = await readFile(path!);
+    expect(bytes.length).toBe(84 + bytes.readUInt32LE(80) * 50);
+    let allFinite = true;
+    const mins = [Infinity, Infinity, Infinity],
+      maxs = [-Infinity, -Infinity, -Infinity];
+    for (let offset = 84; offset < bytes.length; offset += 50)
+      for (let v = 0; v < 3; v++)
+        for (let axis = 0; axis < 3; axis++) {
+          const n = bytes.readFloatLE(offset + 12 + v * 12 + axis * 4);
+          allFinite = allFinite && Number.isFinite(n);
+          mins[axis] = Math.min(mins[axis]!, n);
+          maxs[axis] = Math.max(maxs[axis]!, n);
+        }
+    expect(allFinite).toBe(true);
+    if (mode === 'loft') {
+      expect(mins).toEqual([-50, 0, -35]);
+      expect(maxs).toEqual([50, 100, 35]);
+    } else {
+      expect(mins[0]).toBe(-8);
+      expect(maxs[0]).toBe(128);
+      expect(mins[2]).toBe(-8);
+      expect(maxs[2]).toBe(8);
+    }
+  }
+  const radius = page.getByRole('spinbutton', { name: 'شعاع مسیر Sweep', exact: true });
+  const tube = page.getByRole('spinbutton', { name: 'شعاع مقطع Sweep', exact: true });
+  await tube.fill('30');
+  await tube.press('Enter');
+  await radius.fill('20');
+  await radius.press('Enter');
+  await expect(tube).toHaveValue('10');
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

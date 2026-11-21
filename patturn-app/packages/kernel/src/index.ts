@@ -8,3 +8,4 @@ export * from './unwrap.js';
 export * from './chuck.js';
 export * from './rounder.js';
 export * from './foot-ring.js';
+export * from './loft-sweep.js';
