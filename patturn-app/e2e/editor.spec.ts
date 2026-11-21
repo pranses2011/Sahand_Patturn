@@ -746,3 +746,46 @@ test('failed browser delivery can be discarded and a fresh output downloaded wit
   await expect(page.getByRole('status').filter({hasText:'درخواست دانلود به مرورگر ارسال شد'})).toBeVisible();
   await expect(wall).toHaveValue('7');await expect(undo).toHaveAttribute('title',title!);
 });
+
+test('a failed download click releases its Blob URL and retry delivers the retained snapshot',async({page})=>{
+  await page.addInitScript(()=>{
+    const create=URL.createObjectURL.bind(URL),revoke=URL.revokeObjectURL.bind(URL);
+    const click=HTMLAnchorElement.prototype.click;
+    const audit={created:[] as string[],revoked:[] as string[],blobs:[] as Blob[]};
+    (window as unknown as {testDownloadAudit:typeof audit}).testDownloadAudit=audit;
+    URL.createObjectURL=(blob)=>{
+      const url=create(blob);audit.created.push(url);audit.blobs.push(blob as Blob);return url;
+    };
+    URL.revokeObjectURL=(url)=>{audit.revoked.push(url);revoke(url);};
+    let fail=true;
+    HTMLAnchorElement.prototype.click=function(){
+      if(this.download && fail){fail=false;throw new Error('SIMULATED_DOWNLOAD_CLICK_FAILURE');}
+      click.call(this);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('button',{name:'خروجی SVG الگو',exact:true}).click();
+  await expect(page.getByRole('alert').filter({hasText:'ممکن است فایل مقصد ناقص باشد'})).toBeVisible();
+  const first=await page.evaluate(()=>{
+    const audit=(window as unknown as {testDownloadAudit:{created:string[];revoked:string[]}}).testDownloadAudit;
+    return {created:audit.created,revoked:audit.revoked};
+  });
+  expect(first.created).toHaveLength(1);expect(first.revoked).toEqual(first.created);
+  // Change the active pattern after failure; retry must still deliver the old snapshot.
+  await page.getByRole('button',{name:'🔷 الگو',exact:true}).click();
+  await page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true}).check();
+  const downloaded=page.waitForEvent('download');
+  await page.getByRole('button',{name:'تلاش دوبارهٔ همان خروجی',exact:true}).click();
+  const file=await downloaded;const path=await file.path();expect(path).not.toBeNull();
+  const original=await page.evaluate(async()=>{
+    const audit=(window as unknown as {testDownloadAudit:{blobs:Blob[]}}).testDownloadAudit;
+    return await audit.blobs[0]!.text();
+  });
+  expect(await readFile(path!,'utf8')).toBe(original);
+  await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
+  await expect(page.getByRole('button',{name:'تلاش دوبارهٔ همان خروجی',exact:true})).toHaveCount(0);
+  await expect.poll(()=>page.evaluate(()=>{
+    const audit=(window as unknown as {testDownloadAudit:{created:string[];revoked:string[]}}).testDownloadAudit;
+    return audit.revoked.length===2 && audit.created.length===2 && audit.revoked.every((url,index)=>url===audit.created[index]);
+  })).toBe(true);
+});
