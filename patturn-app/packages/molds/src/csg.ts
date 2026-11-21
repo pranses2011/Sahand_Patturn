@@ -690,3 +690,25 @@ export function splitHorizontal(mesh: Mesh, height: number): {lower:Mesh;upper:M
     return {lower,upper};
   } finally { for(const part of new Set(owned))part.delete?.(); }
 }
+
+
+/** Union a radial foot ring to a closed form with a planar base centered on Y.
+ * The addition is constrained inside the sampled base footprint, with 0.5mm overlap.
+ */
+export function unionFootRing(form:Mesh,ring:Mesh):Mesh{
+  for(const mesh of [form,ring]){
+    if(mesh.positions.some((v)=>!Number.isFinite(v))||mesh.indices.some((i)=>i>=mesh.positions.length/3)||!validateMesh(mesh).ok)throw Error('INVALID_FOOT_UNION_MESH');
+  }
+  const owned:ManifoldT[]=[];
+  try {
+    const body=toManifold(form);owned.push(body);
+    const foot=toManifold(ring);owned.push(foot);
+    const united=body.add(foot);owned.push(united);
+    const volume=united.volume(),bodyVolume=body.volume(),footVolume=foot.volume();
+    // Reject disjoint/tangent additions and wholly buried rings, not just bad meshes.
+    const tolerance=Math.max(.001,footVolume*1e-5);
+    if(volume>=bodyVolume+footVolume-tolerance||volume<=bodyVolume+tolerance)throw Error('FOOT_RING_NOT_JOINED');
+    const mesh=fromManifold(united);if(!validateMesh(mesh).ok)throw Error('FOOT_UNION_INVALID_RESULT');
+    return mesh;
+  }finally{for(const part of new Set(owned))part.delete?.();}
+}

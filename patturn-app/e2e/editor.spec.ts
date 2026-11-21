@@ -1093,3 +1093,25 @@ test('corrupt local feature requests do not overwrite data or block project edit
   const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});await wall.fill('7');await wall.press('Enter');
   await expect(wall).toHaveValue('7');await expect(panel.getByRole('status')).toHaveCount(0);
 });
+
+test('foot ring unions each edge style with the body and invalidates stale downloads on parameter changes',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'📤 خروجی',exact:true}).click();
+  await page.getByText('فوت‌رینگ — اتصال حلقهٔ پایه به فرم',{exact:true}).click();
+  for(const edge of ['square','chamfer','round']){
+    await page.getByLabel('سبک لبهٔ فوت‌رینگ',{exact:true}).selectOption(edge);
+    await page.getByRole('button',{name:'ساخت فرم فوت‌رینگ‌دار',exact:true}).click();
+    await expect(page.getByRole('status').filter({hasText:'فوت‌رینگ با بدنه union و مش اعتبارسنجی شد'})).toBeVisible({timeout:60_000});
+    const download=page.waitForEvent('download');await page.getByRole('button',{name:'دانلود STL فرم فوت‌رینگ‌دار',exact:true}).click();
+    const file=await download;expect(file.suggestedFilename()).toBe(`form_foot-ring_W6-D4-${edge}mm.stl`);
+    const path=await file.path();expect(path).not.toBeNull();const bytes=await readFile(path!);
+    expect(bytes.length).toBe(84+bytes.readUInt32LE(80)*50);
+    let min=Infinity,max=-Infinity;
+    for(let offset=84;offset<bytes.length;offset+=50)for(let v=0;v<3;v++){
+      const y=bytes.readFloatLE(offset+16+12*v);min=Math.min(min,y);max=Math.max(max,y);
+    }
+    expect(min).toBe(-8);expect(max).toBe(144);
+  }
+  const width=page.getByRole('spinbutton',{name:'عرض فوت‌رینگ',exact:true});await width.fill('7');await width.press('Enter');
+  await expect(page.getByRole('button',{name:'دانلود STL فرم فوت‌رینگ‌دار',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:/^واگرد/})).toBeDisabled();
+});
