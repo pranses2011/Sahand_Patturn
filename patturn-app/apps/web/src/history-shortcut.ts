@@ -7,7 +7,8 @@ interface ShortcutEvent {
 export function historyShortcut(event: ShortcutEvent): 'undo' | 'redo' | null {
   if (event.defaultPrevented || event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return null;
   const key = event.key.toLowerCase();
-  const command = key === 'z' || key === 'y' ? key : event.code === 'KeyZ' ? 'z' : event.code === 'KeyY' ? 'y' : null;
+  const physicalFallback = [...key].length === 1 && !/[a-z]/i.test(key);
+  const command = key === 'z' || key === 'y' ? key : !physicalFallback ? null : event.code === 'KeyZ' ? 'z' : event.code === 'KeyY' ? 'y' : null;
   if (!command) return null;
   return command === 'y' || event.shiftKey ? 'redo' : 'undo';
 }

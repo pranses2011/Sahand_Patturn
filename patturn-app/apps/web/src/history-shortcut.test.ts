@@ -8,6 +8,9 @@ describe('Layout-aware history shortcuts',()=>{
     [{ctrlKey:false,metaKey:true,key:'ظ'},'undo'],
     [{ctrlKey:false},null],[{altKey:true},null],[{isComposing:true},null],[{defaultPrevented:true},null],
     [{key:'a',code:'KeyA'},null],
+    [{key:'a',code:'KeyZ'},null],[{key:'w',code:'KeyY'},null],
+    [{key:'Dead'},null],[{key:'Process'},null],[{key:'Unidentified'},null],[{key:''},null],
+    [{key:'y',code:'KeyZ'},'redo'],[{key:'z',code:'KeyY'},'undo'],
   ] as const)('maps %j to %s',(overrides,expected)=>{
     expect(historyShortcut({...base,...overrides})).toBe(expected);
   });

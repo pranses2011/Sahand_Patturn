@@ -789,3 +789,19 @@ test('a failed download click releases its Blob URL and retry delivers the retai
     return audit.revoked.length===2 && audit.created.length===2 && audit.revoked.every((url,index)=>url===audit.created[index]);
   })).toBe(true);
 });
+
+test('physical history fallback does not hijack Latin remapped or dead keys',async({page})=>{
+  await page.goto('/');
+  const slider=page.getByRole('slider',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await slider.focus();await page.keyboard.press('ArrowUp');await expect(slider).toHaveValue('5');
+  for(const key of ['a','w','Dead','Process','Unidentified']){
+    const allowed=await slider.evaluate((element,key)=>element.dispatchEvent(new KeyboardEvent('keydown',{
+      key,code:'KeyZ',ctrlKey:true,bubbles:true,cancelable:true,
+    })),key);
+    expect(allowed).toBe(true);await expect(slider).toHaveValue('5');
+  }
+  const allowed=await slider.evaluate((element)=>element.dispatchEvent(new KeyboardEvent('keydown',{
+    key:'ظ',code:'KeyZ',ctrlKey:true,bubbles:true,cancelable:true,
+  })));
+  expect(allowed).toBe(false);await expect(slider).toHaveValue('4');
+});
