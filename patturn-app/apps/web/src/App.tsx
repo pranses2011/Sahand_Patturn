@@ -80,7 +80,7 @@ function loadEditorStartup() {
 }
 
 export function App() {
-  const { download, status: deliveryStatus, retry: retryDelivery } = useFileDelivery(writeOutput);
+  const { download, status: deliveryStatus, retry: retryDelivery, discard: discardDelivery } = useFileDelivery(writeOutput);
   const [startup] = useState(loadEditorStartup);
   const [historyEntries, setHistoryEntries] = useState(startup.entries);
   const [autosaveError, setAutosaveError] = useState(startup.error);
@@ -635,6 +635,7 @@ export function App() {
         {deliveryStatus.message}
         {deliveryStatus.pending && <span> تا پایان یا لغو ذخیره، درخواست خروجی دیگری پذیرفته نمی‌شود.</span>}
         {deliveryStatus.error && <button className="btn" onClick={retryDelivery}>تلاش دوبارهٔ همان خروجی</button>}
+        {deliveryStatus.error && <button className="btn" onClick={discardDelivery}>کنارگذاشتن خروجی ناموفق</button>}
       </div>}
       {moldActive && moldError && <div className="hint" role="alert">
         ساخت قالب ناموفق بود؛ اعتبار فرم اصلی مستقل است و تنظیمات پروژه تغییر نکرده‌اند: {moldError}

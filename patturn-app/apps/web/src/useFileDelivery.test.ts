@@ -36,6 +36,30 @@ describe('Output delivery status and retry',()=>{
     expect(h.api.status.message).toContain(outcome==='cancelled'?'لغو شد':'درخواست دانلود');
     act(()=>h.tree.unmount());
   });
+  it('discards failed retry bytes without writing and permits a fresh output',async()=>{
+    const writer=vi.fn<FileWriter>().mockRejectedValueOnce(Error('disk full')).mockResolvedValue('saved');
+    const h=setup(writer);
+    await act(async()=>h.api.download('old.zip',bytes));
+    act(()=>h.api.discard());
+    expect(h.api.status.error).toBe(false);expect(h.api.status.message).toContain('کنار گذاشته شد');
+    await act(async()=>h.api.retry());expect(writer).toHaveBeenCalledTimes(1);
+    await act(async()=>h.api.download('fresh.zip',new Uint8Array([4])));
+    expect(writer).toHaveBeenLastCalledWith('fresh.zip',new Uint8Array([4]));
+    expect(h.api.status.message).toContain('فایل ذخیره شد: fresh.zip');
+    act(()=>h.tree.unmount());
+  });
+  it('does not discard a pending write or falsely release its lock',async()=>{
+    let reject!:(reason:Error)=>void;
+    const writer=vi.fn<FileWriter>(()=>new Promise((_resolve,fail)=>{reject=fail;}));
+    const h=setup(writer);act(()=>h.api.download('pending.zip',bytes));
+    act(()=>{h.api.discard();h.api.download('overlap.zip',bytes);});
+    expect(h.api.status.pending).toBe(true);expect(writer).toHaveBeenCalledTimes(1);
+    await act(async()=>reject(Error('failed')));
+    expect(h.api.status.error).toBe(true);
+    act(()=>h.api.retry());expect(writer).toHaveBeenCalledTimes(2);
+    await act(async()=>reject(Error('failed again')));
+    act(()=>h.tree.unmount());
+  });
   it('a new request supersedes a failed retry without changing the earlier payload',async()=>{
     const writer=vi.fn<FileWriter>().mockRejectedValueOnce(Error('denied')).mockResolvedValue('saved');
     const h=setup(writer);

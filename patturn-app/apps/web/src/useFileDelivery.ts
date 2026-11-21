@@ -27,5 +27,10 @@ export function useFileDelivery(write: FileWriter) {
       } finally { busy.current = false; }
     })();
   };
-  return {download,status,retry:()=>{const file=failed.current;if(file)download(file.name,file.bytes);}};
+  const discard = () => {
+    if (busy.current || !failed.current) return;
+    failed.current = null;
+    setStatus({pending:false,error:false,message:'خروجی ناموفق کنار گذاشته شد؛ برای ذخیره، خروجی را دوباره بسازید. تنظیمات پروژه تغییر نکرد.'});
+  };
+  return {download,status,discard,retry:()=>{const file=failed.current;if(file)download(file.name,file.bytes);}};
 }
