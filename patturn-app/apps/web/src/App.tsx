@@ -501,7 +501,7 @@ export function App() {
       files.push({ path: `pattern/${pattern.filename}`, bytes: pattern.bytes! });
       files.push({ path: 'parameters.json', bytes: new TextEncoder().encode(JSON.stringify({
         kind: 'manufacturing-export-snapshot', version: 1, units: 'mm', profileMode,
-        profile, segments, wallMm: wall, capacityMl: capMl, capacityMethod: 'radial-inset-raised-floor', shrinkPercent: shrink, splitPlan, pattern: { id: patternId, tileSize, strokeMm: patternStrokeMm, canvasMm: [300, 300] },
+        profile, segments, wallMm: wall, capacityMl: capMl, capacityMethod: 'radial-inset-raised-floor', shrinkPercent: shrink, splitPlan, pattern: { id: patternId, tileSize, strokeMm: patternStrokeMm, canvasMm: [300, 300], dxf: { clippedToCanvas: true, bezierToleranceMm: 0.05, toleranceBeforeClipping: true, closedBoundaryAdded: false } },
         motherBoxPartsIncluded: motherResults?.length ?? 0,
         motherOffsetPartsIncluded: barrierResult ? [barrierResult.index + 1] : [],
       }, null, 2)) });
@@ -512,6 +512,7 @@ export function App() {
         'obj/: فرم و مجموعهٔ قطعات قالب با نام و رنگ رأس؛ واحد mm. رنگ از افزونهٔ رایج RGB استفاده می‌کند و ممکن است در برخی نرم‌افزارها نمایش داده نشود. فایل MTL ندارد.',
         'ظرفیت برآوردی با کم‌کردن شعاعی ضخامت و بالابردن کف محاسبه می‌شود؛ پوستهٔ یکنواخت عمود بر سطح نیست. STL فرم، مدل بیرونی توپر برای قالب‌سازی است.',
         'BOM.txt: برآورد گچ و آب، بدون پرت. pattern/: الگوی تخت ۳۰۰×۳۰۰mm؛ نگاشت برجسته روی STL اعمال نشده است.',
+        'pattern/: SVG با ضخامت خط پیش‌نمایش و برش صرفاً نمایشی؛ DXF با برش هندسی بوم، خطوط/دایره/قوس و تقریب موج Bézier با تلورانس ۰٫۰۵mm پیش از برش. DXF مسیر مرکزی است؛ کانتور مرزی یا پل استنسیل اضافه نشده است. در CAD واحد mm را انتخاب و اندازه را کنترل کنید.',
         'dimensions/: برگهٔ ابعاد PDF آ۴؛ چاپ اندازهٔ واقعی ۱۰۰٪، خاموش‌کردن Fit to page و اندازه‌گیری خط‌کش ۱۰۰mm الزامی است.',
         'فایل .patturn: پروژهٔ فشردهٔ قابل بازکردن از دکمهٔ بازکردن پروژه؛ مش‌ها دوباره محاسبه می‌شوند. مادرقالب‌ها و نتایج مشتق‌شده ذخیره نمی‌شوند.',
         'parameters.json: ثبت تنظیمات مؤثر خروجی؛ فایل پروژهٔ قابل بازیابی در برنامه نیست.',
@@ -527,7 +528,11 @@ export function App() {
         { path: `obj/${exportName(`form-${profileMode}`, 'assembly', 'mm', 'obj')}`, parts: [{ name: 'form', mesh: formMesh, color: [0.77, 0.38, 0.18] }] },
         { path: `obj/${exportName(`mold-${profileMode}`, 'assembly', 'mm', 'obj')}`, parts: moldObjParts() },
       ];
-      const result = await toBuildZip({ project: profileMode, meshes, assemblies, files, instructions }, controller.signal);
+      const dxfPatterns: NonNullable<BuildBundle['dxfPatterns']> = [{
+        path: `pattern/${exportName('pattern', 'flat', 'mm', 'dxf')}`, paths: patternPaths,
+        bounds: { width: 300, height: 300 }, bezierToleranceMm: 0.05,
+      }];
+      const result = await toBuildZip({ project: profileMode, meshes, assemblies, files, instructions, dxfPatterns }, controller.signal);
       if (controller.signal.aborted) setZipError('بسته‌بندی لغو شد؛ فایلی دانلود نشد.');
       else if (!result.ok) setZipError(result.error ?? 'خطای تولید ZIP');
       else download(result.filename, result.bytes!);

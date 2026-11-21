@@ -1,3 +1,5 @@
+import DxfParser from 'dxf-parser';
+import { wave } from '@patturn/patterns';
 import { describe, it, expect } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
 import { encodeEditorProject, decodeEditorProject } from '@patturn/storage';
@@ -70,6 +72,41 @@ describe('Build ZIP', () => {
     const invalid = await toBuildZip(data);
     expect(invalid.ok).toBe(false); expect(invalid.bytes).toBeUndefined();
     expect(invalid.error).toContain('MESH_INVALID');
+  });
+
+  it('Z7: builds clipped DXF inside ZIP, records it in manifest and round-trips through independent reader', async () => {
+    const data = input();
+    const paths = wave.build({canvasW:80,canvasH:80,tileW:40,tileH:40,seed:42,params:{...wave.defaults}});
+    data.dxfPatterns = [{path:'pattern/wave.dxf', paths, bounds:{width:80,height:80}, bezierToleranceMm:.05}];
+    const result = await toBuildZip(data);
+    expect(result.ok,result.error).toBe(true);
+    const files = unzipSync(result.bytes!);
+    const text = strFromU8(files['pattern/wave.dxf']!);
+    expect(text).toContain('tolerance 0.05 mm');
+    const doc = new DxfParser().parseSync(text)!;
+    expect(doc.entities.length).toBeGreaterThan(0);
+    expect(doc.entities.every((e)=>e.type==='LINE')).toBe(true);
+    const manifest=JSON.parse(strFromU8(files['manifest.json']!));
+    expect(manifest.files).toContainEqual({path:'pattern/wave.dxf',bytes:files['pattern/wave.dxf']!.length});
+    expect((await toBuildZip(data)).bytes).toEqual(result.bytes);
+  });
+  it('Z8: rejects invalid DXF geometry atomically and prevents raw DXF extras', async () => {
+    const data=input();
+    data.dxfPatterns=[{path:'pattern/bad.dxf',paths:[{d:'M0 0Q10 10 20 0'}],bounds:{width:80,height:80}}];
+    const invalid=await toBuildZip(data);
+    expect(invalid.ok).toBe(false);expect(invalid.bytes).toBeUndefined();expect(invalid.error).toContain('DXF_UNSUPPORTED_COMMAND');
+    delete data.dxfPatterns;
+    data.files!.push({path:'pattern/raw.dxf',bytes:new Uint8Array()});
+    expect((await toBuildZip(data)).error).toContain('BUNDLE_EXTRA_EXTENSION');
+  });
+  it('Z9: subjects generated DXF paths to extension, traversal and collision checks', async () => {
+    for(const path of ['pattern/bad.txt','../bad.dxf','NUL.dxf']){
+      const data=input();data.dxfPatterns=[{path,paths:[{d:'M0 0L10 10'}],bounds:{width:80,height:80}}];
+      expect((await toBuildZip(data)).ok).toBe(false);
+    }
+    const data=input();const item={path:'pattern/a.dxf',paths:[{d:'M0 0L10 10'}],bounds:{width:80,height:80}};
+    data.dxfPatterns=[item,{...item,path:'PATTERN/A.DXF'}];
+    expect((await toBuildZip(data)).error).toContain('BUNDLE_DUPLICATE_PATH');
   });
 
 });

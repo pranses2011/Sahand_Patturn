@@ -1,3 +1,4 @@
+import { toDxf } from './dxf.js';
 import { zip, strToU8, type Zippable } from 'fflate';
 import type { Mesh } from '@patturn/kernel';
 import { toObj, type ObjPart } from './obj.js';
@@ -8,6 +9,8 @@ export interface BuildBundle {
   meshes: { path: string; mesh: Mesh }[];
   files?: { path: string; bytes: Uint8Array }[];
   instructions: string;
+  dxfPatterns?: { path: string; paths: { d: string; fill?: boolean }[];
+    bounds: { width: number; height: number }; bezierToleranceMm?: number }[];
   assemblies?: { path: string; parts: ObjPart[] }[];
 }
 
@@ -39,6 +42,12 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     for (const item of input.assemblies ?? []) {
       if (!item.path.toLowerCase().endsWith('.obj')) throw new Error('BUNDLE_OBJ_EXTENSION');
       const output = toObj(item.parts, input.project);
+      if (!output.ok) throw new Error(`${item.path}:${output.error}`);
+      add(item.path, output.bytes!);
+    }
+    for (const item of input.dxfPatterns ?? []) {
+      if (!item.path.toLowerCase().endsWith('.dxf')) throw new Error('BUNDLE_DXF_EXTENSION');
+      const output = toDxf(item.paths, item.bounds, { bezierToleranceMm: item.bezierToleranceMm });
       if (!output.ok) throw new Error(`${item.path}:${output.error}`);
       add(item.path, output.bytes!);
     }
