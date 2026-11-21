@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { Path } from '@patturn/patterns';
 
 export type PatternView = 'flat' | 'surface';
@@ -10,11 +11,11 @@ export function PatternViewSwitch({ value, onChange }: { value: PatternView; onC
   </fieldset>;
 }
 
-export function FlatPatternPreview({ paths, strokeMm }: { paths: Path[]; strokeMm: number }) {
+export const FlatPatternPreview = memo(function FlatPatternPreview({ paths, strokeMm }: { paths: Path[]; strokeMm: number }) {
   return <div className="flat-pattern-preview">
     <svg viewBox="0 0 300 300" role="img" aria-label="پیش‌نمایش تخت الگو روی بوم ۳۰۰ در ۳۰۰ میلی‌متر" overflow="hidden">
       {paths.map((p, i) => <path key={i} d={p.d} fill={p.fill ? '#1c1917' : 'none'}
         stroke={p.fill ? 'none' : '#c4622d'} strokeWidth={strokeMm} strokeLinecap="round" strokeLinejoin="round" />)}
     </svg>
   </div>;
-}
+});
