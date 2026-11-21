@@ -493,3 +493,39 @@ test('numeric draft ignores composing Enter and Escape before ordinary commit',a
   await page.getByRole('button',{name:/^واگرد/}).click();
   await expect(slider).toHaveValue('4');
 });
+
+test('a cancelled project read ignores late failure and permits a successful retry',async({page})=>{
+  await page.addInitScript(()=>{
+    const original=File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer=async function(){
+      if(this.name==='late-error.patturn'){
+        await new Promise<void>((_,reject)=>{
+          (window as unknown as {testRejectProjectRead:()=>void}).testRejectProjectRead=()=>reject(new Error('LATE_READ_FAILURE'));
+        });
+      }
+      return original.call(this);
+    };
+  });
+  await page.goto('/');
+  const wall=page.getByRole('spinbutton',{name:'ضخامت شعاعی برای ظرفیت',exact:true});
+  await wall.fill('6');await wall.press('Enter');
+  const download=page.waitForEvent('download');
+  await page.getByRole('button',{name:'ذخیرهٔ فایل پروژه',exact:true}).click();
+  const path=await (await download).path();expect(path).not.toBeNull();const buffer=await readFile(path!);
+  await wall.fill('8');await wall.press('Enter');
+  const picker=page.getByLabel('انتخاب فایل پروژه',{exact:true});
+  await picker.setInputFiles({name:'late-error.patturn',mimeType:'application/octet-stream',buffer});
+  await page.getByRole('button',{name:'لغو بازکردن پروژه',exact:true}).click();
+  await page.evaluate(()=>{(window as unknown as {testRejectProjectRead:()=>void}).testRejectProjectRead();});
+  // Await the finally branch, not an arbitrary delay, before asserting that no stale error won.
+  await expect(page.getByRole('button',{name:'بازکردن پروژه',exact:true})).toBeEnabled();
+  await expect(page.getByRole('alert').filter({hasText:'بازکردن پروژه لغو شد'})).toBeVisible();
+  await expect(page.getByRole('alert').filter({hasText:'فایل پروژه باز نشد'})).toHaveCount(0);
+  await expect(wall).toHaveValue('8');
+  const confirmation=page.waitForEvent('dialog');
+  await picker.setInputFiles({name:'retry.patturn',mimeType:'application/octet-stream',buffer});
+  const dialog=await confirmation;expect(dialog.type()).toBe('confirm');await dialog.accept();
+  await expect(wall).toHaveValue('6');
+  await expect(page.getByRole('alert').filter({hasText:'بازکردن پروژه لغو شد'})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'بازکردن پروژه',exact:true})).toBeEnabled();
+});
