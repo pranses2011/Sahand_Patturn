@@ -1,3 +1,5 @@
+import { createBundleBudget } from './bundle-budget.js';
+export { BUNDLE_LIMITS } from './bundle-budget.js';
 import { toDxf } from './dxf.js';
 import { zip, strToU8, type Zippable } from 'fflate';
 import type { Mesh } from '@patturn/kernel';
@@ -20,9 +22,10 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
   const fail = (error: string): ExportResult => ({ ok: false, filename: '', error });
   if (signal?.aborted) return fail('EXPORT_CANCELLED');
   if (!input.meshes.length) return fail('BUNDLE_NO_MESHES');
+  const budget = createBundleBudget();
   const entries = new Map<string, Uint8Array>();
   const paths = new Set<string>(['readme.txt', 'manifest.json']);
-  const add = (path: string, bytes: Uint8Array) => {
+  const add = (path: string, bytes: Uint8Array, snapshot = false) => {
     // Reject traversal, Windows drive/ADS syntax, controls and unsafe segments.
     if (!path || path.includes('\\') || /[:\x00-\x1f\x7f]/.test(path) ||
         path.split('/').some((p) => !p || p === '.' || p === '..' || /[. ]$/.test(p) || /[<>"|?*]/.test(p) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(p))) {
@@ -36,8 +39,9 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
         throw new Error(`BUNDLE_PATH_CONFLICT:${path}`);
       }
     }
+    budget.add(bytes.byteLength);
     paths.add(key);
-    entries.set(path, bytes);
+    entries.set(path, snapshot ? bytes.slice() : bytes);
   };
   try {
     for (const item of input.meshes) {
@@ -62,15 +66,19 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
       // Extra files must not bypass STL validation or introduce arbitrary archives.
       if (!/\.(txt|json|svg|pdf|patturn)$/i.test(item.path)) throw new Error('BUNDLE_EXTRA_EXTENSION');
       // Compression may run in a worker; never expose caller-owned backing bytes.
-      add(item.path, item.bytes.slice());
+      add(item.path, item.bytes, true);
     }
-    entries.set('README.txt', strToU8('\uFEFF' + input.instructions));
-    entries.set('manifest.json', strToU8(JSON.stringify({
+    const guide = strToU8('\uFEFF' + input.instructions);
+    budget.add(guide.byteLength);
+    entries.set('README.txt', guide);
+    const manifest = strToU8(JSON.stringify({
       version: 1, project, units: 'mm',
       stlValidated: true,
       objValidated: true,
       files: [...entries].map(([path, bytes]) => ({ path, bytes: bytes.length })).sort((a, b) => a.path < b.path ? -1 : 1),
-    }, null, 2)));
+    }, null, 2));
+    budget.add(manifest.byteLength);
+    entries.set('manifest.json', manifest);
   } catch (e) { return fail(String(e)); }
   if (signal?.aborted) return fail('EXPORT_CANCELLED');
   const archive: Zippable = {};

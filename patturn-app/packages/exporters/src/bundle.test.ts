@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
 import { encodeEditorProject, decodeEditorProject } from '@patturn/storage';
 import { referenceOuterProfile, revolve } from '@patturn/kernel';
-import { toBuildZip, toDimensionPdf, type BuildBundle } from './index.js';
+import { toBuildZip, toDimensionPdf, BUNDLE_LIMITS, type BuildBundle } from './index.js';
 const mesh = revolve(referenceOuterProfile(8), { segments: 16, closeBottom: true, closeTop: true });
 const input = (): BuildBundle => ({ project: 'گلدان', meshes: [{ path: 'parts/part-1.stl', mesh }], instructions: 'راهنمای فارسی؛ واحد mm', files: [{ path: 'BOM.txt', bytes: new TextEncoder().encode('گچ و آب') }] });
 
@@ -144,6 +144,12 @@ describe('Build ZIP', () => {
     ];
     const result=await toBuildZip(data);expect(result.ok,result.error).toBe(true);
     expect(unzipSync(result.bytes!)['notes.txt.backup/other.txt']).toEqual(new Uint8Array([3]));
+  });
+
+  it('counts generated README and manifest toward the archive entry budget',async()=>{
+    const data=input();data.files=Array.from({length:BUNDLE_LIMITS.files-2},(_,i)=>({path:`notes/${i}.txt`,bytes:new Uint8Array()}));
+    const result=await toBuildZip(data);
+    expect(result.ok).toBe(false);expect(result.error).toContain('BUNDLE_TOO_MANY_FILES');expect(result.bytes).toBeUndefined();
   });
 
 });
