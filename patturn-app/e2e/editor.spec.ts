@@ -779,9 +779,10 @@ test('a failed download click releases its Blob URL and retry delivers the retai
   const file=await downloaded;const path=await file.path();expect(path).not.toBeNull();
   const original=await page.evaluate(async()=>{
     const audit=(window as unknown as {testDownloadAudit:{blobs:Blob[]}}).testDownloadAudit;
-    return await audit.blobs[0]!.text();
+    return {text:await audit.blobs[0]!.text(),type:audit.blobs[0]!.type};
   });
-  expect(await readFile(path!,'utf8')).toBe(original);
+  expect(await readFile(path!,'utf8')).toBe(original.text);
+  expect(original.type).toBe('image/svg+xml');
   await expect(page.getByRole('radio',{name:'شبکهٔ مربعی',exact:true})).toBeChecked();
   await expect(page.getByRole('button',{name:'تلاش دوبارهٔ همان خروجی',exact:true})).toHaveCount(0);
   await expect.poll(()=>page.evaluate(()=>{
