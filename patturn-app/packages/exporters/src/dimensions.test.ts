@@ -66,4 +66,18 @@ describe('Dimension PDF', () => {
       .toEqual((await toDimensionPdf(profile)).bytes);
   });
 
+  it('D9: captures profile and parameter rows before yielding to asynchronous work',async()=>{
+    const profile=referenceOuterProfile(8);
+    const original=profile.map((point)=>({...point}));
+    const parameters=[{label:'ضخامت',value:'4 mm'}];
+    const options={project:'original',parameters,signal:new AbortController().signal};
+    const pending=toDimensionPdf(profile,options);
+    profile[1]!.r=999;profile.push({r:1000,y:1000});
+    parameters[0]!.value='999 mm';parameters.push({label:'extra',value:'changed'});
+    options.project='changed';
+    const result=await pending;
+    const expected=await toDimensionPdf(original,{project:'original',parameters:[{label:'ضخامت',value:'4 mm'}]});
+    expect(result.ok).toBe(true);expect(result.filename).toBe(expected.filename);expect(result.bytes).toEqual(expected.bytes);
+  });
+
 });

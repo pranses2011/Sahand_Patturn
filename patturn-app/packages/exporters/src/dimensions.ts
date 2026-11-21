@@ -38,14 +38,17 @@ export function clipProfileLine(a: [number, number], b: [number, number], tile: 
   return [a[0] + t0 * dx, a[1] + t0 * dy, a[0] + t1 * dx, a[1] + t1 * dy];
 }
 
-export async function toDimensionPdf(profile: Profile, options: {
+export async function toDimensionPdf(inputProfile: Profile, inputOptions: {
   project?: string;
   signal?: AbortSignal;
   parameters?: { label: string; value: string }[];
 } = {}): Promise<ExportResult> {
   try {
+    // Snapshot before the first await: callers retain ownership of mutable arrays.
+    const options = { ...inputOptions, parameters: inputOptions.parameters?.map((row) => ({ ...row })) };
     const cancelled = () => { if (options.signal?.aborted) throw new Error('EXPORT_CANCELLED'); };
     cancelled();
+    const profile = inputProfile.map((point) => ({ ...point }));
     const layout = dimensionSheetLayout(profile);
     // Keep PDF engine and embedded font out of the initial editor bundle.
     const [{ jsPDF }, { VAZIRMATN_BASE64 }] = await Promise.all([
