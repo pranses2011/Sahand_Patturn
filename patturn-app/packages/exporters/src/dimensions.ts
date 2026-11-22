@@ -1,5 +1,23 @@
+import { formatNumber } from '@patturn/config';
 import type { Profile } from '@patturn/kernel';
 import { exportName, type ExportResult } from './index.js';
+
+/** All generated numeric labels are presentation-only; drawing coordinates stay numeric. */
+export function dimensionPdfText(layout: ReturnType<typeof dimensionSheetLayout>) {
+  return {
+    ruler: '۱۰۰ mm — چاپ در اندازهٔ واقعی ۱۰۰٪',
+    rows: [
+      { label: 'قطر بیشینه', value: `${formatNumber(layout.diameterMm, 3)} mm` },
+      { label: 'ارتفاع کل', value: `${formatNumber(layout.heightMm, 3)} mm` },
+      { label: 'مقیاس ترسیم', value: '۱:۱' },
+      { label: 'صفحات الگو', value: formatNumber(layout.tiles.length) },
+    ],
+    tiles: layout.tiles.map((tile) => ({
+      title: `صفحهٔ ردیف ${formatNumber(tile.row + 1)}، ستون ${formatNumber(tile.column + 1)} — مقیاس ۱:۱، واحد mm`,
+      origin: `مبدأ X: ${formatNumber(tile.xMin, 3)} mm؛ بالای Y: ${formatNumber(tile.yMax, 3)} mm`,
+    })),
+  };
+}
 
 export const MAX_PDF_PROFILE_POINTS = 10_000;
 export const MAX_PDF_COORDINATE_MM = 10_000_000;
@@ -116,6 +134,7 @@ export async function toDimensionPdf(
     cancelled();
     const profile = inputProfile.map((point) => ({ ...point }));
     const layout = dimensionSheetLayout(profile);
+    const labels = dimensionPdfText(layout);
     // Keep PDF engine and embedded font out of the initial editor bundle.
     const [{ jsPDF }, { VAZIRMATN_BASE64 }] = await Promise.all([
       import('jspdf'),
@@ -149,22 +168,16 @@ export async function toDimensionPdf(
       pdf.line(15, 280, 115, 280);
       for (let i = 0; i <= 100; i += 10) {
         pdf.line(15 + i, 280, 15 + i, 280 - (i % 50 === 0 ? 4 : 2));
-        latin(String(i), 14 + i, 286, 7);
+        latin(formatNumber(i), 14 + i, 286, 7);
       }
-      latin('100 mm / Print: Actual size 100%', 15, 292, 8);
+      fa(labels.ruler, 292, 8);
     };
     fa('برگهٔ ابعاد و پروفیل', 18, 16);
     fa((options.project ?? 'پروژه').slice(0, 60), 29);
     fa('واحد میلی‌متر؛ چاپ روی کاغذ آ۴ با اندازهٔ واقعی', 43);
     fa('گزینهٔ جا دادن در صفحه را خاموش کنید و خط‌کش را اندازه بگیرید.', 52);
     fa('پروفیل مربوط به فرم نهایی است؛ جبران انقباض روی این ترسیم اعمال نشده است.', 61, 10);
-    const rows = [
-      { label: 'قطر بیشینه', value: `${layout.diameterMm.toFixed(3)} mm` },
-      { label: 'ارتفاع کل', value: `${layout.heightMm.toFixed(3)} mm` },
-      { label: 'مقیاس ترسیم', value: '1:1' },
-      { label: 'صفحات الگو', value: String(layout.tiles.length) },
-      ...(options.parameters ?? []).slice(0, 12),
-    ];
+    const rows = [...labels.rows, ...(options.parameters ?? []).slice(0, 12)];
     rows.forEach((row, i) => {
       const y = 78 + i * 10;
       fa(row.label.slice(0, 50), y);
@@ -185,8 +198,9 @@ export async function toDimensionPdf(
       cancelled();
       pdf.addPage();
       fa('پروفیل با مقیاس واقعی ـ شبکهٔ ده میلی‌متری', 15, 14);
-      latin(`Tile row ${tile.row + 1}, col ${tile.column + 1} | 1:1 mm`, 15, 24);
-      latin(`Origin X=${tile.xMin.toFixed(3)} Y(top)=${tile.yMax.toFixed(3)}`, 15, 30, 8);
+      const text = labels.tiles[layout.tiles.indexOf(tile)]!;
+      fa(text.title, 24, 9);
+      fa(text.origin, 30, 8);
       pdf.setDrawColor(200);
       pdf.setLineWidth(0.1);
       pdf.rect(15, 35, SHEET.tileWidthMm, SHEET.tileHeightMm);

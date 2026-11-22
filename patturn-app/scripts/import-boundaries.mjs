@@ -6,7 +6,7 @@ const dependencies = {
   kernel: [],
   patterns: [],
   molds: ['kernel'],
-  exporters: ['kernel'],
+  exporters: ['kernel', 'config'],
   storage: ['config', 'schema'],
 };
 const packages = Object.keys(dependencies);

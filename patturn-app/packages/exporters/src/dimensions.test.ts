@@ -187,3 +187,23 @@ describe('Dimension PDF', () => {
     expect(result.bytes).toEqual(expected.bytes);
   });
 });
+
+it('formats all generated dimension labels in Persian while leaving tile geometry numeric', async () => {
+  const { dimensionPdfText } = await import('./dimensions.js');
+  const profile = [
+    { r: 200, y: -5 },
+    { r: 200, y: 495 },
+  ];
+  const layout = dimensionSheetLayout(profile),
+    before = JSON.stringify(layout),
+    labels = dimensionPdfText(layout);
+  expect(labels.rows[0]!.value).toBe('۴۰۰٫۰۰۰ mm');
+  expect(labels.rows[1]!.value).toBe('۵۰۰٫۰۰۰ mm');
+  expect(labels.rows[2]!.value).toBe('۱:۱');
+  expect(labels.rows[3]!.value).toBe('۹');
+  expect(labels.tiles[0]!.origin).toContain('۲۰۰٫۰۰۰');
+  expect(labels.tiles[0]!.title).toContain('ردیف ۱، ستون ۱');
+  expect(JSON.stringify(labels)).not.toMatch(/[0-9]/);
+  expect(JSON.stringify(layout)).toBe(before);
+  expect(typeof layout.tiles[0]!.xMin).toBe('number');
+});
