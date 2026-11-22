@@ -2155,3 +2155,72 @@ test('a retained bridge changes traced output geometry and resets on scale chang
   await expect(panel.getByRole('button', { name: 'حذف همهٔ پل‌ها', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('update checking is opt-in and only offers trusted repository installer links', async ({
+  page,
+}) => {
+  let requests = 0;
+  await page.route(
+    'https://api.github.com/repos/pranses2011/Sahand_Patturn/releases/latest',
+    async (route) => {
+      requests++;
+      await route.fulfill({
+        json: {
+          tag_name: 'v0.2.0',
+          draft: false,
+          prerelease: false,
+          assets: [
+            {
+              name: 'Patturn_0.2.0_x64.exe',
+              size: 2048,
+              browser_download_url: 'https://evil.invalid/bad.exe',
+            },
+          ],
+        },
+      });
+    },
+  );
+  await page.goto('/');
+  expect(requests).toBe(0);
+  await page.getByText('به‌روزرسانی — بررسی آنلاین اختیاری', { exact: true }).click();
+  expect(requests).toBe(0);
+  const panel = page.locator('.update-panel');
+  await panel.getByRole('button', { name: 'بررسی نسخهٔ جدید', exact: true }).click();
+  await expect(panel.getByRole('status')).toContainText('نسخهٔ پایدار جدیدتر:');
+  expect(requests).toBe(1);
+  await expect(panel.getByRole('link', { name: /دریافت نصب‌کننده:/ })).toHaveAttribute(
+    'href',
+    'https://github.com/pranses2011/Sahand_Patturn/releases/download/v0.2.0/Patturn_0.2.0_x64.exe',
+  );
+  await expect(
+    panel.getByRole('link', { name: 'یادداشت‌های انتشار جدید', exact: true }),
+  ).toHaveAttribute('href', 'https://github.com/pranses2011/Sahand_Patturn/releases/tag/v0.2.0');
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
+
+test('failed optional update check can retry without a release or blocking local edits', async ({
+  page,
+}) => {
+  let requests = 0;
+  await page.route(
+    'https://api.github.com/repos/pranses2011/Sahand_Patturn/releases/latest',
+    async (route) => {
+      requests++;
+      if (requests === 1) await route.abort('internetdisconnected');
+      else await route.fulfill({ status: 404, body: '{}' });
+    },
+  );
+  await page.goto('/');
+  await page.getByText('به‌روزرسانی — بررسی آنلاین اختیاری', { exact: true }).click();
+  const panel = page.locator('.update-panel');
+  await panel.getByRole('button', { name: 'بررسی نسخهٔ جدید', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('بررسی نسخه ناموفق بود');
+  const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+  await wall.fill('7');
+  await wall.press('Enter');
+  await expect(wall).toHaveValue('7');
+  await panel.getByRole('button', { name: 'بررسی نسخهٔ جدید', exact: true }).click();
+  await expect(panel.getByRole('status')).toContainText('انتشار عمومی پایداری');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await expect(wall).toHaveValue('7');
+});

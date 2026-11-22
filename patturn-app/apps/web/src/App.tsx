@@ -1,3 +1,4 @@
+import { UpdatePanel } from './UpdatePanel';
 import { ImageTraceTool } from './ImageTraceTool';
 import { LoftSweepTool } from './LoftSweepTool';
 import { SlabTool } from './SlabTool';
@@ -1636,6 +1637,7 @@ export function App() {
             </>
           )}
 
+          <UpdatePanel />
           <FeatureRequests onExport={download} />
           <LocalProfilePanel />
           <PrivacyNotice />
