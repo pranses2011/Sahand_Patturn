@@ -390,3 +390,4 @@ export * from './jigsaw.js';
 
 export * from './slab.js';
 export * from './trace.js';
+export * from './islands.js';

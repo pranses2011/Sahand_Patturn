@@ -2057,3 +2057,45 @@ test('local image trace decodes PNG and exports scaled contour files without edi
     panel.getByRole('button', { name: 'دانلود SVG ردیابی', exact: true }),
   ).toBeDisabled();
 });
+
+test('nested traced contours identify a retained island without creating a bridge or changing exports', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ردیابی تصویر — Otsu و کانتور', { exact: true }).click();
+  const panel = page.locator('.image-trace-tool');
+  const image = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 32, 32);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(4, 4, 24, 24);
+    ctx.fillStyle = 'white';
+    ctx.fillRect(12, 12, 8, 8);
+    return canvas.toDataURL('image/png').split(',')[1]!;
+  });
+  await panel.getByLabel('تصویر ردیابی', { exact: true }).setInputFiles({
+    name: 'ring.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(image, 'base64'),
+  });
+  await expect(
+    panel.getByRole('status').filter({ hasText: 'جزیرهٔ محصور نیازمند پل:' }),
+  ).toContainText('۱');
+  const paths = panel
+    .getByRole('img', { name: 'پیش‌نمایش کانتور تصویر', exact: true })
+    .locator('path');
+  await expect(paths).toHaveCount(2);
+  await expect(panel.locator('path[data-island="true"]')).toHaveCount(1);
+  const download = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'دانلود SVG ردیابی', exact: true }).click();
+  const path = await (await download).path();
+  expect(path).not.toBeNull();
+  const svg = await readFile(path!, 'utf8');
+  expect((svg.match(/<path /g) ?? []).length).toBe(2);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

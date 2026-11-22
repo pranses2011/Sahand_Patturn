@@ -138,6 +138,7 @@ export function traceImage({ width, height, pixels, referenceWidthMm, toleranceM
       ];
       for (const [a, b] of table[mask]!) edge(mids[a!]!, mids[b!]!);
     }
+  const contours: Point[][] = [];
   const visited = new Set<string>(),
     paths: Path[] = [];
   for (const start of adjacency.keys()) {
@@ -165,9 +166,10 @@ export function traceImage({ width, height, pixels, referenceWidthMm, toleranceM
     // Never turn a closed contour into a line at large tolerance.
     const points = reduced.length >= 3 ? reduced : loop;
     const f = (n: number) => String(Math.round(n * 1e6) / 1e6);
+    contours.push(points.map((p) => [Number(f(p[0])), Number(f(p[1]))]));
     paths.push({
       d: points.map((p, i) => `${i ? 'L' : 'M'}${f(p[0])} ${f(p[1])}`).join(' ') + ' Z',
     });
   }
-  return { paths, width: referenceWidthMm, height: height * scale, threshold };
+  return { paths, contours, width: referenceWidthMm, height: height * scale, threshold };
 }

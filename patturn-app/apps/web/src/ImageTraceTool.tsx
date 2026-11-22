@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { traceImage } from '@patturn/patterns';
+import { traceImage, detectIslands } from '@patturn/patterns';
 import { exportName, toSvg, toDxf } from '@patturn/exporters';
 import { NumericControl } from './NumericControl';
 type Raster = { width: number; height: number; pixels: Uint8Array };
@@ -28,6 +28,18 @@ export function ImageTraceTool({
       return null;
     }
   }, [raster, reference, tolerance]);
+  const islands = useMemo(() => {
+    if (!drawing) return null;
+    try {
+      return { items: detectIslands(drawing.contours), error: '' };
+    } catch {
+      return {
+        items: [],
+        error:
+          'تشخیص جزیره قطعی نیست: کانتورها متقاطع، مماس، نامعتبر یا بیش‌ازحد پیچیده‌اند (سقف ۴۰۹۶ رأس). تلرانس را کاهش دهید یا تصویر ساده‌تر انتخاب کنید.',
+      };
+    }
+  }, [drawing]);
   async function load(file: File) {
     const request = ++token.current;
     setBusy(true);
@@ -135,6 +147,16 @@ export function ImageTraceTool({
             {new Intl.NumberFormat('fa-IR').format(drawing.paths.length)} کانتور؛ آستانهٔ Otsu:{' '}
             {new Intl.NumberFormat('fa-IR').format(drawing.threshold)}
           </p>
+          {islands?.error && <p role="alert">{islands.error}</p>}
+          {islands && !islands.error && (
+            <p role="status">
+              جزیرهٔ محصور نیازمند پل:{' '}
+              {new Intl.NumberFormat('fa-IR').format(
+                islands.items.filter((item) => item.isIsland).length,
+              )}{' '}
+              — نمایش با خط ضخیم نارنجی؛ با فرض برش نواحی تیره و قاعدهٔ زوج/فرد.
+            </p>
+          )}
           <svg
             role="img"
             aria-label="پیش‌نمایش کانتور تصویر"
@@ -142,7 +164,14 @@ export function ImageTraceTool({
             style={{ width: '100%', maxHeight: 260 }}
           >
             {drawing.paths.map((path, i) => (
-              <path key={i} d={path.d} fill="none" stroke="currentColor" strokeWidth={0.2} />
+              <path
+                key={i}
+                d={path.d}
+                fill="none"
+                stroke={islands?.items[i]?.isIsland ? '#a94f21' : 'currentColor'}
+                strokeWidth={islands?.items[i]?.isIsland ? 0.8 : 0.2}
+                data-island={islands?.items[i]?.isIsland ? 'true' : 'false'}
+              />
             ))}
           </svg>
           {!drawing.paths.length && <p>کنتراست یا کانتور قابل‌ردیابی پیدا نشد.</p>}
@@ -166,8 +195,9 @@ export function ImageTraceTool({
       </button>
       <p className="hint">
         لبهٔ ناحیهٔ تیره با marching squares و ساده‌سازی RDP؛ پیکسل‌های قطری جدا در نظر گرفته می‌شوند.
-        مرز داخلی سوراخ‌ها نیز صادر می‌شود؛ پرشدگی، جزیره، پل، kerf و عدم تقاطع کانتورهای ساده‌شده
-        تضمین نمی‌شوند. پیش از ساخت در CAD بررسی کنید. داده و نتیجه موقت و خارج از پروژه/ZIP هستند.
+        مرز داخلی سوراخ‌ها نیز صادر می‌شود؛ تشخیص جزیره فقط برای کانتورهای ساده و جداست. پرشدگی، پل،
+        kerf و عدم تقاطع کانتورهای ساده‌شده تضمین نمی‌شوند. پیش از ساخت در CAD بررسی کنید. داده و
+        نتیجه موقت و خارج از پروژه/ZIP هستند.
       </p>
     </details>
   );
