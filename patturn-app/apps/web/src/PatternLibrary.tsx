@@ -1,3 +1,4 @@
+import { formatNumber } from './number-format';
 import { normalizePatternSearch } from './pattern-search';
 export { normalizePatternSearch } from './pattern-search';
 import { PATTERN_NAMES_FA as NAMES } from '@patturn/config';
@@ -100,7 +101,8 @@ export const PatternLibrary = memo(function PatternLibrary({
         </button>
       )}
       <p role="status">
-        {visible.length} الگو از {PATTERNS.length} — جست‌وجو انتخاب پروژه را تغییر نمی‌دهد.
+        {formatNumber(visible.length)} الگو از {formatNumber(PATTERNS.length)} — جست‌وجو انتخاب
+        پروژه را تغییر نمی‌دهد.
       </p>
       {selectedHidden && (
         <div className="hint">

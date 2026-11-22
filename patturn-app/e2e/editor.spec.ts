@@ -288,7 +288,7 @@ test('pattern search filters locally without changing the selected project patte
   await library.getByRole('radio').check();
   await search.fill('not-found');
   await expect(library.getByRole('radio')).toHaveCount(0);
-  await expect(library.getByRole('status')).toContainText('0 الگو از 12');
+  await expect(library.getByRole('status')).toContainText('۰ الگو از ۱۲');
   await library.getByRole('button', { name: 'پاک‌کردن جست‌وجو', exact: true }).click();
   await expect(library.getByRole('radio')).toHaveCount(12);
   await expect(library.getByRole('radio', { name: 'الهام از کومیکو', exact: true })).toBeChecked();
@@ -680,7 +680,7 @@ test('backup read can be cancelled explicitly and a new import survives the old 
   });
   await picker.setInputFiles(backup('new.json', 'جدید'));
   await expect(
-    page.getByRole('status').filter({ hasText: '1 تنظیمات جدید افزوده شد' }),
+    page.getByRole('status').filter({ hasText: '۱ تنظیمات جدید افزوده شد' }),
   ).toBeVisible();
   await page.evaluate(() => {
     (window as unknown as { testReleaseSlowRead: () => void }).testReleaseSlowRead();

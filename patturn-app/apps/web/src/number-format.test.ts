@@ -13,3 +13,26 @@ it('does not expose nonfinite/absent results and validates display precision', (
   for (const digits of [-1, 9, 1.5])
     expect(() => formatNumber(1, digits)).toThrow('INVALID_DISPLAY_PRECISION');
 });
+
+it('isolates Persian display from machine input values and exposes the Persian percent unit', async () => {
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { NumericControl } = await import('./NumericControl');
+  const html = renderToStaticMarkup(
+    createElement(NumericControl, {
+      label: 'درصد آزمون',
+      value: 12.5,
+      min: 0,
+      max: 20,
+      step: 0.5,
+      unit: '%',
+      onChange: () => {},
+      onBeginEdit: () => {},
+      onEndEdit: () => {},
+    }),
+  );
+  expect(html).toContain('۱۲٫۵');
+  expect(html).toContain('value="12.5"');
+  expect(html).toContain('٪');
+  expect(html).toContain('<bdi>');
+});

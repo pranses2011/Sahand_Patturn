@@ -1,3 +1,4 @@
+import { formatNumber } from './number-format';
 import { normalizePatternSearch } from './pattern-search';
 import { PATTERN_NAMES_FA } from '@patturn/config';
 import { useEffect, useRef, useState } from 'react';
@@ -48,7 +49,7 @@ export function SavedPatterns({
       const preview = repo().previewImport(bytes);
       if (
         window.confirm(
-          `${preview.added} تنظیمات جدید افزوده شود؟ مجموع پس از ادغام: ${preview.total}. موارد یکسان تکرار نمی‌شوند و پروژهٔ باز تغییر نمی‌کند.`,
+          `${formatNumber(preview.added)} تنظیمات جدید افزوده شود؟ مجموع پس از ادغام: ${formatNumber(preview.total)}. موارد یکسان تکرار نمی‌شوند و پروژهٔ باز تغییر نمی‌کند.`,
         )
       ) {
         let added = 0;
@@ -59,7 +60,8 @@ export function SavedPatterns({
           added = entries.length - before;
           return entries;
         });
-        if (ok) setImportMessage(`ورود پشتیبان انجام شد؛ ${added} تنظیمات جدید افزوده شد.`);
+        if (ok)
+          setImportMessage(`ورود پشتیبان انجام شد؛ ${formatNumber(added)} تنظیمات جدید افزوده شد.`);
       } else setImportMessage('ورود پشتیبان لغو شد؛ کتابخانه تغییر نکرد.');
     } catch (e) {
       if (token === importToken.current)
@@ -233,7 +235,7 @@ export function SavedPatterns({
         {visible.map((entry) => (
           <li key={entry.name}>
             <b>{entry.name}</b> — {PATTERN_NAMES_FA[entry.patternId] ?? entry.patternId} —{' '}
-            {new Intl.NumberFormat('fa-IR').format(entry.tileSize)} میلی‌متر
+            {formatNumber(entry.tileSize)} میلی‌متر
             {entry.patternId === patternId && entry.tileSize === tileSize && (
               <span className="hint"> — مطابق تنظیمات فعلی</span>
             )}

@@ -613,8 +613,8 @@ export function App() {
     if (!moldParts || !splitPlan || moldBusy) return '';
     const lines = [
       'فهرست قطعات قالب — Patturn',
-      `فرم: ${profileMode} | واحد: mm | جبران انقباض: ${shrink}%`,
-      `طرح تقسیم: ${splitPlan.reason} | تعداد: ${moldParts.length}`,
+      `فرم: ${profileMode} | واحد: mm | جبران انقباض: ${formatNumber(shrink)}٪`,
+      `طرح تقسیم: ${splitPlan.reason} | تعداد: ${formatNumber(moldParts.length)}`,
       'مختصات STL مونتاژی است؛ فاصله‌گذاری نمایشی صادر نمی‌شود.',
       'مواد زیر برآورد گچ برای حجم خالص قطعات است؛ پرت و راهگاه جداگانه محاسبه شود.',
     ];
@@ -625,7 +625,7 @@ export function App() {
       const material = plasterForCavity(volume);
       const name = exportName(`mold-${profileMode}-part-${i + 1}`, 'mesh', 'mm', 'stl');
       lines.push(
-        `${i + 1}. ${name} | حجم: ${formatNumber(material.volumeL, 3)} L | گچ: ${formatNumber(material.plasterKg, 3)} kg | آب: ${formatNumber(material.waterKg, 3)} kg`,
+        `${formatNumber(i + 1)}. ${name} | حجم: ${formatNumber(material.volumeL, 3)} L | گچ: ${formatNumber(material.plasterKg, 3)} kg | آب: ${formatNumber(material.waterKg, 3)} kg`,
       );
     });
     const material = plasterForCavity(total);
@@ -669,7 +669,7 @@ export function App() {
         { label: 'تعداد قطعات قالب', value: String(splitPlan?.parts ?? '-') },
         { label: 'جبران انقباض قالب ـ درصد', value: String(shrink) },
         { label: 'تقسیمات مش', value: String(segments) },
-        { label: 'ضخامت شعاعی محاسبهٔ ظرفیت', value: `${wall} mm` },
+        { label: 'ضخامت شعاعی محاسبهٔ ظرفیت', value: `${formatNumber(wall)} mm` },
         { label: 'ظرفیت تقریبی داخل فرم', value: `${formatNumber(capMl, 1)} ml` },
       ],
     });
@@ -824,7 +824,7 @@ export function App() {
       });
       const instructions = [
         'بستهٔ ساخت Patturn — واحد mm',
-        `فرم: ${profileMode}؛ تعداد قطعات گچی: ${moldParts.length}؛ جبران انقباض: ${shrink}%`,
+        `فرم: ${profileMode}؛ تعداد قطعات گچی: ${formatNumber(moldParts.length)}؛ جبران انقباض: ${formatNumber(shrink)}٪`,
         'form/: فرم اصلی بدون جبران انقباض. parts/: قالب گچی با جبران انقباض؛ فاصله‌گذاری نمایشی صادر نشده است.',
         'obj/: فرم و مجموعهٔ قطعات قالب با نام و رنگ رأس؛ واحد mm. رنگ از افزونهٔ رایج RGB استفاده می‌کند و ممکن است در برخی نرم‌افزارها نمایش داده نشود. فایل MTL ندارد.',
         'ظرفیت برآوردی با کم‌کردن شعاعی ضخامت و بالابردن کف محاسبه می‌شود؛ پوستهٔ یکنواخت عمود بر سطح نیست. STL فرم، مدل بیرونی توپر برای قالب‌سازی است.',
@@ -833,8 +833,8 @@ export function App() {
         'dimensions/: برگهٔ ابعاد PDF آ۴؛ چاپ اندازهٔ واقعی ۱۰۰٪، خاموش‌کردن Fit to page و اندازه‌گیری خط‌کش ۱۰۰mm الزامی است.',
         'فایل .patturn: پروژهٔ فشردهٔ قابل بازکردن از دکمهٔ بازکردن پروژه؛ مش‌ها دوباره محاسبه می‌شوند. مادرقالب‌ها و نتایج مشتق‌شده ذخیره نمی‌شوند.',
         'parameters.json: ثبت تنظیمات مؤثر خروجی؛ فایل پروژهٔ قابل بازیابی در برنامه نیست.',
-        `محفظهٔ جعبه‌ای صادرشده: ${motherResults?.length ?? 0} از ${moldParts.length} قطعه.`,
-        `مادرقالب هم‌فاصلهٔ صادرشده: ${barrierResult ? `فقط قطعهٔ ${barrierResult.index + 1}` : 'هیچ‌کدام؛ هنوز ساخته نشده است'}.`,
+        `محفظهٔ جعبه‌ای صادرشده: ${formatNumber(motherResults?.length ?? 0)} از ${formatNumber(moldParts.length)} قطعه.`,
+        `مادرقالب هم‌فاصلهٔ صادرشده: ${barrierResult ? `فقط قطعهٔ ${formatNumber(barrierResult.index + 1)}` : 'هیچ‌کدام؛ هنوز ساخته نشده است'}.`,
         'مادرقالب‌های ساخته‌نشده در این بسته وجود ندارند؛ وجود ZIP به معنی تکمیل همهٔ مادرقالب‌ها نیست.',
         'مادرقالب‌ها آزمایشی‌اند. راهنمای مونتاژ و گزارش برخورد را بخوانید؛ اعتبار STL تضمین جدایش یا آب‌بندی نیست.',
         'آب‌بندی و جداکنندهٔ سازگار با مواد لازم است. ابتدا مونتاژ خشک و آزمایش کم‌حجم انجام دهید.',
@@ -1040,7 +1040,7 @@ export function App() {
         </div>
       )}
       <details className="history-panel">
-        <summary>تاریخچهٔ محلی — {historyEntries.length} نسخه از ۱۰ نسخهٔ اخیر</summary>
+        <summary>تاریخچهٔ محلی — {formatNumber(historyEntries.length)} نسخه از ۱۰ نسخهٔ اخیر</summary>
         <div className="hint">
           این نسخه‌ها فقط در همین محیط مرورگر نگهداری می‌شوند؛ جایگزین فایل پروژه یا پوشهٔ بکاپ
           ویندوز نیستند.
@@ -1048,7 +1048,7 @@ export function App() {
         {historyEntries.map((entry, i) => (
           <div className="history-entry" key={entry.id}>
             <span>
-              {i === 0 ? 'آخرین ذخیره' : `نسخهٔ ${i + 1}`} —{' '}
+              {i === 0 ? 'آخرین ذخیره' : `نسخهٔ ${formatNumber(i + 1)}`} —{' '}
               {new Date(entry.savedAt).toLocaleString('fa-IR')} — {entry.state.profileMode}
             </span>
             <button className="btn" onClick={() => restoreHistory(entry.id)}>
@@ -1060,7 +1060,7 @@ export function App() {
       {isDesktop() && (
         <details className="history-panel">
           <summary>
-            بکاپ پوشهٔ برنامه — {folderBackups.length} نسخه{' '}
+            بکاپ پوشهٔ برنامه — {formatNumber(folderBackups.length)} نسخه{' '}
             {backupPending > 0 ? '— در حال نوشتن…' : ''}
           </summary>
           <div className="hint">
@@ -1194,7 +1194,8 @@ export function App() {
                       </>
                     )}
                     <br />
-                    {splitPlan && `طرح تقسیم: ${splitPlan.reason} — ${splitPlan.parts} قطعه`}
+                    {splitPlan &&
+                      `طرح تقسیم: ${splitPlan.reason} — ${formatNumber(splitPlan.parts)} قطعه`}
                     <br />
                     کلید ثبت با قطر ۱۶ mm و تلورانس ۰٫۲ mm
                     <br />
@@ -1326,7 +1327,7 @@ export function App() {
                 moldParts?.map((_, i) => (
                   <div className="ctl" key={i}>
                     <button className="btn" onClick={() => exportMoldPart(i)}>
-                      ⬇ STL قطعهٔ {i + 1}
+                      ⬇ STL قطعهٔ {formatNumber(i + 1)}
                     </button>
                   </div>
                 ))}
@@ -1354,13 +1355,13 @@ export function App() {
                         setBarrierRequest(i);
                       }}
                     >
-                      ساخت مادرقالب هم‌فاصلهٔ قطعهٔ {i + 1}
+                      ساخت مادرقالب هم‌فاصلهٔ قطعهٔ {formatNumber(i + 1)}
                     </button>
                   </div>
                 ))}
               {barrierRequest !== null && (
                 <div className="ctl">
-                  ⏳ ساخت هندسه و بررسی نمونه‌ای بازشدن قطعهٔ {barrierRequest + 1}…
+                  ⏳ ساخت هندسه و بررسی نمونه‌ای بازشدن قطعهٔ {formatNumber(barrierRequest + 1)}…
                   <button className="btn" onClick={() => setBarrierRequest(null)}>
                     لغو محاسبه
                   </button>
@@ -1387,7 +1388,7 @@ export function App() {
                       </div>
                       {barrierResult.result.release.halves.map((half, i) => (
                         <div key={i}>
-                          نیمهٔ {i + 1} ({half.direction}):{' '}
+                          نیمهٔ {formatNumber(i + 1)} ({half.direction}):{' '}
                           {half.status === 'collision-detected'
                             ? `⚠️ برخورد در جابه‌جایی ${formatNumber(half.firstCollisionMm, 3)}mm؛ قبل از ساخت اصلاح شود`
                             : 'در نمونه‌ها برخوردی دیده نشد؛ مسیر بین نمونه‌ها بررسی نشده است'}
@@ -1449,7 +1450,7 @@ export function App() {
                         else alert(output.error);
                       }}
                     >
-                      ⬇ مانع: نیمهٔ {i + 1}
+                      ⬇ مانع: نیمهٔ {formatNumber(i + 1)}
                     </button>
                   ))}
                 </div>
@@ -1480,8 +1481,8 @@ export function App() {
               {motherResults?.map((result, i) => (
                 <div className="ctl" key={`mother-${i}`}>
                   <div className="hint">
-                    قطعهٔ {i + 1}: سیلیکون برآوردی {formatNumber(result.siliconeKg, 3)} kg (بدون پرت
-                    و راهگاه؛ چگالی ۱٫۱۵ kg/L)
+                    قطعهٔ {formatNumber(i + 1)}: سیلیکون برآوردی {formatNumber(result.siliconeKg, 3)}{' '}
+                    kg (بدون پرت و راهگاه؛ چگالی ۱٫۱۵ kg/L)
                   </div>
                   {result.jacket.map((jacket, j) => (
                     <button
@@ -1496,7 +1497,7 @@ export function App() {
                         else alert(output.error);
                       }}
                     >
-                      ⬇ نیمهٔ {j + 1} محفظه
+                      ⬇ نیمهٔ {formatNumber(j + 1)} محفظه
                     </button>
                   ))}
                 </div>
@@ -1626,7 +1627,7 @@ export function App() {
                   : 'مواد پس از ساخت قالب محاسبه می‌شود.'}
                 <br />
                 {splitPlan
-                  ? `طرح انتخاب‌شده: ${splitPlan.parts} قطعه — ${splitPlan.reason}`
+                  ? `طرح انتخاب‌شده: ${formatNumber(splitPlan.parts)} قطعه — ${splitPlan.reason}`
                   : 'در انتظار انتخاب طرح تقسیم'}
               </div>
             </>

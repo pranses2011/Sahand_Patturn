@@ -51,7 +51,7 @@ export function NumericControl({
         value: next,
         text:
           next !== n
-            ? `مقدار به ${new Intl.NumberFormat('fa-IR').format(next)} ${unit} در بازه و گام مجاز تنظیم شد.`
+            ? `مقدار به ${formatNumber(next)} ${unit === '%' ? '٪' : unit} در بازه و گام مجاز تنظیم شد.`
             : '',
       });
       if (next !== value) onChange(next);
