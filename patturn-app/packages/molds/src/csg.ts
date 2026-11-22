@@ -41,6 +41,10 @@ type Wasm = {
     sphere(radius: number, circularSegments: number): ManifoldT;
     new (mesh?: unknown): ManifoldT;
   };
+  CrossSection: new (
+    contours: [number, number][][],
+    fillRule: 'EvenOdd',
+  ) => { extrude(height: number): ManifoldT; delete(): void };
   Mesh: new (m: {
     numProp?: number;
     triVerts: Uint32Array;
@@ -883,6 +887,117 @@ export function unionFootRing(form: Mesh, ring: Mesh): Mesh {
     if (!validateMesh(mesh).ok) throw Error('FOOT_UNION_INVALID_RESULT');
     return mesh;
   } finally {
+    for (const part of new Set(owned)) part.delete?.();
+  }
+}
+
+export interface StampOptions {
+  baseMm: number;
+  reliefMm: number;
+  minWidthMm: number;
+  mirror: boolean;
+}
+/** Conservative stamp: convex disjoint bounding boxes only, no holes or concave detail.
+ * Minimum width is the minimum caliper width of each convex relief silhouette.
+ */
+export function buildConvexStamp(
+  contours: readonly (readonly (readonly [number, number])[])[],
+  options: StampOptions,
+): Mesh {
+  const { baseMm, reliefMm, minWidthMm, mirror } = options;
+  if (
+    !Number.isFinite(baseMm) ||
+    baseMm < 2 ||
+    baseMm > 10 ||
+    !Number.isFinite(reliefMm) ||
+    reliefMm < 1 ||
+    reliefMm > 8 ||
+    !Number.isFinite(minWidthMm) ||
+    minWidthMm < 1 ||
+    minWidthMm > 5 ||
+    typeof mirror !== 'boolean' ||
+    contours.length < 1 ||
+    contours.length > 32 ||
+    contours.reduce((n, p) => n + p.length, 0) > 1024
+  )
+    throw Error('INVALID_STAMP');
+  const boxes = contours.map((p) => {
+    if (
+      p.length < 3 ||
+      p.some((v) => v.length !== 2 || v.some((n) => !Number.isFinite(n) || Math.abs(n) > 1000))
+    )
+      throw Error('INVALID_STAMP_CONTOUR');
+    let minWidth = Infinity,
+      orientation = 0;
+    for (let i = 0; i < p.length; i++) {
+      const a = p[i]!,
+        b = p[(i + 1) % p.length]!,
+        dx = b[0] - a[0],
+        dy = b[1] - a[1],
+        length = Math.hypot(dx, dy);
+      if (length < 1e-7) throw Error('INVALID_STAMP_CONTOUR');
+      let furthest = 0;
+      for (const q of p) {
+        const cross = dx * (q[1] - a[1]) - dy * (q[0] - a[0]);
+        if (Math.abs(cross) > 1e-7) {
+          if (orientation && Math.sign(cross) !== orientation) throw Error('STAMP_NOT_CONVEX');
+          orientation = Math.sign(cross);
+        }
+        furthest = Math.max(furthest, Math.abs(cross) / length);
+      }
+      minWidth = Math.min(minWidth, furthest);
+    }
+    if (!orientation || minWidth < minWidthMm - 1e-6) throw Error('STAMP_TOO_THIN');
+    return {
+      minX: Math.min(...p.map((v) => v[0])),
+      maxX: Math.max(...p.map((v) => v[0])),
+      minY: Math.min(...p.map((v) => v[1])),
+      maxY: Math.max(...p.map((v) => v[1])),
+    };
+  });
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i]!,
+        b = boxes[j]!;
+      if (!(
+        a.maxX < b.minX - 1e-6 ||
+        b.maxX < a.minX - 1e-6 ||
+        a.maxY < b.minY - 1e-6 ||
+        b.maxY < a.minY - 1e-6
+      ))
+        throw Error('STAMP_OVERLAPPING_BOUNDS');
+    }
+  const minX = Math.min(...boxes.map((b) => b.minX)),
+    maxX = Math.max(...boxes.map((b) => b.maxX)),
+    minY = Math.min(...boxes.map((b) => b.minY)),
+    maxY = Math.max(...boxes.map((b) => b.maxY));
+  const width = maxX - minX + 6,
+    height = maxY - minY + 6;
+  if (width > 206 || height > 206) throw Error('STAMP_TOO_LARGE');
+  const w = requireWasm(),
+    owned: ManifoldT[] = [];
+  let section: InstanceType<Wasm['CrossSection']> | null = null;
+  try {
+    const base = w.Manifold.cube([width, height, baseMm], false);
+    owned.push(base);
+    section = new w.CrossSection(
+      contours.map((p) =>
+        p.map((v) => [mirror ? maxX - v[0] + 3 : v[0] - minX + 3, v[1] - minY + 3]),
+      ),
+      'EvenOdd',
+    );
+    const solid = section.extrude(reliefMm + 0.1);
+    owned.push(solid);
+    const relief = solid.translate([0, 0, baseMm - 0.1]);
+    owned.push(relief);
+    const united = base.add(relief);
+    owned.push(united);
+    const mesh = fromManifold(united);
+    if (!validateMesh(mesh).ok || united.volume() <= base.volume())
+      throw Error('STAMP_INVALID_RESULT');
+    return mesh;
+  } finally {
+    section?.delete();
     for (const part of new Set(owned)) part.delete?.();
   }
 }

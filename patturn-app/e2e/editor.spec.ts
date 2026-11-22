@@ -2224,3 +2224,61 @@ test('failed optional update check can retry without a release or blocking local
   await expect(panel.getByRole('alert')).toHaveCount(0);
   await expect(wall).toHaveValue('7');
 });
+
+test('convex image stamp exports mirrored relief and invalidates on options or contour changes', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ردیابی تصویر — Otsu و کانتور', { exact: true }).click();
+  const image = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 16, 16);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(4, 4, 8, 8);
+    return canvas.toDataURL('image/png').split(',')[1]!;
+  });
+  await page.getByLabel('تصویر ردیابی', { exact: true }).setInputFiles({
+    name: 'square.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(image, 'base64'),
+  });
+  await page.getByText('مهرساز — برجسته‌سازی کانتور محدب', { exact: true }).click();
+  const panel = page.locator('.stamp-tool');
+  await expect(
+    panel.getByRole('checkbox', { name: 'آینه‌سازی X برای اثر مهر', exact: true }),
+  ).toBeChecked();
+  await panel.getByRole('button', { name: 'ساخت مهر از کانتور فعلی', exact: true }).click();
+  await expect(panel.getByRole('status').filter({ hasText: 'مهر متصل و مش معتبر' })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'دانلود STL مهر', exact: true }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('stamp_mirrored_B3-R2-W1mm.stl');
+  const path = await file.path();
+  expect(path).not.toBeNull();
+  const bytes = await readFile(path!);
+  expect(bytes.length).toBe(84 + bytes.readUInt32LE(80) * 50);
+  let min = Infinity,
+    max = -Infinity;
+  for (let offset = 84; offset < bytes.length; offset += 50)
+    for (let v = 0; v < 3; v++) {
+      const z = bytes.readFloatLE(offset + 20 + v * 12);
+      min = Math.min(min, z);
+      max = Math.max(max, z);
+    }
+  expect(min).toBe(0);
+  expect(max).toBe(5);
+  await panel.getByRole('checkbox', { name: 'آینه‌سازی X برای اثر مهر', exact: true }).uncheck();
+  await expect(panel.getByRole('button', { name: 'دانلود STL مهر', exact: true })).toHaveCount(0);
+  await panel.getByRole('button', { name: 'ساخت مهر از کانتور فعلی', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'دانلود STL مهر', exact: true })).toBeVisible();
+  const width = page.getByRole('spinbutton', { name: 'عرض مرجع تصویر', exact: true });
+  await width.fill('80');
+  await width.press('Enter');
+  await expect(panel.getByRole('button', { name: 'دانلود STL مهر', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
