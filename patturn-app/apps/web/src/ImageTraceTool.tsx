@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { traceImage, detectIslands } from '@patturn/patterns';
+import { traceImage, detectIslands, bridgeIsland } from '@patturn/patterns';
 import { exportName, toSvg, toDxf } from '@patturn/exporters';
 import { NumericControl } from './NumericControl';
 type Raster = { width: number; height: number; pixels: Uint8Array };
@@ -20,7 +20,7 @@ export function ImageTraceTool({
     },
     [],
   );
-  const drawing = useMemo(() => {
+  const sourceDrawing = useMemo(() => {
     if (!raster) return null;
     try {
       return traceImage({ ...raster, referenceWidthMm: reference, toleranceMm: tolerance });
@@ -28,6 +28,13 @@ export function ImageTraceTool({
       return null;
     }
   }, [raster, reference, tolerance]);
+  const [bridged, setBridged] = useState<{
+    base: typeof sourceDrawing;
+    result: NonNullable<typeof sourceDrawing>;
+  } | null>(null);
+  const [bridgeWidth, setBridgeWidth] = useState(2),
+    [selection, setSelection] = useState(0);
+  const drawing = bridged?.base === sourceDrawing ? bridged.result : sourceDrawing;
   const islands = useMemo(() => {
     if (!drawing) return null;
     try {
@@ -156,6 +163,79 @@ export function ImageTraceTool({
               )}{' '}
               — نمایش با خط ضخیم نارنجی؛ با فرض برش نواحی تیره و قاعدهٔ زوج/فرد.
             </p>
+          )}
+          {islands && !islands.error && (
+            <fieldset>
+              <legend>پل نگهدارندهٔ جزیره</legend>
+              <label>
+                جزیرهٔ پل
+                <select
+                  aria-label="جزیرهٔ پل"
+                  value={
+                    islands.items.find((item) => item.isIsland && item.index === selection)
+                      ?.index ??
+                    islands.items.find((item) => item.isIsland)?.index ??
+                    ''
+                  }
+                  onChange={(event) => setSelection(Number(event.currentTarget.value))}
+                >
+                  {islands.items
+                    .filter((item) => item.isIsland)
+                    .map((item) => (
+                      <option key={item.index} value={item.index}>
+                        جزیرهٔ {new Intl.NumberFormat('fa-IR').format(item.index + 1)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <NumericControl
+                label="عرض پل جزیره"
+                value={bridgeWidth}
+                onChange={setBridgeWidth}
+                min={0.5}
+                max={10}
+                step={0.5}
+                onBeginEdit={() => {}}
+                onEndEdit={() => {}}
+              />
+              <button
+                type="button"
+                className="btn"
+                disabled={!islands.items.some((item) => item.isIsland)}
+                onClick={() => {
+                  const item =
+                    islands.items.find((item) => item.isIsland && item.index === selection) ??
+                    islands.items.find((item) => item.isIsland);
+                  if (!item) return;
+                  try {
+                    const result = bridgeIsland(drawing.contours, item.index, bridgeWidth);
+                    setBridged({ base: sourceDrawing, result: { ...drawing, ...result } });
+                    setError('');
+                  } catch {
+                    setError('ساخت پل معتبر نشد؛ عرض یا تصویر را تغییر دهید. هندسهٔ قبلی حفظ شد.');
+                  }
+                }}
+              >
+                اعمال پل به کانتور برش
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={!bridged || bridged.base !== sourceDrawing}
+                onClick={() => {
+                  setBridged(null);
+                  setError('');
+                }}
+              >
+                حذف همهٔ پل‌ها
+              </button>
+              <p className="hint">
+                نوار با عرض انتخابی از ناحیهٔ برش کم می‌شود تا ماده باقی بماند؛ کوتاه‌ترین اتصال
+                رأس/لبه به والد انتخاب می‌شود و دو سر نیم‌عرض امتداد دارند. می‌توانید برای هر جزیره
+                جداگانه پل اعمال کنید. تغییر تصویر، مقیاس یا تلرانس همهٔ پل‌ها را بازنشانی می‌کند؛
+                تغییر عرض فقط روی اعمال بعدی اثر دارد. تضمین استحکام یا حداقل عرض فیزیکی وجود ندارد.
+              </p>
+            </fieldset>
           )}
           <svg
             role="img"

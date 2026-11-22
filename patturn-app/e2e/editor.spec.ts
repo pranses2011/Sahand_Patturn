@@ -2099,3 +2099,59 @@ test('nested traced contours identify a retained island without creating a bridg
   expect((svg.match(/<path /g) ?? []).length).toBe(2);
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('a retained bridge changes traced output geometry and resets on scale changes', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ردیابی تصویر — Otsu و کانتور', { exact: true }).click();
+  const panel = page.locator('.image-trace-tool');
+  const image = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 32, 32);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(4, 4, 24, 24);
+    ctx.fillStyle = 'white';
+    ctx.fillRect(12, 12, 8, 8);
+    return canvas.toDataURL('image/png').split(',')[1]!;
+  });
+  await panel.getByLabel('تصویر ردیابی', { exact: true }).setInputFiles({
+    name: 'ring.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(image, 'base64'),
+  });
+  const status = panel.getByRole('status').filter({ hasText: 'جزیرهٔ محصور نیازمند پل:' });
+  await expect(status).toContainText('۱');
+  const bridgeWidth = panel.getByRole('spinbutton', { name: 'عرض پل جزیره', exact: true });
+  await bridgeWidth.fill('3');
+  await bridgeWidth.press('Enter');
+  await panel.getByRole('button', { name: 'اعمال پل به کانتور برش', exact: true }).click();
+  await expect(status).toContainText('۰');
+  await expect(
+    panel.getByRole('img', { name: 'پیش‌نمایش کانتور تصویر', exact: true }).locator('path'),
+  ).toHaveCount(1);
+  await expect(
+    panel.getByRole('button', { name: 'اعمال پل به کانتور برش', exact: true }),
+  ).toBeDisabled();
+  const download = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'دانلود SVG ردیابی', exact: true }).click();
+  const path = await (await download).path();
+  expect(path).not.toBeNull();
+  const svg = await readFile(path!, 'utf8');
+  expect((svg.match(/<path /g) ?? []).length).toBe(1);
+  await panel.getByRole('button', { name: 'حذف همهٔ پل‌ها', exact: true }).click();
+  await expect(status).toContainText('۱');
+  await panel.getByRole('button', { name: 'اعمال پل به کانتور برش', exact: true }).click();
+  await expect(status).toContainText('۰');
+  const width = panel.getByRole('spinbutton', { name: 'عرض مرجع تصویر', exact: true });
+  await width.fill('80');
+  await width.press('Enter');
+  await expect(status).toContainText('۱');
+  await expect(panel.getByRole('button', { name: 'حذف همهٔ پل‌ها', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
