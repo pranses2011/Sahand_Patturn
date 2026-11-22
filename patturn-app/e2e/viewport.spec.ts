@@ -110,7 +110,7 @@ test('visibility lifecycle suspends software draws during geometry edits and res
   const segments = page.getByRole('spinbutton', { name: 'تعداد سگمنت', exact: true });
   await segments.fill('32');
   await segments.press('Enter');
-  await expect(page.locator('footer')).toContainText('Segments 32');
+  await expect(page.locator('footer')).toContainText('سگمنت ۳۲');
   // Include a resize invalidation while paused, not just a geometry update.
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.evaluate(

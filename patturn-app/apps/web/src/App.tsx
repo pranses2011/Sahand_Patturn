@@ -1,3 +1,4 @@
+import { formatNumber } from './number-format';
 import { UpdatePanel } from './UpdatePanel';
 import { ImageTraceTool } from './ImageTraceTool';
 import { LoftSweepTool } from './LoftSweepTool';
@@ -624,12 +625,12 @@ export function App() {
       const material = plasterForCavity(volume);
       const name = exportName(`mold-${profileMode}-part-${i + 1}`, 'mesh', 'mm', 'stl');
       lines.push(
-        `${i + 1}. ${name} | حجم: ${material.volumeL.toFixed(3)} L | گچ: ${material.plasterKg.toFixed(3)} kg | آب: ${material.waterKg.toFixed(3)} kg`,
+        `${i + 1}. ${name} | حجم: ${formatNumber(material.volumeL, 3)} L | گچ: ${formatNumber(material.plasterKg, 3)} kg | آب: ${formatNumber(material.waterKg, 3)} kg`,
       );
     });
     const material = plasterForCavity(total);
     lines.push(
-      `جمع: ${material.volumeL.toFixed(3)} L | گچ: ${material.plasterKg.toFixed(3)} kg | آب: ${material.waterKg.toFixed(3)} kg`,
+      `جمع: ${formatNumber(material.volumeL, 3)} L | گچ: ${formatNumber(material.plasterKg, 3)} kg | آب: ${formatNumber(material.waterKg, 3)} kg`,
     );
     return lines.join('\n');
   };
@@ -669,7 +670,7 @@ export function App() {
         { label: 'جبران انقباض قالب ـ درصد', value: String(shrink) },
         { label: 'تقسیمات مش', value: String(segments) },
         { label: 'ضخامت شعاعی محاسبهٔ ظرفیت', value: `${wall} mm` },
-        { label: 'ظرفیت تقریبی داخل فرم', value: `${capMl.toFixed(1)} ml` },
+        { label: 'ظرفیت تقریبی داخل فرم', value: `${formatNumber(capMl, 1)} ml` },
       ],
     });
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -1156,11 +1157,12 @@ export function App() {
               <div className="hint">
                 {unwrapInfo ? (
                   <>
-                    شاخص اعوجاج: <b>{(unwrapInfo.distortion * 100).toFixed(1)}٪</b> (میانگین{' '}
-                    {(unwrapInfo.meanDistortion * 100).toFixed(1)}٪)
+                    شاخص اعوجاج: <b>{formatNumber(unwrapInfo.distortion * 100, 1)}٪</b> (میانگین{' '}
+                    {formatNumber(unwrapInfo.meanDistortion * 100, 1)}٪)
                     <br />
-                    تعداد کاشی دور فرم: <b>{unwrapInfo.tileCount}</b> × {tileSize}mm ={' '}
-                    {unwrapInfo.circumference.toFixed(1)}mm محیط مرجع
+                    تعداد کاشی دور فرم: <b>{formatNumber(unwrapInfo.tileCount)}</b> ×{' '}
+                    {formatNumber(tileSize)}mm = {formatNumber(unwrapInfo.circumference, 1)}mm محیط
+                    مرجع
                     <br /> seam بدون پارگی بافت (continuity per-triangle)
                   </>
                 ) : (
@@ -1187,16 +1189,16 @@ export function App() {
                       </>
                     ) : (
                       <>
-                        ⚠️ زیر برش: {undercut.problemBands.length} ناحیه → پیشنهاد{' '}
-                        <b>{undercut.suggestedParts} قطعه</b>
+                        ⚠️ زیر برش: {formatNumber(undercut.problemBands.length)} ناحیه → پیشنهاد{' '}
+                        <b>{formatNumber(undercut.suggestedParts)} قطعه</b>
                       </>
                     )}
                     <br />
                     {splitPlan && `طرح تقسیم: ${splitPlan.reason} — ${splitPlan.parts} قطعه`}
                     <br />
-                    کلید ثبت Ø16 با تلورانس 0.2mm
+                    کلید ثبت با قطر ۱۶ mm و تلورانس ۰٫۲ mm
                     <br />
-                    r_top = {keyTopRadius().toFixed(4)} mm
+                    شعاع بالای کلید: {formatNumber(keyTopRadius(), 4)} mm
                   </>
                 )}
               </div>
@@ -1204,10 +1206,10 @@ export function App() {
               <div className="hint">
                 {mix ? (
                   <>
-                    گچ: <b>{mix.plasterKg.toFixed(2)} kg</b> · آب:{' '}
-                    <b>{mix.waterKg.toFixed(2)} kg</b>
+                    گچ: <b>{formatNumber(mix.plasterKg, 2)} kg</b> · آب:{' '}
+                    <b>{formatNumber(mix.waterKg, 2)} kg</b>
                     <br />
-                    حجم خالص: {mix.volumeL.toFixed(3)} L؛ بدون پرت و راهگاه
+                    حجم خالص: {formatNumber(mix.volumeL, 3)} L؛ بدون پرت و راهگاه
                   </>
                 ) : (
                   'پس از ساخت معتبر قالب محاسبه می‌شود.'
@@ -1372,20 +1374,22 @@ export function App() {
               {barrierResult && (
                 <div className="ctl">
                   <div className="hint">
-                    کران خطای تقریب offset: {barrierResult.result.offsetErrorBoundMm.toFixed(3)} mm
+                    کران خطای تقریب offset:{' '}
+                    {formatNumber(barrierResult.result.offsetErrorBoundMm, 3)} mm
                   </div>
                   {barrierResult.result.release && (
                     <div className="hint" role="status">
                       <b>بررسی نمونه‌ای بازشدن — تضمین جدایش نیست</b>
                       <div>
-                        {barrierResult.result.release.samplesMm.length} فاصله بررسی شد؛ آستانهٔ
-                        برخورد {barrierResult.result.release.volumeToleranceMm3} mm³.
+                        {formatNumber(barrierResult.result.release.samplesMm.length)} فاصله بررسی
+                        شد؛ آستانهٔ برخورد{' '}
+                        {formatNumber(barrierResult.result.release.volumeToleranceMm3)} mm³.
                       </div>
                       {barrierResult.result.release.halves.map((half, i) => (
                         <div key={i}>
                           نیمهٔ {i + 1} ({half.direction}):{' '}
                           {half.status === 'collision-detected'
-                            ? `⚠️ برخورد در جابه‌جایی ${half.firstCollisionMm?.toFixed(3)}mm؛ قبل از ساخت اصلاح شود`
+                            ? `⚠️ برخورد در جابه‌جایی ${formatNumber(half.firstCollisionMm, 3)}mm؛ قبل از ساخت اصلاح شود`
                             : 'در نمونه‌ها برخوردی دیده نشد؛ مسیر بین نمونه‌ها بررسی نشده است'}
                         </div>
                       ))}
@@ -1400,17 +1404,17 @@ export function App() {
                   {barrierResult.result.casting && (
                     <div className="hint">
                       <div>
-                        مهار: {barrierResult.result.casting.fasteners.centers.length} سوراخ Ø
-                        {barrierResult.result.casting.fasteners.holeDia}؛ ضخامت مجموع فلنج‌ها{' '}
-                        {barrierResult.result.casting.fasteners.gripMm}mm؛ پیچ و مهره جداگانه لازم
-                        است.
+                        مهار: {formatNumber(barrierResult.result.casting.fasteners.centers.length)}{' '}
+                        سوراخ Ø{formatNumber(barrierResult.result.casting.fasteners.holeDia)}؛ ضخامت
+                        مجموع فلنج‌ها {formatNumber(barrierResult.result.casting.fasteners.gripMm)}
+                        mm؛ پیچ و مهره جداگانه لازم است.
                       </div>
-                      {barrierResult.result.casting.ports.length} مسیر متصل به پوسته؛ موقعیت
-                      دهانه‌ها (mm):
+                      {formatNumber(barrierResult.result.casting.ports.length)} مسیر متصل به پوسته؛
+                      موقعیت دهانه‌ها (mm):
                       {barrierResult.result.casting.ports.map((port, i) => (
                         <div key={i}>
-                          {i === 0 ? 'ریختن' : 'هواکش'}: Ø{port.diameter} — (
-                          {port.center.map((n) => n.toFixed(1)).join(', ')})
+                          {i === 0 ? 'ریختن' : 'هواکش'}: Ø{formatNumber(port.diameter)} — (
+                          {port.center.map((n) => formatNumber(n, 1)).join(', ')})
                         </div>
                       ))}
                     </div>
@@ -1476,8 +1480,8 @@ export function App() {
               {motherResults?.map((result, i) => (
                 <div className="ctl" key={`mother-${i}`}>
                   <div className="hint">
-                    قطعهٔ {i + 1}: سیلیکون برآوردی {result.siliconeKg.toFixed(3)} kg (بدون پرت و
-                    راهگاه؛ چگالی ۱٫۱۵ kg/L)
+                    قطعهٔ {i + 1}: سیلیکون برآوردی {formatNumber(result.siliconeKg, 3)} kg (بدون پرت
+                    و راهگاه؛ چگالی ۱٫۱۵ kg/L)
                   </div>
                   {result.jacket.map((jacket, j) => (
                     <button
@@ -1577,14 +1581,16 @@ export function App() {
               {numCtl('شیرینک', shrink, setShrink, 0, 20, 0.5, '%', 'shrink')}
               {numCtl('سطح پرشدگی', fill, setFill, 0, 100, 5, '%', 'fill')}
               <h3 className="sec">📐 ابعاد فرم انتخاب‌شده</h3>
-              <div className="hint" style={{ direction: 'ltr', textAlign: 'left' }}>
-                w {dimensions.width.toFixed(1)} · h {dimensions.height.toFixed(1)} · wall {wall} mm
+              <div className="hint form-dimensions">
+                عرض <bdi>{formatNumber(dimensions.width, 1)} mm</bdi> · ارتفاع{' '}
+                <bdi>{formatNumber(dimensions.height, 1)} mm</bdi> · ضخامت شعاعی{' '}
+                <bdi>{formatNumber(wall)} mm</bdi>
                 <br />
-                Capacity: <b>{capMl.toFixed(0)} ml</b>
+                ظرفیت تقریبی: <bdi>{formatNumber(capMl, 0)} ml</bdi>
                 <br />
-                Filled {fill}%: <b>{filled.toFixed(0)} ml</b>
+                پرشده در {formatNumber(fill)}٪: <bdi>{formatNumber(filled, 0)} ml</bdi>
                 <br />
-                Dry @ {shrink}%: <b>{dryMm.toFixed(1)} mm</b>
+                اندازهٔ خشک با انقباض {formatNumber(shrink)}٪: <bdi>{formatNumber(dryMm, 1)} mm</bdi>
                 <br />
                 ظرفیت: تقریب شعاعی با کفِ بالاآمده.
                 <br />
@@ -1613,10 +1619,10 @@ export function App() {
                 <br />
                 کلید: مخروطی Ø16×10، taper 4°
                 <br />
-                تلورانس: 0.20 mm
+                تلورانس: ۰٫۲۰ mm
                 <br />
                 {mix
-                  ? `گچ: ${mix.plasterKg.toFixed(2)} kg · آب: ${mix.waterKg.toFixed(2)} kg (حجم واقعی قطعات، بدون پرت)`
+                  ? `گچ: ${formatNumber(mix.plasterKg, 2)} kg · آب: ${formatNumber(mix.waterKg, 2)} kg (حجم واقعی قطعات، بدون پرت)`
                   : 'مواد پس از ساخت قالب محاسبه می‌شود.'}
                 <br />
                 {splitPlan
@@ -1646,27 +1652,32 @@ export function App() {
       </div>
 
       {/* ── status bar ── */}
-      <footer className="statusbar">
+      <footer className="statusbar" aria-label="خلاصهٔ ابعاد و ظرفیت">
         <span>
-          w <b>{dimensions.width.toFixed(1)}</b> h <b>{dimensions.height.toFixed(1)}</b> mm
+          عرض <bdi>{formatNumber(dimensions.width, 1)} mm</bdi> · ارتفاع{' '}
+          <bdi>{formatNumber(dimensions.height, 1)} mm</bdi>
         </span>
         <span>
-          Wall <b>{wall}</b>
+          ضخامت <bdi>{formatNumber(wall)} mm</bdi>
         </span>
         <span>
-          Cap <b>{capMl.toFixed(0)}</b> ml
+          ظرفیت <bdi>{formatNumber(capMl, 0)} ml</bdi>
         </span>
         <span>
-          Filled <b>{filled.toFixed(0)}</b> ml
+          پرشده <bdi>{formatNumber(filled, 0)} ml</bdi>
         </span>
         <span>
-          Shrink <b>{shrink}%</b>
+          انقباض <bdi>{formatNumber(shrink)}٪</bdi>
         </span>
         <span>
-          Segments <b>{segments}</b>
+          سگمنت <bdi>{formatNumber(segments)}</bdi>
         </span>
         <span>
-          {meshErr ? `⚠ ${meshErr}` : mesh ? `mesh OK · ${mesh.indices.length / 3} tris` : ''}
+          {meshErr
+            ? `⚠ ${meshErr}`
+            : mesh
+              ? `مش معتبر · ${formatNumber(mesh.indices.length / 3)} مثلث`
+              : ''}
         </span>
       </footer>
     </div>

@@ -1,3 +1,4 @@
+import { formatNumber } from './number-format';
 import { useEffect, useId, useState } from 'react';
 import { ParameterHelp, type HelpTopic } from './ParameterHelp';
 
@@ -65,7 +66,9 @@ export function NumericControl({
       <label htmlFor={id}>
         <span>{label}</span>
         <span className="val">
-          {value} <span id={`${id}-unit`}>{unit}</span>
+          <bdi>
+            {formatNumber(value)} <span id={`${id}-unit`}>{unit === '%' ? '٪' : unit}</span>
+          </bdi>
         </span>
       </label>
       <input

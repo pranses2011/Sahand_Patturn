@@ -66,7 +66,7 @@ test('numeric draft supports clearing, decimal typing, escape and committed undo
   const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
   await wall.fill('');
   await expect(wall).toHaveValue('');
-  await expect(page.locator('footer')).toContainText('Wall 4');
+  await expect(page.locator('footer')).toContainText('ضخامت ۴ mm');
   await wall.press('Tab');
   await expect(wall).toHaveValue('4');
   await wall.fill('12');
@@ -75,9 +75,9 @@ test('numeric draft supports clearing, decimal typing, escape and committed undo
   const shrink = page.getByRole('spinbutton', { name: 'شیرینک', exact: true });
   await shrink.fill('');
   await shrink.pressSequentially('12.5');
-  await expect(page.locator('footer')).toContainText('Shrink 12%');
+  await expect(page.locator('footer')).toContainText('انقباض ۱۲٪');
   await shrink.press('Enter');
-  await expect(page.locator('footer')).toContainText('Shrink 12.5%');
+  await expect(page.locator('footer')).toContainText('انقباض ۱۲٫۵٪');
   await page.getByRole('button', { name: /^واگرد/ }).click();
   await expect(shrink).toHaveValue('12');
 });
@@ -221,7 +221,7 @@ test('keyboard focus is visible and numeric units are available as accessible de
   await expect(slider).toHaveAccessibleDescription('mm');
   await expect(
     page.getByRole('spinbutton', { name: 'شیرینک', exact: true }),
-  ).toHaveAccessibleDescription('%');
+  ).toHaveAccessibleDescription('٪');
 });
 
 test('invalid or oversized project imports preserve edits; cancelling replacement permits a later valid import', async ({
@@ -2281,4 +2281,30 @@ test('convex image stamp exports mirrored relief and invalidates on options or c
   await width.press('Enter');
   await expect(panel.getByRole('button', { name: 'دانلود STL مهر', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
+
+test('Persian result formatting leaves numeric inputs and portable project values unchanged', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+  await wall.fill('7');
+  await wall.press('Enter');
+  await expect(wall).toHaveValue('7');
+  await expect(
+    page.getByRole('contentinfo', { name: 'خلاصهٔ ابعاد و ظرفیت', exact: true }),
+  ).toContainText('ضخامت ۷ mm');
+  await expect(page.locator('.form-dimensions')).toContainText('ظرفیت تقریبی:');
+  await expect(page.locator('.form-dimensions')).not.toContainText('Capacity:');
+  await expect(page.locator('.form-dimensions bdi').first()).toContainText(/[۰-۹]/);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'ذخیرهٔ فایل پروژه', exact: true }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).not.toMatch(/[۰-۹]/);
+  const path = await file.path();
+  expect(path).not.toBeNull();
+  const document = JSON.parse(strFromU8(gunzipSync(new Uint8Array(await readFile(path!)))));
+  expect(document.state.wall).toBe(7);
+  expect(typeof document.state.wall).toBe('number');
+  expect(document.unit).toBe('mm');
 });
