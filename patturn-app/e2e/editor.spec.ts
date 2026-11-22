@@ -2308,3 +2308,26 @@ test('Persian result formatting leaves numeric inputs and portable project value
   expect(typeof document.state.wall).toBe('number');
   expect(document.unit).toBe('mm');
 });
+
+test('logical flow arrow follows inherited RTL/LTR without changing project parameters', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '🧱 قالب', exact: true }).click();
+  const arrow = page.locator('.flow-arrow').first();
+  await expect(arrow).toBeVisible();
+  await expect(arrow).toHaveAttribute('aria-hidden', 'true');
+  await expect(arrow.locator('svg')).toHaveAttribute('focusable', 'false');
+  expect(await arrow.evaluate((element) => getComputedStyle(element).transform)).toBe(
+    'matrix(-1, 0, 0, 1, 0, 0)',
+  );
+  await page.evaluate(() => (document.documentElement.dir = 'ltr'));
+  await expect
+    .poll(() => arrow.evaluate((element) => getComputedStyle(element).transform))
+    .toBe('matrix(1, 0, 0, 1, 0, 0)');
+  await page.evaluate(() => (document.documentElement.dir = 'rtl'));
+  expect(await arrow.evaluate((element) => getComputedStyle(element).transform)).toBe(
+    'matrix(-1, 0, 0, 1, 0, 0)',
+  );
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

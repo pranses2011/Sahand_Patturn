@@ -1,3 +1,4 @@
+import { FlowArrow } from './FlowArrow';
 import { formatNumber } from './number-format';
 import { UpdatePanel } from './UpdatePanel';
 import { ImageTraceTool } from './ImageTraceTool';
@@ -1185,12 +1186,12 @@ export function App() {
                   <>
                     {undercut.dropOutSafe ? (
                       <>
-                        ✅ فرم drop-out مجاز است → قالب <b>تک‌تکه</b>
+                        ✅ فرم drop-out مجاز است <FlowArrow /> قالب <b>تک‌تکه</b>
                       </>
                     ) : (
                       <>
-                        ⚠️ زیر برش: {formatNumber(undercut.problemBands.length)} ناحیه → پیشنهاد{' '}
-                        <b>{formatNumber(undercut.suggestedParts)} قطعه</b>
+                        ⚠️ زیر برش: {formatNumber(undercut.problemBands.length)} ناحیه <FlowArrow />{' '}
+                        پیشنهاد <b>{formatNumber(undercut.suggestedParts)} قطعه</b>
                       </>
                     )}
                     <br />
