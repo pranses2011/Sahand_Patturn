@@ -29,6 +29,22 @@ const correctnessRules = {
   'valid-typeof': 'error',
 };
 
+const platformGlobals = [
+  'window',
+  'document',
+  'navigator',
+  'localStorage',
+  'sessionStorage',
+  'indexedDB',
+  'process',
+  'Buffer',
+  'Deno',
+  'Bun',
+  'fetch',
+  'XMLHttpRequest',
+  'WebSocket',
+];
+
 export default [
   {
     ignores: [
@@ -52,5 +68,20 @@ export default [
     languageOptions: { parser: tsParser, parserOptions: { ecmaFeatures: { jsx: true } } },
     // TypeScript checks constructor/super and permits overload declarations.
     rules: { 'constructor-super': 'off', 'no-dupe-args': 'off', 'getter-return': 'off' },
+  },
+  {
+    files: ['packages/{kernel,patterns,schema,config}/src/**/*.{ts,tsx,js}'],
+    ignores: ['**/*.test.*', '**/*.spec.*'],
+    rules: {
+      'no-restricted-globals': ['error', ...platformGlobals],
+      'no-restricted-properties': [
+        'error',
+        ...platformGlobals.map((property) => ({
+          object: 'globalThis',
+          property,
+          message: 'Core packages must not access platform APIs.',
+        })),
+      ],
+    },
   },
 ];

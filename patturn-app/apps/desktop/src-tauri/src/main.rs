@@ -1,6 +1,6 @@
 // Patturn desktop shell — Windows offline-first (rule R-014).
 // All geometry runs in the WebView (WASM); this process provides:
-//   - SQLite persistence (tauri-plugin-sql)
+//   - SQLite plugin registered, but project storage does not use it yet
 //   - native file dialogs for STL/SVG/DXF/PDF export (tauri-plugin-dialog)
 //   - filesystem read/write for .patturn project files (tauri-plugin-fs)
 //   - optional updater (requires internet — never blocks core features)

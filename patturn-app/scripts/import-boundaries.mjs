@@ -1,3 +1,4 @@
+import { isBuiltin } from 'node:module';
 import path from 'node:path';
 
 const dependencies = {
@@ -19,7 +20,10 @@ export default {
   meta: {
     type: 'problem',
     schema: [],
-    messages: { boundary: 'Import {{source}} violates the internal package boundary ({{owner}}).' },
+    messages: {
+      boundary: 'Import {{source}} violates the internal package boundary ({{owner}}).',
+      platform: 'Core package {{owner}} cannot depend on platform/UI module {{source}}.',
+    },
   },
   create(context) {
     const filename = context.filename,
@@ -27,6 +31,16 @@ export default {
     if (!owner || owner.kind !== 'packages') return {};
     function check(node, source) {
       if (typeof source !== 'string') return;
+      const isTest = /\.(test|spec)\.[cm]?[jt]sx?$/.test(filename);
+      if (
+        !isTest &&
+        ['kernel', 'patterns', 'schema', 'config'].includes(owner.name) &&
+        (isBuiltin(source) ||
+          /^(?:@tauri-apps\/|react(?:$|\/)|react-dom(?:$|\/)|three(?:$|\/))/.test(source))
+      ) {
+        context.report({ node, messageId: 'platform', data: { source, owner: owner.name } });
+        return;
+      }
       let target;
       if (source.startsWith('@patturn/'))
         target = { kind: 'packages', name: source.slice(9).split('/')[0] };
@@ -34,7 +48,6 @@ export default {
         target = location(path.resolve(path.dirname(filename), source));
       else return;
       if (!target) return;
-      const isTest = /\.(test|spec)\.[cm]?[jt]sx?$/.test(filename);
       const allowed =
         target.kind === 'packages' &&
         packages.includes(target.name) &&

@@ -106,3 +106,45 @@ test('format policy detects drift and produces idempotent TypeScript, JSX, CSS a
     assert.equal(await prettier.format(formatted, options), formatted);
   }
 });
+
+test('portable core rejects Node/Tauri/UI imports and ambient platform access in production', async () => {
+  for (const source of [
+    "import fs from 'node:fs';",
+    "export * from 'fs';",
+    "const native=import('@tauri-apps/api/core');",
+    "const ui=require('react');",
+    "import type { Mesh } from 'three';",
+    'window.alert(1);',
+    'document.title="x";',
+    'localStorage.getItem("x");',
+    'fetch("/api");',
+    'globalThis.document.title="x";',
+  ]) {
+    const [result] = await eslint.lintText(source, {
+      filePath: 'packages/kernel/src/platform-probe.ts',
+    });
+    assert.ok(
+      result.messages.some((message) =>
+        ['architecture/boundaries', 'no-restricted-globals', 'no-restricted-properties'].includes(
+          message.ruleId,
+        ),
+      ),
+      source,
+    );
+  }
+});
+test('portable rules permit non-platform algorithms and platform adapters/tests in their own layers', async () => {
+  for (const [filePath, source] of [
+    [
+      'packages/patterns/src/probe.ts',
+      "import clip from 'polygon-clipping'; export const width=Math.hypot(3,4);",
+    ],
+    ['packages/schema/src/probe.ts', "import { z } from 'zod'; export const schema=z.number();"],
+    ['packages/kernel/src/probe.test.ts', "import fs from 'node:fs';"],
+    ['packages/storage/src/probe.ts', "import { isTauri } from '@tauri-apps/api/core';"],
+    ['apps/web/src/probe.ts', 'document.title="test";'],
+  ]) {
+    const [result] = await eslint.lintText(source, { filePath });
+    assert.equal(result.errorCount, 0, JSON.stringify(result.messages));
+  }
+});
