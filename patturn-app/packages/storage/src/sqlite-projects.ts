@@ -103,6 +103,33 @@ export class SqliteProjectRepo implements ProjectRepo {
       });
     if (rows.length !== 1) throw Error('SQLITE_PROJECT_CONFLICT');
   }
+  /** Single atomic statement: copy a validated browser snapshot only into an empty table.
+   * Never clears the source or replaces existing SQL records, even under concurrent writers.
+   */
+  async importIntoEmpty(inputs: ProjectRecord[]): Promise<number> {
+    if (!Array.isArray(inputs) || inputs.length > 100) throw Error('PROJECT_LIBRARY_INVALID');
+    const records = inputs.map(validatedProjectRecord);
+    if (new Set(records.map((record) => record.id)).size !== records.length)
+      throw Error('PROJECT_DUPLICATE_ID');
+    const snapshot = JSON.stringify(records);
+    if (snapshot.length > 4 * 1024 * 1024) throw Error('PROJECT_LIBRARY_TOO_LARGE');
+    if (!records.length) return 0;
+    await this.init();
+    const rows = await this.driver
+      .select(
+        `INSERT INTO patturn_projects (id, document, updated_at)
+       SELECT json_extract(value, '$.id'), value, json_extract(value, '$.updatedAt')
+       FROM json_each(?)
+       WHERE NOT EXISTS (SELECT 1 FROM patturn_projects)
+       RETURNING id`,
+        [snapshot],
+      )
+      .catch((error) => {
+        throw new Error('SQLITE_PROJECT_IMPORT_FAILED', { cause: error });
+      });
+    if (rows.length !== records.length) throw Error('SQLITE_PROJECT_IMPORT_NOT_EMPTY');
+    return rows.length;
+  }
   async delete(id: string): Promise<void> {
     RecordSchema.shape.id.parse(id);
     await this.init();

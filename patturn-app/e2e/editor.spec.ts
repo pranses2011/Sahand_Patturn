@@ -2948,3 +2948,59 @@ test('desktop named projects use actual SQLite independently of editor history a
     database.close();
   }
 });
+
+test('desktop explicit project import preserves browser source and copies the complete library only once', async ({
+  page,
+}) => {
+  const database = new DatabaseSync(':memory:');
+  try {
+    await installSqlBridge(page, database);
+    await page.goto('/');
+    const source = await page.evaluate(() => {
+      const time = '2020-01-01T00:00:00.000Z';
+      const records = ['first', 'second'].map((id) => ({
+        id,
+        name: id,
+        schemaVersion: 3,
+        createdAt: time,
+        updatedAt: time,
+        data: {
+          schemaVersion: 3,
+          name: id,
+          createdAt: time,
+          updatedAt: time,
+          settings: { unit: 'mm', shrink: 0.12, wallThickness: 4 },
+        },
+      }));
+      const raw = JSON.stringify(records);
+      localStorage.setItem('patturn:projects', raw);
+      return raw;
+    });
+    await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+    const manager = page.locator('.project-manager');
+    const action = manager.getByRole('button', {
+      name: 'کپی پروژه‌های مرورگر به SQLite خالی',
+      exact: true,
+    });
+    await expect(action).toBeEnabled();
+    page.once('dialog', (dialog) => dialog.dismiss());
+    await action.click();
+    expect(database.prepare('select count(*) as n from patturn_projects').get()!.n).toBe(0);
+    page.once('dialog', (dialog) => dialog.accept());
+    await action.click();
+    await expect(manager.getByRole('button', { name: 'بازکردن first', exact: true })).toBeVisible();
+    await expect(
+      manager.getByRole('button', { name: 'بازکردن second', exact: true }),
+    ).toBeVisible();
+    await expect(action).toBeDisabled();
+    expect(await page.evaluate(() => localStorage.getItem('patturn:projects'))).toBe(source);
+    expect(database.prepare('select count(*) as n from patturn_projects').get()!.n).toBe(2);
+    await page.reload();
+    await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+    await expect(action).toBeDisabled();
+    await expect(manager.getByRole('button', { name: 'بازکردن first', exact: true })).toBeVisible();
+  } finally {
+    await page.close();
+    database.close();
+  }
+});

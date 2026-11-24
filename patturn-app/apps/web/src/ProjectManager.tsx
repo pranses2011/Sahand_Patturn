@@ -142,6 +142,29 @@ export function ProjectManager({
       >
         بازخوانی فهرست پروژه‌ها
       </button>
+      {isDesktop() && (
+        <button
+          type="button"
+          className="btn"
+          disabled={!repo || busy || entries.length > 0}
+          onClick={() => {
+            if (
+              !window.confirm(
+                'پروژه‌های مرورگر همین نصب به SQLite خالی کپی شوند؟ منبع حذف نمی‌شود.',
+              )
+            )
+              return;
+            void perform(async (current) => {
+              if (!('importIntoEmpty' in current) || typeof current.importIntoEmpty !== 'function')
+                throw Error('PROJECT_IMPORT_UNAVAILABLE');
+              const source = await new LocalRepo().list();
+              await current.importIntoEmpty(source);
+            });
+          }}
+        >
+          کپی پروژه‌های مرورگر به SQLite خالی
+        </button>
+      )}
       <p role="status">
         {busy ? 'در حال خواندن/نوشتن پروژه…' : `${formatNumber(entries.length)} پروژه`}
       </p>
@@ -192,8 +215,9 @@ export function ProjectManager({
       </ul>
       <p className="hint">
         پروژه‌های با پروفیل یا تنظیمات عمومی خارج از زیرمجموعهٔ ادیتور فعلی، بی‌صدا ساده‌سازی
-        نمی‌شوند و بازکردنشان رد می‌شود. انتقال خودکار فهرست مرورگر به SQLite هنوز انجام نمی‌شود؛ دو
-        مخزن جدا هستند.
+        نمی‌شوند و بازکردنشان رد می‌شود. انتقال خودکار انجام نمی‌شود؛ کپی دستی فقط از دادهٔ مرورگر
+        همین نصب به SQLite خالی ممکن است و منبع را حذف نمی‌کند. مخزن مرورگر خارجی در دسترس این نصب
+        نیست.
       </p>
     </>
   );

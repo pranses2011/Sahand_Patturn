@@ -308,3 +308,64 @@ it('validates save before initialization and bounds identifiers before any nativ
   expect(driver.execute).not.toHaveBeenCalled();
   expect(driver.select).not.toHaveBeenCalled();
 });
+
+describe('Atomic browser snapshot import', () => {
+  it('copies all records with metadata and refuses repeat or nonempty import', async () => {
+    const { db, repo } = setup();
+    try {
+      expect(await repo.importIntoEmpty([fixture(), fixture('two')])).toBe(2);
+      expect(await repo.get('one')).toEqual(fixture());
+      await expect(repo.importIntoEmpty([fixture('third')])).rejects.toThrow('NOT_EMPTY');
+      expect((await repo.list()).map((r) => r.id)).toEqual(['one', 'two']);
+    } finally {
+      db.close();
+    }
+  });
+  it('validates the entire snapshot before any write and rejects duplicate IDs', async () => {
+    const { db, repo } = setup();
+    try {
+      await expect(
+        repo.importIntoEmpty([fixture(), { ...fixture('bad'), schemaVersion: 99 }]),
+      ).rejects.toThrow();
+      await expect(repo.importIntoEmpty([fixture(), fixture()])).rejects.toThrow('DUPLICATE_ID');
+      expect(await repo.list()).toEqual([]);
+      expect(await repo.importIntoEmpty([])).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+  it('rolls back every row when a SQL trigger fails on a later record', async () => {
+    const { db, repo } = setup();
+    try {
+      await repo.list();
+      db.exec(
+        "CREATE TRIGGER reject_second BEFORE INSERT ON patturn_projects WHEN NEW.id = 'two' BEGIN SELECT RAISE(ABORT, 'failure'); END",
+      );
+      await expect(repo.importIntoEmpty([fixture(), fixture('two')])).rejects.toThrow(
+        'IMPORT_FAILED',
+      );
+      expect(await repo.list()).toEqual([]);
+      db.exec('DROP TRIGGER reject_second');
+      expect(await repo.importIntoEmpty([fixture(), fixture('two')])).toBe(2);
+    } finally {
+      db.close();
+    }
+  });
+  it('does not overwrite a competing insert between initialization and import', async () => {
+    const { db, driver, repo } = setup();
+    try {
+      await repo.list();
+      const racing = new SqliteProjectRepo({
+        ...driver,
+        select: async (query, params) => {
+          if (query.startsWith('INSERT INTO')) await repo.save(fixture('competitor'));
+          return driver.select(query, params);
+        },
+      });
+      await expect(racing.importIntoEmpty([fixture()])).rejects.toThrow('NOT_EMPTY');
+      expect((await repo.list()).map((r) => r.id)).toEqual(['competitor']);
+    } finally {
+      db.close();
+    }
+  });
+});
