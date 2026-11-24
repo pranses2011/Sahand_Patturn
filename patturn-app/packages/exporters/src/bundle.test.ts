@@ -153,7 +153,7 @@ describe('Build ZIP', () => {
     });
     expect((await toBuildZip(data)).bytes).toEqual(result.bytes);
   });
-  it('Z8: rejects invalid DXF geometry atomically and prevents raw DXF extras', async () => {
+  it('Z8: rejects DXF curves without explicit approximation atomically and prevents raw DXF extras', async () => {
     const data = input();
     data.dxfPatterns = [
       {
@@ -165,7 +165,7 @@ describe('Build ZIP', () => {
     const invalid = await toBuildZip(data);
     expect(invalid.ok).toBe(false);
     expect(invalid.bytes).toBeUndefined();
-    expect(invalid.error).toContain('DXF_UNSUPPORTED_COMMAND');
+    expect(invalid.error).toContain('DXF_QUADRATIC_REQUIRES_EXPLICIT_TOLERANCE');
     delete data.dxfPatterns;
     data.files!.push({ path: 'pattern/raw.dxf', bytes: new Uint8Array() });
     expect((await toBuildZip(data)).error).toContain('BUNDLE_EXTRA_EXTENSION');

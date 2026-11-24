@@ -3,7 +3,7 @@ import { clipLine, clipCircle, type DxfBounds } from './dxf-clip.js';
 import { exportName, type ExportResult } from './index.js';
 
 type Point = [number, number];
-/** Strict linear SVG subset. Curves are rejected, never silently flattened or dropped. */
+/** Linear SVG plus C/S/Q/T with explicit flattening tolerance. Unsupported commands fail atomically. */
 function polylines(d: string, tolerance?: number): { points: Point[]; closed: boolean }[] {
   const tokens = d.match(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g) ?? [];
   if (d.replace(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g, '').replace(/[\s,]/g, ''))
@@ -13,6 +13,9 @@ function polylines(d: string, tolerance?: number): { points: Point[]; closed: bo
     x = 0,
     y = 0;
   let points: Point[] = [];
+  let previousOp = '';
+  let cubicControl: Point | null = null,
+    quadraticControl: Point | null = null;
   const out: { points: Point[]; closed: boolean }[] = [];
   const flush = (closed = false) => {
     if (points.length < 2) throw Error('DXF_DEGENERATE_SUBPATH');
@@ -27,7 +30,7 @@ function polylines(d: string, tolerance?: number): { points: Point[]; closed: bo
   };
   while (i < tokens.length) {
     if (/^[a-zA-Z]$/.test(tokens[i]!)) command = tokens[i++]!;
-    if (!/^[MmLlHhVvZzCc]$/.test(command)) throw Error('DXF_UNSUPPORTED_COMMAND');
+    if (!/^[MmLlHhVvZzCcSsQqTt]$/.test(command)) throw Error('DXF_UNSUPPORTED_COMMAND');
     const op = command.toUpperCase(),
       relative = command !== op;
     if (op === 'Z') {
@@ -35,19 +38,55 @@ function polylines(d: string, tolerance?: number): { points: Point[]; closed: bo
       [x, y] = points[0]!;
       flush(true);
       command = '';
+      previousOp = '';
+      cubicControl = null;
+      quadraticControl = null;
       continue;
     }
     if (op !== 'M' && !points.length) throw Error('DXF_MISSING_MOVE');
-    if (op === 'C') {
-      if (tolerance === undefined) throw Error('DXF_CUBIC_REQUIRES_EXPLICIT_TOLERANCE');
+    if (op === 'C' || op === 'S' || op === 'Q' || op === 'T') {
+      if (tolerance === undefined)
+        throw Error(
+          op === 'Q' || op === 'T'
+            ? 'DXF_QUADRATIC_REQUIRES_EXPLICIT_TOLERANCE'
+            : 'DXF_CUBIC_REQUIRES_EXPLICIT_TOLERANCE',
+        );
+      const start: Point = [x, y];
       const point = (): Point => [number() + (relative ? x : 0), number() + (relative ? y : 0)];
-      const b = point(),
-        c = point(),
+      const reflect = (control: Point): Point => [2 * x - control[0], 2 * y - control[1]];
+      let b: Point, c: Point, end: Point;
+      if (op === 'C' || op === 'S') {
+        b =
+          op === 'C'
+            ? point()
+            : (previousOp === 'C' || previousOp === 'S') && cubicControl
+              ? reflect(cubicControl)
+              : [x, y];
+        c = point();
         end = point();
-      points.push(...flattenCubic([x, y], b, c, end, tolerance).slice(1));
+        cubicControl = c;
+        quadraticControl = null;
+      } else {
+        const control: Point =
+          op === 'Q'
+            ? point()
+            : (previousOp === 'Q' || previousOp === 'T') && quadraticControl
+              ? reflect(quadraticControl)
+              : [x, y];
+        end = point();
+        b = [x + ((control[0] - x) * 2) / 3, y + ((control[1] - y) * 2) / 3];
+        c = [end[0] + ((control[0] - end[0]) * 2) / 3, end[1] + ((control[1] - end[1]) * 2) / 3];
+        quadraticControl = control;
+        cubicControl = null;
+      }
+      points.push(...flattenCubic(start, b, c, end, tolerance).slice(1));
       [x, y] = end;
+      previousOp = op;
       continue;
     }
+    previousOp = op;
+    cubicControl = null;
+    quadraticControl = null;
     if (op === 'M' || op === 'L') {
       const a = number(),
         b = number();
