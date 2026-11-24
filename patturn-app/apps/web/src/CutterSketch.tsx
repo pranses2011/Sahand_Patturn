@@ -1,4 +1,6 @@
-import { useId, useRef, useState } from 'react';
+import { historyShortcut } from './history-shortcut';
+import { initialSketchHistory, sketchHistory } from './sketch-history';
+import { useId, useReducer, useRef, useState } from 'react';
 import { convexCutterProfile, type CutterPoint } from '@patturn/kernel';
 import { cutterSketchHit, cutterSketchPoint } from './cutter-sketch';
 import { cookieSketch as text } from './messages/fa.json';
@@ -10,8 +12,9 @@ export function CutterSketch({
   onChange: (points: CutterPoint[] | null) => void;
   initialPoints?: readonly CutterPoint[];
 }) {
-  const [points, setPoints] = useState<CutterPoint[]>(() => initialPoints.map((p) => [p[0], p[1]])),
-    [cursor, setCursor] = useState<[number, number]>([30, 30]);
+  const [history, dispatch] = useReducer(sketchHistory, initialPoints, initialSketchHistory);
+  const points = history.points;
+  const [cursor, setCursor] = useState<[number, number]>([30, 30]);
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [draftDirty, setDraftDirty] = useState(false);
   const [selected, setSelected] = useState(0);
@@ -27,7 +30,7 @@ export function CutterSketch({
     const active = drag.current;
     if (!active) return;
     drag.current = null;
-    setPoints(active.before);
+    dispatch({ type: 'cancel', points: active.before });
     setDragging(false);
     if (canvas.current?.hasPointerCapture(active.pointerId))
       canvas.current.releasePointerCapture(active.pointerId);
@@ -46,11 +49,11 @@ export function CutterSketch({
       return;
     }
     setSelected(points.length);
-    setPoints([...points, [point[0], point[1]]]);
+    dispatch({ type: 'edit', points: [...points, [point[0], point[1]]] });
   };
   const undo = () => {
     invalidate();
-    setPoints(points.slice(0, -1));
+    dispatch({ type: 'edit', points: points.slice(0, -1) });
   };
   return (
     <div className="cutter-sketch">
@@ -67,6 +70,29 @@ export function CutterSketch({
         {text.moveMode}
       </button>
       <p className="hint">{text.moveHelp}</p>
+      <p className="hint">{text.historyHelp}</p>
+      <button
+        type="button"
+        className="btn"
+        disabled={dragging || !history.past.length}
+        onClick={() => {
+          invalidate();
+          dispatch({ type: 'undo' });
+        }}
+      >
+        {text.historyUndo}
+      </button>
+      <button
+        type="button"
+        className="btn"
+        disabled={dragging || !history.future.length}
+        onClick={() => {
+          invalidate();
+          dispatch({ type: 'redo' });
+        }}
+      >
+        {text.historyRedo}
+      </button>
       <svg
         ref={canvas}
         viewBox="0 0 160 160"
@@ -111,12 +137,16 @@ export function CutterSketch({
             box.height,
           );
           setCursor(point);
-          setPoints(
-            active.before.map((previous, index) => (index === active.index ? point : previous)),
-          );
+          dispatch({
+            type: 'preview',
+            points: active.before.map((previous, index) =>
+              index === active.index ? point : previous,
+            ),
+          });
         }}
         onPointerUp={(event) => {
           if (drag.current?.pointerId !== event.pointerId) return;
+          dispatch({ type: 'complete', before: drag.current.before });
           drag.current = null;
           setDragging(false);
           event.currentTarget.releasePointerCapture(event.pointerId);
@@ -144,6 +174,14 @@ export function CutterSketch({
           if (drag.current) {
             event.preventDefault();
             if (event.key === 'Escape') cancelDrag();
+            return;
+          }
+          const direction = historyShortcut(event.nativeEvent);
+          if (direction) {
+            event.preventDefault();
+            event.stopPropagation();
+            invalidate();
+            dispatch({ type: direction });
             return;
           }
           const step = event.shiftKey ? 10 : 1;
@@ -243,9 +281,12 @@ export function CutterSketch({
             }}
             onApply={(point) => {
               invalidate();
-              setPoints(
-                points.map((previous, index) => (index === selectedIndex ? point : previous)),
-              );
+              dispatch({
+                type: 'edit',
+                points: points.map((previous, index) =>
+                  index === selectedIndex ? point : previous,
+                ),
+              });
             }}
           />
           <button
@@ -253,7 +294,10 @@ export function CutterSketch({
             className="btn"
             onClick={() => {
               invalidate();
-              setPoints(points.filter((_, index) => index !== selectedIndex));
+              dispatch({
+                type: 'edit',
+                points: points.filter((_, index) => index !== selectedIndex),
+              });
             }}
           >
             {text.deleteSelected}
@@ -288,7 +332,7 @@ export function CutterSketch({
         disabled={!points.length || dragging}
         onClick={() => {
           invalidate();
-          setPoints([]);
+          dispatch({ type: 'edit', points: [] });
         }}
       >
         {text.clear}

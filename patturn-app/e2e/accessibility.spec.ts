@@ -329,6 +329,19 @@ test('manual cutter sketch is keyboard operable and reflows at 320px', async ({ 
     panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true }),
   ).toBeEnabled();
   await audit(page, info, 'manual-cutter-closed-320');
+  await panel.getByRole('button', { name: 'برگرداندن آخرین ویرایش کاتر', exact: true }).click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true }),
+  ).toBeDisabled();
+  await audit(page, info, 'manual-cutter-history-undo-320');
+  await panel.getByRole('button', { name: 'بازانجام ویرایش کاتر', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true }),
+  ).toBeDisabled();
+  await panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true }).click();
+  await audit(page, info, 'manual-cutter-history-redo-320');
+
   const moveMode = panel.getByRole('button', { name: 'حالت جابه‌جایی رأس با کشیدن', exact: true });
   await moveMode.focus();
   await page.keyboard.press('Enter');

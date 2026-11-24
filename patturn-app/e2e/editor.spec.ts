@@ -4663,3 +4663,120 @@ test('reset cancels a delayed cutter file and its late result cannot replace a n
   );
   await expect(save).toBeEnabled();
 });
+
+test('local sketch undo groups drags, restores cleared contours and never consumes project history', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  const projectWall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+  await projectWall.fill('7');
+  await projectWall.press('Enter');
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeEnabled();
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  await panel.getByLabel('بازکردن فایل مستقل کاتر', { exact: true }).setInputFiles({
+    name: 'square.cutter.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        format: 'patturn-cutter',
+        version: 1,
+        units: 'mm',
+        heightMm: 20,
+        wallMm: 1.6,
+        tipMm: 0.6,
+        shape: {
+          kind: 'polygon',
+          points: [
+            [20, 20],
+            [60, 20],
+            [60, 60],
+            [20, 60],
+          ],
+        },
+      }),
+    ),
+  });
+  const undo = panel.getByRole('button', { name: 'برگرداندن آخرین ویرایش کاتر', exact: true });
+  const redo = panel.getByRole('button', { name: 'بازانجام ویرایش کاتر', exact: true });
+  const canvas = panel.getByRole('img', {
+    name: 'صفحهٔ رسم نقطه‌ای کاتر با نشانگر صفحه‌کلید',
+    exact: true,
+  });
+  const finish = panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true });
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true });
+  const save = panel.getByRole('button', { name: 'ذخیرهٔ فایل مستقل کاتر', exact: true });
+  await expect(undo).toBeDisabled();
+  await canvas.focus();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeEnabled();
+  await finish.click();
+  await expect(output).toBeEnabled();
+  const pending = page.waitForEvent('download');
+  await output.click();
+  const before = await readFile((await (await pending).path())!);
+  await panel.getByLabel('انتخاب رأس کاتر', { exact: true }).selectOption('1');
+  const x = panel.getByRole('spinbutton', { name: 'مختصات افقی رأس کاتر (mm)', exact: true });
+  await x.fill('60');
+  await panel.getByRole('button', { name: 'اعمال مختصات رأس کاتر', exact: true }).click();
+  await finish.click();
+  await expect(output).toBeEnabled();
+  await undo.click();
+  await expect(x).toHaveValue('40');
+  await expect(output).toBeDisabled();
+  await expect(save).toBeDisabled();
+  await finish.click();
+  const backDownload = page.waitForEvent('download');
+  await output.click();
+  expect(await readFile((await (await backDownload).path())!)).toEqual(before);
+  await canvas.focus();
+  await page.keyboard.press('Control+Shift+z');
+  await expect(x).toHaveValue('60');
+  await expect(output).toBeDisabled();
+  await panel.getByRole('button', { name: 'حالت جابه‌جایی رأس با کشیدن', exact: true }).click();
+  const move = async (a: number, b: number) => {
+    await canvas.scrollIntoViewIfNeeded();
+    const box = (await canvas.boundingBox())!;
+    await page.mouse.move(
+      box.x + ((a + 5.3) / 160) * box.width,
+      box.y + ((b + 5.3) / 160) * box.height,
+    );
+  };
+  await move(60, 0);
+  await page.mouse.down();
+  await expect(undo).toBeDisabled();
+  for (const a of [61, 62, 65, 70]) await move(a, 0);
+  await page.mouse.up();
+  await expect(x).toHaveValue('70');
+  await undo.click();
+  await expect(x).toHaveValue('60');
+  await redo.click();
+  await expect(x).toHaveValue('70');
+  // Cancelled drag must not create a second edit.
+  await move(70, 0);
+  await page.mouse.down();
+  await move(80, 0);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await undo.click();
+  await expect(x).toHaveValue('60');
+  await panel.getByRole('button', { name: 'پاک‌کردن نقاط کاتر', exact: true }).click();
+  await expect(panel.getByLabel('انتخاب رأس کاتر', { exact: true })).toHaveCount(0);
+  await undo.click();
+  await expect(x).toHaveValue('60');
+  await expect(redo).toBeEnabled();
+  await x.fill('61.25');
+  await panel.getByRole('button', { name: 'اعمال مختصات رأس کاتر', exact: true }).click();
+  await expect(redo).toBeDisabled();
+  await canvas.focus();
+  await page.keyboard.press('Control+z');
+  await expect(x).toHaveValue('60');
+  await page.keyboard.press('Control+y');
+  await expect(x).toHaveValue('61.25');
+  await expect(output).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeEnabled();
+  await page.getByRole('button', { name: '🏺 فرم', exact: true }).click();
+  await expect(projectWall).toHaveValue('7');
+});
