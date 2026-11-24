@@ -3004,3 +3004,101 @@ test('desktop explicit project import preserves browser source and copies the co
     database.close();
   }
 });
+
+test('named project archive exports and imports losslessly without applying it to the editor', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+  const manager = page.locator('.project-manager');
+  await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('فایل مستقل');
+  await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+  const original = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('patturn:projects')!)[0],
+  );
+  const download = page.waitForEvent('download');
+  await manager.getByRole('button', { name: 'خروجی فایل فایل مستقل', exact: true }).click();
+  const archive = await readFile((await (await download).path())!);
+  expect(JSON.parse(archive.toString()).project).toEqual(original);
+  page.once('dialog', (dialog) => dialog.accept());
+  await manager.getByRole('button', { name: 'حذف فایل مستقل', exact: true }).click();
+  const input = manager.getByLabel('ورود فایل پروژهٔ نام‌دار به مخزن خالی', { exact: true });
+  await expect(input).toBeEnabled();
+  const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+  await wall.fill('6');
+  await wall.press('Enter');
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await input.setInputFiles({
+    name: 'named-project.patturn',
+    mimeType: 'application/json',
+    buffer: archive,
+  });
+  await expect(
+    manager.getByRole('button', { name: 'بازکردن فایل مستقل', exact: true }),
+  ).toHaveCount(0);
+  page.once('dialog', (dialog) => dialog.accept());
+  await input.setInputFiles({
+    name: 'named-project.patturn',
+    mimeType: 'application/json',
+    buffer: archive,
+  });
+  await expect(
+    manager.getByRole('button', { name: 'بازکردن فایل مستقل', exact: true }),
+  ).toBeVisible();
+  await expect(input).toBeDisabled();
+  await expect(wall).toHaveValue('6');
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects')!)[0]),
+  ).toEqual(original);
+});
+
+test('named archive rejects corrupt and oversized files, then imports a valid general document into SQLite', async ({
+  page,
+}) => {
+  const database = new DatabaseSync(':memory:');
+  try {
+    await installSqlBridge(page, database);
+    await page.goto('/');
+    await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+    const manager = page.locator('.project-manager');
+    const input = manager.getByLabel('ورود فایل پروژهٔ نام‌دار به مخزن خالی', { exact: true });
+    for (const buffer of [Buffer.from('{broken'), Buffer.alloc(2 * 1024 * 1024 + 1, 32)]) {
+      await input.setInputFiles({ name: 'bad.patturn', mimeType: 'application/json', buffer });
+      await expect(manager.getByRole('alert')).toContainText('عملیات پروژه انجام نشد');
+      expect(database.prepare('select count(*) as n from patturn_projects').get()!.n).toBe(0);
+    }
+    const time = '2020-01-01T00:00:00.000Z';
+    const record = {
+      id: 'external',
+      name: 'عمومی خارجی',
+      schemaVersion: 3,
+      createdAt: time,
+      updatedAt: time,
+      data: {
+        schemaVersion: 3,
+        name: 'عمومی خارجی',
+        createdAt: time,
+        updatedAt: time,
+        settings: { unit: 'mm', shrink: 0.12, wallThickness: 4 },
+      },
+    };
+    page.once('dialog', (dialog) => dialog.accept());
+    await input.setInputFiles({
+      name: 'external.patturn',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ format: 'patturn', v: 1, project: record })),
+    });
+    await expect(
+      manager.getByRole('button', { name: 'بازکردن عمومی خارجی', exact: true }),
+    ).toBeVisible();
+    expect(
+      JSON.parse(
+        database.prepare('select document from patturn_projects').get()!.document as string,
+      ),
+    ).toEqual(record);
+    expect(await page.evaluate(() => localStorage.getItem('patturn:projects'))).toBeNull();
+  } finally {
+    await page.close();
+    database.close();
+  }
+});

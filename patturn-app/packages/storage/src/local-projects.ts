@@ -37,6 +37,15 @@ export class LocalRepo implements ProjectRepo {
     else records[index] = record;
     this.write(records);
   }
+  async importIntoEmpty(inputs: ProjectRecord[]): Promise<number> {
+    if (!Array.isArray(inputs) || inputs.length > 100) throw Error('PROJECT_LIBRARY_INVALID');
+    const records = inputs.map(validatedProjectRecord);
+    if (new Set(records.map((p) => p.id)).size !== records.length)
+      throw Error('PROJECT_DUPLICATE_ID');
+    if (this.read().length) throw Error('PROJECT_IMPORT_NOT_EMPTY');
+    if (records.length) this.write(records);
+    return records.length;
+  }
   async delete(id: string) {
     this.write(this.read().filter((p) => p.id !== id));
   }

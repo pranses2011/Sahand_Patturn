@@ -1148,7 +1148,7 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
         label="مدیریت پروژه‌ها — ذخیره با نام و بازکردن"
         className="history-panel project-manager"
         load={loadProjectManager}
-        toolProps={{ state: currentParameters, onApply: applyEditorState }}
+        toolProps={{ state: currentParameters, onApply: applyEditorState, onExport: download }}
       />
       <div className="main">
         {/* ── left: parts ── */}

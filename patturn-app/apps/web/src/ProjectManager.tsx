@@ -3,6 +3,8 @@ import {
   desktopProjectRepo,
   isDesktop,
   LocalRepo,
+  parseProject,
+  serializeProject,
   type ProjectRecord,
   type ProjectRepo,
 } from '@patturn/storage';
@@ -13,9 +15,11 @@ import { formatNumber } from './number-format';
 export function ProjectManager({
   state,
   onApply,
+  onExport,
 }: {
   state: EditorState;
   onApply: (state: EditorState) => void;
+  onExport: (filename: string, bytes: Uint8Array) => void;
 }) {
   const [repo, setRepo] = useState<ProjectRepo | null>(null),
     [entries, setEntries] = useState<ProjectRecord[]>([]);
@@ -165,6 +169,37 @@ export function ProjectManager({
           کپی پروژه‌های مرورگر به SQLite خالی
         </button>
       )}
+      <label>
+        ورود فایل پروژهٔ نام‌دار به مخزن خالی
+        <input
+          type="file"
+          accept=".patturn,application/json"
+          disabled={!repo || busy || entries.length > 0}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (!file) return;
+            void perform(async (current) => {
+              if (file.size > 2 * 1024 * 1024) throw Error('PROJECT_FILE_TOO_LARGE');
+              const record = parseProject(await file.text());
+              if (!active.current) return;
+              if (
+                !window.confirm(
+                  `پروژهٔ «${record.name}» به مخزن خالی وارد شود؟ ادیتور تغییر نمی‌کند.`,
+                )
+              )
+                return;
+              if (!('importIntoEmpty' in current) || typeof current.importIntoEmpty !== 'function')
+                throw Error('PROJECT_IMPORT_UNAVAILABLE');
+              await current.importIntoEmpty([record]);
+            });
+          }}
+        />
+      </label>
+      <p className="hint">
+        این فایل مربوط به پروژهٔ نام‌دار است، نه فایل وضعیت ادیتور. ورود فقط به مخزن خالی، با حفظ
+        شناسه و نام انجام می‌شود و پروژه را خودکار باز نمی‌کند.
+      </p>
       <p role="status">
         {busy ? 'در حال خواندن/نوشتن پروژه…' : `${formatNumber(entries.length)} پروژه`}
       </p>
@@ -173,6 +208,21 @@ export function ProjectManager({
         {entries.map((entry) => (
           <li key={entry.id}>
             <b>{entry.name}</b>{' '}
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || !repo}
+              onClick={() =>
+                void perform(async (current) => {
+                  const record = await current.get(entry.id);
+                  if (!record) throw Error('NOT_FOUND');
+                  const bytes = new TextEncoder().encode(serializeProject(record));
+                  if (active.current) onExport('named-project.patturn', bytes);
+                })
+              }
+            >
+              خروجی فایل {entry.name}
+            </button>{' '}
             <button
               type="button"
               className="btn"

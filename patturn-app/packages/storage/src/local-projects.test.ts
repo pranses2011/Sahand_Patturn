@@ -78,3 +78,24 @@ it('strictly validates general project archive envelopes and records', () => {
   ])
     expect(() => parseProject(text)).toThrow();
 });
+
+it('imports a complete snapshot only into an empty browser library', async () => {
+  const { repo, raw } = setup();
+  expect(await repo.importIntoEmpty([fixture()])).toBe(1);
+  const original = raw();
+  await expect(repo.importIntoEmpty([{ ...fixture(), id: 'another' }])).rejects.toThrow(
+    'NOT_EMPTY',
+  );
+  expect(raw()).toBe(original);
+});
+it('rejects invalid/duplicate imports without partial browser writes', async () => {
+  const { repo, raw, setRaw } = setup();
+  await expect(
+    repo.importIntoEmpty([fixture(), { ...fixture(), schemaVersion: 99 }]),
+  ).rejects.toThrow();
+  await expect(repo.importIntoEmpty([fixture(), fixture()])).rejects.toThrow('DUPLICATE_ID');
+  expect(raw()).toBeNull();
+  setRaw('broken');
+  await expect(repo.importIntoEmpty([fixture()])).rejects.toThrow();
+  expect(raw()).toBe('broken');
+});
