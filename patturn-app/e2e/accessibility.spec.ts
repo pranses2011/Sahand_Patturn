@@ -278,3 +278,33 @@ test('convex SVG cutter preview and rejected import remain accessible at 320px',
     panel.getByRole('button', { name: 'دانلود STL کاتر گرد', exact: true }),
   ).toBeEnabled();
 });
+
+test('manual cutter sketch is keyboard operable and reflows at 320px', async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  await panel.getByRole('button', { name: 'رسم چندضلعی محدب با نقاط', exact: true }).click();
+  await audit(page, info, 'manual-cutter-open-320');
+  const canvas = panel.getByRole('img', {
+    name: 'صفحهٔ رسم نقطه‌ای کاتر با نشانگر صفحه‌کلید',
+    exact: true,
+  });
+  await canvas.focus();
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowRight');
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowDown');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await expect(
+    panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true }),
+  ).toBeEnabled();
+  await audit(page, info, 'manual-cutter-closed-320');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

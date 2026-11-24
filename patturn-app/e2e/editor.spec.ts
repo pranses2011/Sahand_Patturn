@@ -4058,3 +4058,75 @@ test('image trace feeds the convex cutter at the current mm scale and never drop
   await expect(output).toBeEnabled();
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('point sketch cutter supports pointer and keyboard drafting and invalidates output before edits', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  await panel.getByRole('button', { name: 'رسم چندضلعی محدب با نقاط', exact: true }).click();
+  const canvas = panel.getByRole('img', {
+    name: 'صفحهٔ رسم نقطه‌ای کاتر با نشانگر صفحه‌کلید',
+    exact: true,
+  });
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true });
+  const finish = panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true });
+  await expect(output).toBeDisabled();
+  await expect(finish).toBeDisabled();
+  const point = async (x: number, y: number) => {
+    const box = (await canvas.boundingBox())!;
+    await canvas.click({
+      position: { x: ((x + 5.3) / 160) * box.width, y: ((y + 5.3) / 160) * box.height },
+    });
+  };
+  for (const [x, y] of [
+    [20, 20],
+    [80, 20],
+    [80, 80],
+    [20, 80],
+  ])
+    await point(x!, y!);
+  await expect(output).toBeDisabled();
+  await finish.click();
+  await expect(output).toBeEnabled();
+  await expect(panel).toContainText('۶۰ × ۶۰ mm');
+  const pending = page.waitForEvent('download');
+  await output.click();
+  const file = await pending;
+  const bytes = await readFile((await file.path())!);
+  expect(bytes.readUInt32LE(80)).toBe(56);
+  let maxX = 0;
+  for (let i = 0; i < 56; i++)
+    for (let j = 0; j < 3; j++)
+      maxX = Math.max(maxX, Math.abs(bytes.readFloatLE(84 + i * 50 + 12 + j * 12)));
+  expect(maxX).toBeCloseTo(34.6, 2);
+  await point(50, 50);
+  await expect(output).toBeDisabled();
+  await finish.click();
+  await expect(panel.getByRole('alert')).toContainText('طرح پذیرفته نشد');
+  await panel.getByRole('button', { name: 'حذف آخرین نقطهٔ کاتر', exact: true }).click();
+  await finish.click();
+  await expect(output).toBeEnabled();
+  await panel.getByRole('button', { name: 'پاک‌کردن نقاط کاتر', exact: true }).click();
+  await expect(output).toBeDisabled();
+  // A new manual session starts the keyboard cursor at 30,30 mm.
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).click();
+  await panel.getByRole('button', { name: 'رسم چندضلعی محدب با نقاط', exact: true }).click();
+  await canvas.focus();
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowRight');
+  await page.keyboard.press('Space');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowDown');
+  await page.keyboard.press('Enter');
+  await finish.click();
+  await expect(output).toBeEnabled();
+  await expect(panel).toContainText('۴۰ × ۴۰ mm');
+  await canvas.focus();
+  await page.keyboard.press('Backspace');
+  await expect(output).toBeDisabled();
+  await expect(finish).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

@@ -1,3 +1,4 @@
+import { CutterSketch } from './CutterSketch';
 import { tracedCutterGeometry } from './traced-cutter';
 import { cutterSvgPoints } from './cutter-svg';
 import { cookieCutter as text } from './messages/fa.json';
@@ -26,6 +27,8 @@ export function CookieCutterTool({
     [tipMm, setTip] = useState(0.6);
   const [error, setError] = useState('');
   const [contour, setContour] = useState<CutterPoint[] | null>(null);
+  const [manual, setManual] = useState(false),
+    [manualContour, setManualContour] = useState<CutterPoint[] | null>(null);
   const [importBusy, setImportBusy] = useState(false),
     [importFailed, setImportFailed] = useState(false);
   const request = useRef(0),
@@ -39,11 +42,15 @@ export function CookieCutterTool({
   }, []);
 
   const sourceMode = sourceContours !== undefined;
-  const polygonMode = sourceMode || contour !== null;
+  const polygonMode = sourceMode || manual || contour !== null;
   const geometry = useMemo(() => {
     if (importBusy || importFailed) return null;
     try {
       const options = { diameterMm, heightMm, wallMm, tipMm };
+      if (manual)
+        return manualContour
+          ? { ...circularCutterProfile(options), ...tracedCutterGeometry([manualContour], options) }
+          : null;
       if (sourceContours !== undefined)
         return {
           ...circularCutterProfile(options),
@@ -55,55 +62,90 @@ export function CookieCutterTool({
     } catch {
       return null;
     }
-  }, [diameterMm, heightMm, wallMm, tipMm, contour, importBusy, importFailed, sourceContours]);
+  }, [
+    diameterMm,
+    heightMm,
+    wallMm,
+    tipMm,
+    contour,
+    importBusy,
+    importFailed,
+    sourceContours,
+    manual,
+    manualContour,
+  ]);
   return (
     <>
       <p className="hint">{sourceMode ? text.traceIntro : text.intro}</p>
       {!sourceMode && (
         <>
-          <label>
-            {text.svgInput}
-            <input
-              type="file"
-              accept=".svg,image/svg+xml"
+          {!manual && (
+            <button
+              type="button"
+              className="btn"
               disabled={importBusy}
-              aria-describedby="cutter-svg-help"
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = '';
-                if (!file) return;
-                const id = ++request.current;
-                setImportBusy(true);
+              onClick={() => {
+                request.current++;
+                setContour(null);
                 setImportFailed(false);
                 setError('');
-                void (async () => {
-                  try {
-                    if (file.size > 64 * 1024) throw Error('CUTTER_SVG_TOO_LARGE');
-                    const points = cutterSvgPoints(await file.text());
-                    convexCutterProfile(points, { heightMm: 20, wallMm: 1.6, tipMm: 0.6 });
-                    if (alive.current && request.current === id) setContour(points);
-                  } catch {
-                    if (alive.current && request.current === id) {
-                      setImportFailed(true);
-                      setError(text.svgError);
-                    }
-                  } finally {
-                    if (alive.current && request.current === id) setImportBusy(false);
-                  }
-                })();
+                setManualContour(null);
+                setManual(true);
               }}
-            />
-          </label>
-          <p id="cutter-svg-help" className="hint">
-            {text.svgHelp}
-          </p>
-          {(contour || importFailed || importBusy) && (
+            >
+              {text.startSketch}
+            </button>
+          )}
+          {manual && <CutterSketch onChange={setManualContour} />}
+          {!manual && (
+            <>
+              <label>
+                {text.svgInput}
+                <input
+                  type="file"
+                  accept=".svg,image/svg+xml"
+                  disabled={importBusy}
+                  aria-describedby="cutter-svg-help"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = '';
+                    if (!file) return;
+                    const id = ++request.current;
+                    setImportBusy(true);
+                    setImportFailed(false);
+                    setError('');
+                    void (async () => {
+                      try {
+                        if (file.size > 64 * 1024) throw Error('CUTTER_SVG_TOO_LARGE');
+                        const points = cutterSvgPoints(await file.text());
+                        convexCutterProfile(points, { heightMm: 20, wallMm: 1.6, tipMm: 0.6 });
+                        if (alive.current && request.current === id) setContour(points);
+                      } catch {
+                        if (alive.current && request.current === id) {
+                          setImportFailed(true);
+                          setError(text.svgError);
+                        }
+                      } finally {
+                        if (alive.current && request.current === id) setImportBusy(false);
+                      }
+                    })();
+                  }}
+                />
+              </label>
+              <p id="cutter-svg-help" className="hint">
+                {text.svgHelp}
+              </p>
+            </>
+          )}
+          {(manual || contour || importFailed || importBusy) && (
             <button
               type="button"
               className="btn"
               onClick={() => {
                 request.current++;
                 setContour(null);
+                setManual(false);
+                setManualContour(null);
                 setImportBusy(false);
                 setImportFailed(false);
                 setError('');
@@ -187,7 +229,9 @@ export function CookieCutterTool({
               ? text.valid
               : sourceMode
                 ? text.traceInvalid
-                : text.invalid}
+                : manual
+                  ? text.sketchPending
+                  : text.invalid}
       </p>
       <p className="hint">{text.safety}</p>
       <button

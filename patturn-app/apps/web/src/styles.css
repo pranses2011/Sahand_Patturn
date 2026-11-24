@@ -532,3 +532,8 @@ h3.sec {
 .project-manager ul {
   padding-inline-start: 20px;
 }
+
+.cutter-sketch svg:focus-visible {
+  outline: 3px solid var(--clay-dark);
+  outline-offset: 2px;
+}
