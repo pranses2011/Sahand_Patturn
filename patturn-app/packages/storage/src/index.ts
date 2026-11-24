@@ -19,6 +19,7 @@ export interface ProjectRepo {
   save(rec: ProjectRecord): Promise<void>;
   updateIfUnchanged(previous: ProjectRecord, next: ProjectRecord): Promise<void>;
   delete(id: string): Promise<void>;
+  deleteIfUnchanged(previous: ProjectRecord): Promise<void>;
   duplicate(id: string, newName: string): Promise<ProjectRecord>;
 }
 
@@ -52,3 +53,5 @@ export * from './feature-requests.js';
 export { desktopSqliteHistory } from './desktop-sqlite-history.js';
 export type { SqliteHistoryDriver } from './sqlite-history.js';
 export { desktopProjectRepo } from './desktop-projects.js';
+
+export { renamedProject } from './project-record.js';

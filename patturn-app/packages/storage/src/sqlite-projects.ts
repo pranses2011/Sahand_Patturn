@@ -168,6 +168,21 @@ export class SqliteProjectRepo implements ProjectRepo {
     if (rows.length !== records.length) throw Error('SQLITE_PROJECT_IMPORT_NOT_EMPTY');
     return rows.length;
   }
+  async deleteIfUnchanged(previous: ProjectRecord): Promise<void> {
+    const expected = validatedProjectRecord(previous);
+    const current = await this.row(expected.id);
+    if (!current || JSON.stringify(this.decode(current)) !== JSON.stringify(expected))
+      throw Error('PROJECT_UPDATE_CONFLICT');
+    const rows = await this.db
+      .delete(projects)
+      .where(and(eq(projects.id, expected.id), eq(projects.document, current.document)))
+      .returning()
+      .all()
+      .catch((error) => {
+        throw new Error('SQLITE_PROJECT_DELETE_FAILED', { cause: error });
+      });
+    if (rows.length !== 1) throw Error('PROJECT_UPDATE_CONFLICT');
+  }
   async delete(id: string): Promise<void> {
     RecordSchema.shape.id.parse(id);
     await this.init();

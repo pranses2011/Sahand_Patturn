@@ -461,3 +461,26 @@ it('never normalizes away unsupported nested stored fields on reads, saves or co
     db.close();
   }
 });
+
+it('conditionally deletes only the listed revision and rejects a racing SQL update', async () => {
+  const { db, repo, driver } = setup();
+  try {
+    await repo.save(fixture());
+    await repo.save(fixture('two'));
+    const racing = new SqliteProjectRepo({
+      ...driver,
+      select: async (query, params) => {
+        if (query.startsWith('delete from')) await repo.save(fixture('one', 'رقیب'));
+        return driver.select(query, params);
+      },
+    });
+    await expect(racing.deleteIfUnchanged(fixture())).rejects.toThrow('CONFLICT');
+    await expect(repo.deleteIfUnchanged(fixture())).rejects.toThrow('CONFLICT');
+    expect(await repo.get('one')).toEqual(fixture('one', 'رقیب'));
+    await repo.deleteIfUnchanged(fixture('one', 'رقیب'));
+    await expect(repo.deleteIfUnchanged(fixture())).rejects.toThrow('CONFLICT');
+    expect((await repo.list()).map((r) => r.id)).toEqual(['two']);
+  } finally {
+    db.close();
+  }
+});

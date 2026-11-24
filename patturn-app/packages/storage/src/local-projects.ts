@@ -90,6 +90,16 @@ export class LocalRepo implements ProjectRepo {
       return records.length;
     });
   }
+  async deleteIfUnchanged(previous: ProjectRecord): Promise<void> {
+    const expected = validatedProjectRecord(previous);
+    return this.lock.run(() => {
+      const records = this.read(),
+        current = records.find((p) => p.id === expected.id);
+      if (!current || JSON.stringify(current) !== JSON.stringify(expected))
+        throw Error('PROJECT_UPDATE_CONFLICT');
+      this.write(records.filter((p) => p.id !== expected.id));
+    });
+  }
   async delete(id: string) {
     return this.lock.run(() => this.write(this.read().filter((p) => p.id !== id)));
   }

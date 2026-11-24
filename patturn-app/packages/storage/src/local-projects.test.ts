@@ -210,7 +210,7 @@ it('checks the opened revision inside the lock after a competing writer finishes
   await expect(pending).rejects.toThrow('CONFLICT');
   expect(raw()).toBe(bytes);
 });
-it.each(['save', 'update', 'copy', 'empty', 'delete', 'duplicate'])(
+it.each(['save', 'update', 'copy', 'empty', 'delete', 'conditional-delete', 'duplicate'])(
   'does not write or fall back when lock acquisition fails: %s',
   async (operation) => {
     const { source, setRaw, raw } = setup();
@@ -232,9 +232,28 @@ it.each(['save', 'update', 'copy', 'empty', 'delete', 'duplicate'])(
               ? repo.importIntoEmpty([fixture()])
               : operation === 'delete'
                 ? repo.delete('one')
-                : repo.duplicate('one', 'کپی');
+                : operation === 'conditional-delete'
+                  ? repo.deleteIfUnchanged(fixture())
+                  : repo.duplicate('one', 'کپی');
     await expect(pending).rejects.toThrow('LOCK_FAILED');
     expect(raw()).toBe(bytes);
     expect(source.setItem).not.toHaveBeenCalled();
   },
 );
+
+it('deletes only the listed revision, preserving newer or missing records and unrelated projects', async () => {
+  const { repo } = setup();
+  await repo.save(fixture());
+  await repo.save({ ...fixture(), id: 'two' });
+  const changed = {
+    ...fixture(),
+    name: 'جدید',
+    data: { ...(fixture().data as object), name: 'جدید' },
+  };
+  await repo.updateIfUnchanged(fixture(), changed);
+  await expect(repo.deleteIfUnchanged(fixture())).rejects.toThrow('CONFLICT');
+  expect(await repo.get('one')).toEqual(changed);
+  await repo.deleteIfUnchanged(changed);
+  await expect(repo.deleteIfUnchanged(changed)).rejects.toThrow('CONFLICT');
+  expect((await repo.list()).map((r) => r.id)).toEqual(['two']);
+});

@@ -72,3 +72,16 @@ export function importedProjectCopy(input: ProjectRecord): ProjectRecord {
     data: { ...(record.data as object), createdAt: now, updatedAt: now },
   });
 }
+
+/** Rename metadata without rebuilding general parameter data or retaining caller aliases. */
+export function renamedProject(input: ProjectRecord, newName: string): ProjectRecord {
+  const record = validatedProjectRecord(input);
+  const name = z.string().trim().min(1).max(200).parse(newName);
+  const updatedAt = new Date(Math.max(Date.now(), Date.parse(record.updatedAt))).toISOString();
+  return validatedProjectRecord({
+    ...record,
+    name,
+    updatedAt,
+    data: { ...(record.data as object), name, updatedAt },
+  });
+}

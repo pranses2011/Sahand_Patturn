@@ -3632,3 +3632,89 @@ test('browser without Web Locks displays the single-tab limitation and still sav
   await expect(manager.getByRole('alert')).toContainText('عملیات پروژه انجام نشد');
   expect(await page.evaluate(() => localStorage.getItem('patturn:projects'))).toBe(before);
 });
+
+for (const desktop of [false, true]) {
+  test(`project rename retains identity and dirty edits; deletion refuses an unseen revision (${desktop ? 'SQLite' : 'browser'})`, async ({
+    page,
+  }) => {
+    const database = new DatabaseSync(':memory:');
+    try {
+      if (desktop) await installSqlBridge(page, database);
+      await page.goto('/');
+      await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+      const manager = page.locator('.project-manager');
+      await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('نام قبلی');
+      await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+      await expect(
+        manager.getByRole('button', { name: 'بازکردن نام قبلی', exact: true }),
+      ).toBeVisible();
+      const read = async () =>
+        desktop
+          ? JSON.parse(
+              database.prepare('select document from patturn_projects').get()!.document as string,
+            )
+          : await page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects')!)[0]);
+      const original = await read();
+      page.once('dialog', (dialog) => dialog.accept());
+      await manager.getByRole('button', { name: 'بازکردن نام قبلی', exact: true }).click();
+      const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+      await wall.fill('6');
+      await wall.press('Enter');
+      page.once('dialog', (dialog) => dialog.dismiss());
+      await manager.getByRole('button', { name: 'تغییر نام نام قبلی', exact: true }).click();
+      expect((await read()).name).toBe('نام قبلی');
+      page.once('dialog', (dialog) => dialog.accept('نام تازه'));
+      await manager.getByRole('button', { name: 'تغییر نام نام قبلی', exact: true }).click();
+      await expect(
+        manager.getByRole('button', { name: 'بازکردن نام تازه', exact: true }),
+      ).toBeVisible();
+      const renamed = await read();
+      expect(renamed.id).toBe(original.id);
+      expect(renamed.createdAt).toBe(original.createdAt);
+      expect(renamed.data.form).toEqual(original.data.form);
+      await expect(wall).toHaveValue('6');
+      await expect(manager).toContainText('پروژهٔ بازشده: نام تازه');
+      page.once('dialog', (dialog) => dialog.accept());
+      await manager
+        .getByRole('button', { name: 'ذخیرهٔ تغییرات در پروژهٔ بازشده', exact: true })
+        .click();
+      await expect.poll(async () => (await read()).data.form.wallThickness).toBe(6);
+      const saved = await read();
+      const competitor = { ...saved, name: 'رقیب', data: { ...saved.data, name: 'رقیب' } };
+      if (desktop)
+        database
+          .prepare('update patturn_projects set document = ?')
+          .run(JSON.stringify(competitor));
+      else
+        await page.evaluate(
+          (record) => localStorage.setItem('patturn:projects', JSON.stringify([record])),
+          competitor,
+        );
+      page.once('dialog', (dialog) => dialog.accept());
+      await manager.getByRole('button', { name: 'حذف نام تازه', exact: true }).click();
+      await expect(manager.getByRole('alert')).toContainText('تعارض ذخیره');
+      expect(await read()).toEqual(competitor);
+      await manager.getByRole('button', { name: 'بازخوانی فهرست پروژه‌ها', exact: true }).click();
+      const remove = manager.getByRole('button', { name: 'حذف رقیب', exact: true });
+      await expect(remove).toBeEnabled();
+      page.once('dialog', (dialog) => dialog.accept());
+      await remove.click();
+      await expect(manager.getByRole('button', { name: 'بازکردن رقیب', exact: true })).toHaveCount(
+        0,
+      );
+      await expect(
+        manager.getByRole('button', { name: 'ذخیرهٔ تغییرات در پروژهٔ بازشده', exact: true }),
+      ).toHaveCount(0);
+      await expect(wall).toHaveValue('6');
+      if (desktop)
+        expect(database.prepare('select count(*) as n from patturn_projects').get()!.n).toBe(0);
+      else
+        expect(
+          await page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects')!)),
+        ).toEqual([]);
+    } finally {
+      await page.close();
+      database.close();
+    }
+  });
+}

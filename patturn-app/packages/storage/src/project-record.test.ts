@@ -102,3 +102,19 @@ it('rejects unknown archive envelope properties rather than ignoring them', () =
     ),
   ).toThrow('NOT_PATTURN_FILE');
 });
+
+it('renames a detached general document preserving every parameter, identity and thumbnail', async () => {
+  const { renamedProject } = await import('./project-record.js');
+  const record = { ...fixture(), thumbnail: 'data:image/png;base64,YQ==' };
+  const renamed = renamedProject(record, '  نام تازه  ');
+  expect(renamed).toMatchObject({
+    id: record.id,
+    name: 'نام تازه',
+    createdAt: record.createdAt,
+    thumbnail: record.thumbnail,
+  });
+  expect(renamed.data).toEqual({ ...record.data, name: 'نام تازه', updatedAt: renamed.updatedAt });
+  expect(record.name).toBe('کامل');
+  expect(() => renamedProject(record, ' ')).toThrow();
+  expect(() => renamedProject(record, 'x'.repeat(201))).toThrow();
+});

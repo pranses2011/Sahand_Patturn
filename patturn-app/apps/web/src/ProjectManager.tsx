@@ -1,4 +1,7 @@
-import { projectConcurrency as concurrencyText } from './messages/fa.json';
+import {
+  projectConcurrency as concurrencyText,
+  projectMetadata as metadataText,
+} from './messages/fa.json';
 import { useEffect, useRef, useState } from 'react';
 import {
   desktopProjectRepo,
@@ -7,6 +10,7 @@ import {
   projectWriteLockSupported,
   parseProject,
   serializeProject,
+  renamedProject,
   type ProjectRecord,
   type ProjectRepo,
 } from '@patturn/storage';
@@ -77,7 +81,7 @@ export function ProjectManager({
       if (active.current)
         setError(
           cause instanceof Error && cause.message === 'PROJECT_UPDATE_CONFLICT'
-            ? 'تعارض ذخیره: پروژه پس از بازکردن تغییر کرده یا حذف شده است؛ تغییرات شما نوشته نشد. با نام تازه ذخیره کنید یا پروژه را دوباره باز کنید.'
+            ? 'تعارض ذخیره: پروژه پس از خواندن تغییر کرده یا حذف شده است؛ عملیات شما انجام نشد. فهرست را بازخوانی کنید؛ برای حفظ تغییرات ادیتور می‌توانید با نام تازه ذخیره کنید.'
             : 'عملیات پروژه انجام نشد یا فهرست تازه خوانده نشد؛ ممکن است نوشتن انجام شده باشد. پیش از تکرار، فهرست را بازخوانی کنید.',
         );
     } finally {
@@ -320,6 +324,27 @@ export function ProjectManager({
               type="button"
               className="btn"
               disabled={busy || !repo}
+              onClick={() => {
+                const label = window.prompt(metadataText.prompt, entry.name);
+                if (label === null || !label.trim() || label.trim() === entry.name) return;
+                void perform(async (current) => {
+                  const next = renamedProject(entry, label);
+                  await current.updateIfUnchanged(entry, next);
+                  if (
+                    active.current &&
+                    opened?.id === entry.id &&
+                    JSON.stringify(opened) === JSON.stringify(entry)
+                  )
+                    setOpened(next);
+                });
+              }}
+            >
+              {metadataText.rename} {entry.name}
+            </button>{' '}
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || !repo}
               onClick={() =>
                 void perform(async (current) => {
                   const record = await current.get(entry.id);
@@ -363,7 +388,13 @@ export function ProjectManager({
                     `پروژهٔ «${entry.name}» از این مخزن حذف شود؟ تاریخچهٔ ادیتور حذف نمی‌شود.`,
                   )
                 )
-                  void perform((current) => current.delete(entry.id));
+                  void perform(async (current) => {
+                    await current.deleteIfUnchanged(entry);
+                    if (active.current && opened?.id === entry.id) {
+                      setAutoSave(false);
+                      setOpened(null);
+                    }
+                  });
               }}
             >
               حذف {entry.name}
