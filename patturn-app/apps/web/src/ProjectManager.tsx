@@ -24,6 +24,7 @@ export function ProjectManager({
   const [repo, setRepo] = useState<ProjectRepo | null>(null),
     [entries, setEntries] = useState<ProjectRecord[]>([]);
   const [opened, setOpened] = useState<ProjectRecord | null>(null);
+  const [autoSave, setAutoSave] = useState(false);
   const [name, setName] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
@@ -69,6 +70,7 @@ export function ProjectManager({
       const refreshed = await repo.list();
       if (active.current) setEntries(refreshed);
     } catch (cause) {
+      if (active.current) setAutoSave(false);
       if (active.current)
         setError(
           cause instanceof Error && cause.message === 'PROJECT_UPDATE_CONFLICT'
@@ -96,6 +98,7 @@ export function ProjectManager({
         return;
       }
       if (window.confirm('این پروژه باز شود؟ وضعیت فعلیِ ذخیره‌نشده را ابتدا جداگانه نگه دارید.')) {
+        setAutoSave(false);
         latest.current.onApply(next);
         setOpened(record);
       }
@@ -109,16 +112,57 @@ export function ProjectManager({
       if (active.current) setBusy(false);
     }
   }
+  const dirty = opened !== null && JSON.stringify(projectEditor(opened)) !== JSON.stringify(state);
+  useEffect(() => {
+    if (!autoSave || !opened || !repo || busy || !dirty) return;
+    const previous = opened,
+      snapshot = { ...state };
+    const timer = window.setTimeout(() => {
+      void perform(async (current) => {
+        const next = updatedEditorProject(previous, snapshot);
+        await current.updateIfUnchanged(previous, next);
+        if (active.current) setOpened(next);
+      });
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [autoSave, opened, repo, busy, dirty, state]);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
   return (
     <>
       <p className="hint">
         {isDesktop() ? 'مخزن SQLite دسکتاپ' : 'مخزن مرورگر همین دستگاه'}؛ ذخیره با نام، پروژهٔ تازه
-        با شناسهٔ مستقل می‌سازد. بازکردن، ذخیرهٔ خودکار روی پروژهٔ نام‌دار را فعال نمی‌کند؛ تغییرات
-        فعلی را با نام تازه یا دکمهٔ ذخیرهٔ پروژهٔ بازشده نگه دارید. ابزارهای موقت داخل پروژه نیستند.
+        با شناسهٔ مستقل می‌سازد. بازکردن به‌تنهایی ذخیرهٔ خودکار را فعال نمی‌کند؛ تغییرات فعلی را با
+        نام تازه یا دکمهٔ ذخیرهٔ پروژهٔ بازشده نگه دارید. ابزارهای موقت داخل پروژه نیستند.
       </p>
       {opened && (
         <div>
-          <p>پروژهٔ بازشده: {opened.name}؛ ذخیرهٔ خودکار فعال نیست.</p>
+          <p>پروژهٔ بازشده: {opened.name}</p>
+          <label>
+            <input
+              type="checkbox"
+              checked={autoSave}
+              disabled={!repo || busy}
+              onChange={(event) => setAutoSave(event.currentTarget.checked)}
+            />
+            ذخیرهٔ خودکار پروژهٔ بازشده پس از ۲ ثانیه مکث
+          </label>
+          <p role="status">
+            {dirty
+              ? 'تغییرات پروژهٔ نام‌دار هنوز ذخیره نشده‌اند.'
+              : 'پارامترها با نسخهٔ ذخیره‌شدهٔ پروژهٔ بازشده یکسان‌اند.'}
+          </p>
+          <p className="hint">
+            ذخیرهٔ خودکار {autoSave ? 'فعال' : 'خاموش'} است؛ خطا یا تعارض آن را خاموش می‌کند.
+            خاموش‌کردن، نوشتن شروع‌شده را لغو نمی‌کند. بستن برنامه تضمین ذخیرهٔ آخرین تغییر را ندارد.
+          </p>
           <button
             type="button"
             className="btn"
@@ -136,7 +180,15 @@ export function ProjectManager({
           >
             ذخیرهٔ تغییرات در پروژهٔ بازشده
           </button>
-          <button type="button" className="btn" disabled={busy} onClick={() => setOpened(null)}>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={() => {
+              setAutoSave(false);
+              setOpened(null);
+            }}
+          >
             پایان ارتباط با پروژهٔ نام‌دار
           </button>
           <p className="hint">
@@ -174,6 +226,7 @@ export function ProjectManager({
         className="btn"
         disabled={busy}
         onClick={() => {
+          setAutoSave(false);
           setRepo(null);
           setAttempt((n) => n + 1);
         }}

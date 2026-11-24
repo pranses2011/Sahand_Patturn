@@ -3192,7 +3192,7 @@ for (const desktop of [false, true]) {
       expect((await getRecord()).data.form.wallThickness).toBe(4);
       page.once('dialog', (dialog) => dialog.accept());
       await save.click();
-      await expect(manager.getByRole('status')).toContainText('۱ پروژه');
+      await expect(manager.getByRole('status').filter({ hasText: '۱ پروژه' })).toBeVisible();
       const updated = await getRecord();
       expect(updated.data.form.wallThickness).toBe(6);
       const competitor = {
@@ -3226,3 +3226,151 @@ for (const desktop of [false, true]) {
     }
   });
 }
+
+for (const desktop of [false, true]) {
+  test(`named autosave is opt-in, debounced, stops on conflict and disconnects (${desktop ? 'SQLite' : 'browser'})`, async ({
+    page,
+  }) => {
+    const database = new DatabaseSync(':memory:');
+    try {
+      if (desktop) await installSqlBridge(page, database);
+      await page.goto('/');
+      await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+      const manager = page.locator('.project-manager');
+      await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('خودکار');
+      await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+      page.once('dialog', (dialog) => dialog.accept());
+      await manager.getByRole('button', { name: 'بازکردن خودکار', exact: true }).click();
+      const toggle = manager.getByRole('checkbox', {
+        name: 'ذخیرهٔ خودکار پروژهٔ بازشده پس از ۲ ثانیه مکث',
+        exact: true,
+      });
+      await expect(toggle).not.toBeChecked();
+      await page.clock.install();
+      const read = async () =>
+        desktop
+          ? JSON.parse(
+              database.prepare('select document from patturn_projects').get()!.document as string,
+            )
+          : await page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects')!)[0]);
+      const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+      await wall.fill('5');
+      await wall.press('Enter');
+      await page.clock.fastForward(3000);
+      expect((await read()).data.form.wallThickness).toBe(4);
+      await toggle.check();
+      await page.clock.fastForward(1000);
+      await wall.fill('6');
+      await wall.press('Enter');
+      await page.clock.fastForward(1500);
+      expect((await read()).data.form.wallThickness).toBe(4);
+      await page.clock.fastForward(600);
+      await expect.poll(async () => (await read()).data.form.wallThickness).toBe(6);
+      await expect(
+        manager.getByText('پارامترها با نسخهٔ ذخیره‌شدهٔ پروژهٔ بازشده یکسان‌اند.', { exact: true }),
+      ).toBeVisible();
+      const saved = await read();
+      const competitor = { ...saved, name: 'رقیب', data: { ...saved.data, name: 'رقیب' } };
+      if (desktop)
+        database
+          .prepare('update patturn_projects set document = ? where id = ?')
+          .run(JSON.stringify(competitor), saved.id);
+      else
+        await page.evaluate(
+          (record) => localStorage.setItem('patturn:projects', JSON.stringify([record])),
+          competitor,
+        );
+      await wall.fill('7');
+      await wall.press('Enter');
+      await page.clock.fastForward(2100);
+      await expect(manager.getByRole('alert')).toContainText('تعارض ذخیره');
+      await expect(toggle).not.toBeChecked();
+      await wall.fill('8');
+      await wall.press('Enter');
+      await page.clock.fastForward(5000);
+      expect(await read()).toEqual(competitor);
+      await expect(wall).toHaveValue('8');
+      await manager
+        .getByRole('button', { name: 'پایان ارتباط با پروژهٔ نام‌دار', exact: true })
+        .click();
+      await expect(toggle).toHaveCount(0);
+    } finally {
+      await page.close();
+      database.close();
+    }
+  });
+}
+
+test('named autosave keeps newer edits pending during an old SQL write and stops after a driver failure', async ({
+  page,
+}) => {
+  const database = new DatabaseSync(':memory:');
+  let release = () => {};
+  let block = true;
+  let fail = false;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let reached = () => {};
+  const requested = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  try {
+    await installSqlBridge(page, database, async (_command, query) => {
+      if (!query.startsWith('update "patturn_projects"')) return;
+      if (fail) throw Error('synthetic write failure');
+      if (block) {
+        block = false;
+        reached();
+        await gate;
+      }
+    });
+    await page.goto('/');
+    await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+    const manager = page.locator('.project-manager');
+    await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('دیررس');
+    await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+    page.once('dialog', (dialog) => dialog.accept());
+    await manager.getByRole('button', { name: 'بازکردن دیررس', exact: true }).click();
+    const toggle = manager.getByRole('checkbox', {
+      name: 'ذخیرهٔ خودکار پروژهٔ بازشده پس از ۲ ثانیه مکث',
+      exact: true,
+    });
+    await toggle.check();
+    await page.clock.install();
+    const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+    await wall.fill('6');
+    await wall.press('Enter');
+    await page.clock.fastForward(2100);
+    await requested;
+    await wall.fill('7');
+    await wall.press('Enter');
+    release();
+    await expect(
+      manager.getByText('تغییرات پروژهٔ نام‌دار هنوز ذخیره نشده‌اند.', { exact: true }),
+    ).toBeVisible();
+    const thickness = () =>
+      JSON.parse(
+        database.prepare('select document from patturn_projects').get()!.document as string,
+      ).data.form.wallThickness;
+    await expect.poll(thickness).toBe(6);
+    await expect(toggle).toBeEnabled();
+    await page.clock.fastForward(2100);
+    await expect.poll(thickness).toBe(7);
+    await expect(
+      manager.getByText('پارامترها با نسخهٔ ذخیره‌شدهٔ پروژهٔ بازشده یکسان‌اند.', { exact: true }),
+    ).toBeVisible();
+    fail = true;
+    await wall.fill('8');
+    await wall.press('Enter');
+    await page.clock.fastForward(2100);
+    await expect(manager.getByRole('alert')).toContainText('عملیات پروژه انجام نشد');
+    await expect(toggle).not.toBeChecked();
+    expect(thickness()).toBe(7);
+    await expect(wall).toHaveValue('8');
+  } finally {
+    release();
+    await page.close();
+    database.close();
+  }
+});
