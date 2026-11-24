@@ -1,3 +1,5 @@
+import { nativeProjectCloseGuard } from './native-project-close';
+import { projectClose as closeText } from './messages/fa.json';
 import {
   projectConcurrency as concurrencyText,
   projectMetadata as metadataText,
@@ -35,6 +37,8 @@ export function ProjectManager({
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [attempt, setAttempt] = useState(0);
+  const [closeGuardFailed, setCloseGuardFailed] = useState(false);
+  const closeWarning = useRef(false);
   const nameInput = useRef<HTMLInputElement>(null);
   const active = useRef(true),
     lock = useRef(false),
@@ -133,6 +137,16 @@ export function ProjectManager({
     }, 2000);
     return () => window.clearTimeout(timer);
   }, [autoSave, opened, repo, busy, dirty, state]);
+  closeWarning.current = dirty;
+  useEffect(() => {
+    if (!isDesktop()) return;
+    return nativeProjectCloseGuard(
+      () => closeWarning.current || lock.current,
+      () => {
+        if (active.current) setCloseGuardFailed(true);
+      },
+    );
+  }, []);
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => {
@@ -154,6 +168,7 @@ export function ProjectManager({
           {projectWriteLockSupported() ? concurrencyText.supported : concurrencyText.unsupported}
         </p>
       )}
+      {closeGuardFailed && <p className="hint">{closeText.failed}</p>}
       {opened && (
         <div>
           <p>پروژهٔ بازشده: {opened.name}</p>

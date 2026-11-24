@@ -3718,3 +3718,128 @@ for (const desktop of [false, true]) {
     }
   });
 }
+
+test('native close IPC asks about dirty named projects, supports cancellation and never claims an exit flush', async ({
+  page,
+}) => {
+  const database = new DatabaseSync(':memory:');
+  try {
+    await installSqlBridge(page, database);
+    await page.addInitScript(() => {
+      type EventCallback = (event: unknown) => Promise<void>;
+      const callbacks = new Map<number, EventCallback>();
+      let next = 1;
+      let closeId = 0;
+      const target = window as unknown as {
+        __TAURI_INTERNALS__: {
+          invoke: (command: string, args: any) => Promise<any>;
+          metadata: unknown;
+          transformCallback: (handler: EventCallback) => number;
+        };
+        __TAURI_EVENT_PLUGIN_INTERNALS__: unknown;
+        nativeCloseState: {
+          destroyed: number;
+          prompts: number;
+          accept: boolean;
+          fail: boolean;
+          ready: boolean;
+        };
+        triggerNativeClose: () => Promise<void>;
+      };
+      const state = { destroyed: 0, prompts: 0, accept: false, fail: false, ready: false };
+      target.nativeCloseState = state;
+      const original = target.__TAURI_INTERNALS__.invoke;
+      target.__TAURI_INTERNALS__.metadata = { currentWindow: { label: 'main' } };
+      target.__TAURI_INTERNALS__.transformCallback = (callback) => {
+        const id = next++;
+        callbacks.set(id, callback);
+        return id;
+      };
+      target.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+        unregisterListener: (_event: string, id: number) => {
+          callbacks.delete(id);
+        },
+      };
+      target.__TAURI_INTERNALS__.invoke = async (command, args) => {
+        if (command === 'plugin:event|listen') {
+          closeId = args.handler;
+          state.ready = true;
+          return closeId;
+        }
+        if (command === 'plugin:event|unlisten') return null;
+        if (command === 'plugin:window|destroy') {
+          state.destroyed++;
+          return null;
+        }
+        if (command === 'plugin:dialog|message') {
+          state.prompts++;
+          if (state.fail) throw Error('synthetic native dialog failure');
+          return args.buttons.OkCancelCustom[state.accept ? 0 : 1];
+        }
+        return original(command, args);
+      };
+      target.triggerNativeClose = async () => {
+        await callbacks.get(closeId)!({
+          event: 'tauri://close-requested',
+          id: closeId,
+          payload: null,
+        });
+      };
+    });
+    await page.goto('/');
+    await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+    const manager = page.locator('.project-manager');
+    const state = () =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              nativeCloseState: { ready: boolean; prompts: number; destroyed: number };
+            }
+          ).nativeCloseState,
+      );
+    await expect.poll(async () => (await state()).ready).toBe(true);
+    const close = () =>
+      page.evaluate(() =>
+        (window as unknown as { triggerNativeClose: () => Promise<void> }).triggerNativeClose(),
+      );
+    await close();
+    expect((await state()).destroyed).toBe(1);
+    expect((await state()).prompts).toBe(0);
+    await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('پیش از خروج');
+    await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+    page.once('dialog', (dialog) => dialog.accept());
+    await manager.getByRole('button', { name: 'بازکردن پیش از خروج', exact: true }).click();
+    const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+    await wall.fill('6');
+    await wall.press('Enter');
+    await close();
+    expect((await state()).destroyed).toBe(1);
+    expect((await state()).prompts).toBe(1);
+    await page.evaluate(
+      () =>
+        ((window as unknown as { nativeCloseState: { fail: boolean } }).nativeCloseState.fail =
+          true),
+    );
+    await close();
+    expect((await state()).destroyed).toBe(1);
+    await expect(manager).toContainText('هشدار بستن پنجرهٔ دسکتاپ فعال نیست یا خطا داده است');
+    await page.evaluate(() => {
+      const state = (window as unknown as { nativeCloseState: { fail: boolean; accept: boolean } })
+        .nativeCloseState;
+      state.fail = false;
+      state.accept = true;
+    });
+    await close();
+    expect((await state()).destroyed).toBe(2);
+    expect(
+      JSON.parse(
+        database.prepare('select document from patturn_projects').get()!.document as string,
+      ).data.form.wallThickness,
+    ).toBe(4);
+    await expect(wall).toHaveValue('6');
+  } finally {
+    await page.close();
+    database.close();
+  }
+});
