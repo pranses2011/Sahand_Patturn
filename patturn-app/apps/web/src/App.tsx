@@ -1,3 +1,4 @@
+import { PRESETS, type ProfileMode } from './editor-presets';
 import type { HistorySession, AsyncEditorHistory } from './history-session';
 import { DeferredTool } from './DeferredTool';
 import { FlowArrow } from './FlowArrow';
@@ -25,7 +26,6 @@ import type { HelpTopic } from './ParameterHelp';
 import { EditorModeSwitch, AdvancedControls } from './EditorMode';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  referenceOuterProfile,
   radialCavityProfile,
   capacityMl,
   filledMl,
@@ -34,7 +34,6 @@ import {
   validateMesh,
   catmullRom,
   type Mesh,
-  type Profile,
 } from '@patturn/kernel';
 import {
   analyzeUndercut,
@@ -82,6 +81,8 @@ const loadLoftSweepTool = () =>
   import('./LoftSweepTool').then((module) => ({ default: module.LoftSweepTool }));
 const loadExtruderTool = () =>
   import('./ExtruderTool').then((module) => ({ default: module.ExtruderTool }));
+const loadProjectManager = () =>
+  import('./ProjectManager').then((module) => ({ default: module.ProjectManager }));
 const loadRibTool = () => import('./RibTool').then((module) => ({ default: module.RibTool }));
 const loadSlabTool = () => import('./SlabTool').then((module) => ({ default: module.SlabTool }));
 const loadFootRingTool = () =>
@@ -95,32 +96,6 @@ const loadRounderTool = () =>
 const loadChuckTool = () => import('./ChuckTool').then((module) => ({ default: module.ChuckTool }));
 
 const Viewport = lazy(() => import('./Viewport').then((module) => ({ default: module.Viewport })));
-
-type ProfileMode = 'reference' | 'bucket' | 'vase';
-
-const PRESETS: Record<ProfileMode, Profile> = {
-  reference: referenceOuterProfile(48),
-  bucket: [
-    { r: 0, y: -4 },
-    { r: 72.5, y: -4 },
-    { r: 72.5, y: 0 },
-    { r: 66, y: 60 },
-    { r: 60, y: 120 },
-    { r: 58, y: 148 },
-    { r: 54, y: 148 },
-  ],
-  vase: [
-    { r: 0, y: -4 },
-    { r: 40, y: -4 },
-    { r: 40, y: 0 },
-    { r: 55, y: 30 },
-    { r: 68, y: 70 },
-    { r: 52, y: 110 },
-    { r: 40, y: 140 },
-    { r: 44, y: 148 },
-    { r: 40, y: 148 },
-  ],
-};
 
 async function writeOutput(name: string, bytes: Uint8Array): Promise<DeliveryOutcome> {
   if (isDesktop()) return (await (await desktopFiles()).save(name, bytes)) ? 'saved' : 'cancelled';
@@ -1169,6 +1144,12 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
           ))}
         </details>
       )}
+      <DeferredTool
+        label="مدیریت پروژه‌ها — ذخیره با نام و بازکردن"
+        className="history-panel project-manager"
+        load={loadProjectManager}
+        toolProps={{ state: currentParameters, onApply: applyEditorState }}
+      />
       <div className="main">
         {/* ── left: parts ── */}
         <aside className="panel left">

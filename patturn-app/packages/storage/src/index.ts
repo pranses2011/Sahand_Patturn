@@ -1,3 +1,4 @@
+import { validatedProjectRecord } from './project-record.js';
 /**
  * Platform storage contract (ADR-004/009): SQLite is the intended desktop source of truth.
  * Desktop editor history uses SQLite; browser history and other local libraries use localStorage.
@@ -20,58 +21,17 @@ export interface ProjectRepo {
   duplicate(id: string, newName: string): Promise<ProjectRecord>;
 }
 
-/** Web adapter — localStorage (offline-first; IndexedDB can replace it later). */
-export class LocalRepo implements ProjectRepo {
-  private key = 'patturn:projects';
-  private read(): ProjectRecord[] {
-    try {
-      return JSON.parse(localStorage.getItem(this.key) ?? '[]');
-    } catch {
-      return [];
-    }
-  }
-  private write(list: ProjectRecord[]) {
-    localStorage.setItem(this.key, JSON.stringify(list));
-  }
-  async list() {
-    return this.read().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  }
-  async get(id: string) {
-    return this.read().find((r) => r.id === id) ?? null;
-  }
-  async save(rec: ProjectRecord) {
-    const list = this.read();
-    const i = list.findIndex((r) => r.id === rec.id);
-    if (i >= 0) list[i] = rec;
-    else list.push(rec);
-    this.write(list);
-  }
-  async delete(id: string) {
-    this.write(this.read().filter((r) => r.id !== id));
-  }
-  async duplicate(id: string, newName: string) {
-    const src = await this.get(id);
-    if (!src) throw new Error('NOT_FOUND');
-    const copy: ProjectRecord = {
-      ...src,
-      id: crypto.randomUUID(),
-      name: newName,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await this.save(copy);
-    return copy;
-  }
-}
+export { LocalRepo } from './local-projects.js';
 
 /** File export/import of a project as .patturn (JSON). */
 export function serializeProject(rec: ProjectRecord): string {
-  return JSON.stringify({ format: 'patturn', v: 1, project: rec }, null, 2);
+  return JSON.stringify({ format: 'patturn', v: 1, project: validatedProjectRecord(rec) }, null, 2);
 }
 export function parseProject(text: string): ProjectRecord {
+  if (text.length > 512 * 1024) throw Error('PROJECT_FILE_TOO_LARGE');
   const o = JSON.parse(text);
-  if (o.format !== 'patturn') throw new Error('NOT_PATTURN_FILE');
-  return o.project as ProjectRecord;
+  if (o?.format !== 'patturn' || o.v !== 1) throw new Error('NOT_PATTURN_FILE');
+  return validatedProjectRecord(o.project);
 }
 
 export * from './portable.js';

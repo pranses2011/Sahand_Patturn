@@ -2845,3 +2845,106 @@ test('extruder optional collar fuses into STL while the 2D cutting template stay
   expect(collarRadius).toBeCloseTo(36, 4);
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('named projects save current parameters, duplicate, reopen and delete in browser storage', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+  const manager = page.locator('.project-manager');
+  await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('طرح اول');
+  await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+  await expect(manager.getByRole('button', { name: 'بازکردن طرح اول', exact: true })).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept('نسخهٔ کپی'));
+  await manager.getByRole('button', { name: 'تکثیر طرح اول', exact: true }).click();
+  await expect(
+    manager.getByRole('button', { name: 'بازکردن نسخهٔ کپی', exact: true }),
+  ).toBeVisible();
+  const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+  await wall.fill('6');
+  await wall.press('Enter');
+  page.once('dialog', (dialog) => dialog.accept());
+  await manager.getByRole('button', { name: 'بازکردن طرح اول', exact: true }).click();
+  await expect(wall).toHaveValue('4');
+  page.once('dialog', (dialog) => dialog.accept());
+  await manager.getByRole('button', { name: 'حذف نسخهٔ کپی', exact: true }).click();
+  await expect(manager.getByRole('button', { name: 'بازکردن نسخهٔ کپی', exact: true })).toHaveCount(
+    0,
+  );
+  await page.reload();
+  await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+  await expect(manager.getByRole('button', { name: 'بازکردن طرح اول', exact: true })).toBeVisible();
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects')!));
+  expect(stored).toHaveLength(1);
+  expect(stored[0].data.form.wallThickness).toBe(4);
+});
+test('named project library preserves corrupt data and rejects unsupported documents without changing the editor', async ({
+  page,
+}) => {
+  await page.addInitScript(() => localStorage.setItem('patturn:projects', 'broken'));
+  await page.goto('/');
+  await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+  const manager = page.locator('.project-manager');
+  await expect(manager.getByRole('alert')).toContainText('فهرست پروژه‌ها خوانده نشد');
+  await expect(
+    manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }),
+  ).toBeDisabled();
+  expect(await page.evaluate(() => localStorage.getItem('patturn:projects'))).toBe('broken');
+  await page.evaluate(() => {
+    const time = '2020-01-01T00:00:00.000Z';
+    localStorage.setItem(
+      'patturn:projects',
+      JSON.stringify([
+        {
+          id: 'generic',
+          name: 'عمومی',
+          schemaVersion: 3,
+          createdAt: time,
+          updatedAt: time,
+          data: {
+            schemaVersion: 3,
+            name: 'عمومی',
+            createdAt: time,
+            updatedAt: time,
+            settings: { unit: 'mm', shrink: 0.12, wallThickness: 4 },
+          },
+        },
+      ]),
+    );
+  });
+  await manager.getByRole('button', { name: 'بازخوانی فهرست پروژه‌ها', exact: true }).click();
+  await manager.getByRole('button', { name: 'بازکردن عمومی', exact: true }).click();
+  await expect(manager.getByRole('alert')).toContainText('پشتیبانی‌نشده');
+  await expect(
+    page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true }),
+  ).toHaveValue('4');
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects')!)[0].id),
+  ).toBe('generic');
+});
+test('desktop named projects use actual SQLite independently of editor history and browser library', async ({
+  page,
+}) => {
+  const database = new DatabaseSync(':memory:');
+  try {
+    await installSqlBridge(page, database);
+    await page.goto('/');
+    await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+    const manager = page.locator('.project-manager');
+    await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('پروژهٔ SQL');
+    await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+    await expect(
+      manager.getByRole('button', { name: 'بازکردن پروژهٔ SQL', exact: true }),
+    ).toBeVisible();
+    expect(database.prepare('select count(*) as n from patturn_projects').get()!.n).toBe(1);
+    expect(await page.evaluate(() => localStorage.getItem('patturn:projects'))).toBeNull();
+    await page.reload();
+    await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+    await expect(
+      manager.getByRole('button', { name: 'بازکردن پروژهٔ SQL', exact: true }),
+    ).toBeVisible();
+  } finally {
+    await page.close();
+    database.close();
+  }
+});
