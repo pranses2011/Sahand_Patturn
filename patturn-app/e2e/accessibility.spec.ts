@@ -349,3 +349,40 @@ test('manual cutter sketch is keyboard operable and reflows at 320px', async ({ 
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('standalone cutter file success and rejection are accessible at 320px', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  const input = panel.getByLabel('بازکردن فایل مستقل کاتر', { exact: true });
+  const doc = {
+    format: 'patturn-cutter',
+    version: 1,
+    units: 'mm',
+    heightMm: 25,
+    wallMm: 2,
+    tipMm: 0.8,
+    shape: { kind: 'circle', diameterMm: 80 },
+  };
+  await input.setInputFiles({
+    name: 'good.cutter.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(doc)),
+  });
+  await expect(
+    panel.getByRole('button', { name: 'ذخیرهٔ فایل مستقل کاتر', exact: true }),
+  ).toBeEnabled();
+  await audit(page, info, 'cutter-file-restored-320');
+  await input.setInputFiles({
+    name: 'future.cutter.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ ...doc, version: 2 })),
+  });
+  await expect(panel.getByRole('alert')).toContainText('فایل کاتر نامعتبر');
+  await audit(page, info, 'cutter-file-rejected-320');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

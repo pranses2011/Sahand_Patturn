@@ -4499,3 +4499,167 @@ test('fractional SVG can resume in the point editor without silent rounding or s
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('standalone cutter files restore circle and editable polygon settings and reject future data without stale exports', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  const fileInput = panel.getByLabel('بازکردن فایل مستقل کاتر', { exact: true });
+  const save = panel.getByRole('button', { name: 'ذخیرهٔ فایل مستقل کاتر', exact: true });
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    const file = await pending;
+    return { bytes: await readFile((await file.path())!), name: file.suggestedFilename() };
+  };
+  const upload = async (bytes: Buffer) => {
+    await expect(fileInput).toBeEnabled();
+    await fileInput.setInputFiles({
+      name: 'preset.cutter.json',
+      mimeType: 'application/json',
+      buffer: bytes,
+    });
+  };
+  const height = panel.getByRole('spinbutton', { name: 'ارتفاع کاتر', exact: true });
+  await height.fill('25');
+  await height.press('Enter');
+  const wall = panel.getByRole('spinbutton', { name: 'ضخامت دیوارهٔ کاتر', exact: true });
+  await wall.fill('2');
+  await wall.press('Enter');
+  const original = await download('دانلود STL کاتر گرد');
+  const circle = await download('ذخیرهٔ فایل مستقل کاتر');
+  expect(circle.name).toBe('patturn-cutter.cutter.json');
+  await height.fill('30');
+  await height.press('Enter');
+  await upload(circle.bytes);
+  await expect(height).toHaveValue('25');
+  await expect(save).toBeEnabled();
+  expect((await download('دانلود STL کاتر گرد')).bytes).toEqual(original.bytes);
+  const doc = JSON.parse(circle.bytes.toString('utf8'));
+  doc.heightMm = 32;
+  doc.wallMm = 2.4;
+  doc.tipMm = 0.9;
+  doc.shape = {
+    kind: 'polygon',
+    points: [
+      [10.25, 12.5],
+      [70.625, 12.5],
+      [70.625, 73.75],
+      [10.25, 73.75],
+    ],
+  };
+  await upload(Buffer.from(JSON.stringify(doc)));
+  const finish = panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true });
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true });
+  await expect(output).toBeDisabled();
+  await expect(save).toBeDisabled();
+  await expect(height).toHaveValue('32');
+  await expect(wall).toHaveValue('2.4');
+  await expect(
+    panel.getByRole('spinbutton', { name: 'ضخامت لبهٔ برش کاتر', exact: true }),
+  ).toHaveValue('0.9');
+  await panel.getByLabel('انتخاب رأس کاتر', { exact: true }).selectOption('1');
+  await expect(
+    panel.getByRole('spinbutton', { name: 'مختصات افقی رأس کاتر (mm)', exact: true }),
+  ).toHaveValue('60.375');
+  await finish.click();
+  await expect(save).toBeEnabled();
+  const polygon = await download('ذخیرهٔ فایل مستقل کاتر');
+  const before = await download('دانلود STL کاتر چندضلعی');
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).click();
+  await upload(polygon.bytes);
+  await expect(output).toBeDisabled();
+  await finish.click();
+  await expect(output).toBeEnabled();
+  expect((await download('دانلود STL کاتر چندضلعی')).bytes).toEqual(before.bytes);
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).click();
+  for (const bad of [
+    { ...doc, version: 2 },
+    { ...doc, unknown: 1 },
+    { ...doc, shape: { ...doc.shape, unknown: true } },
+    { ...doc, units: 'cm' },
+  ]) {
+    await upload(Buffer.from(JSON.stringify(bad)));
+    await expect(panel.getByRole('alert')).toContainText('فایل کاتر نامعتبر');
+    await expect(save).toBeDisabled();
+    await expect(
+      panel.getByRole('button', { name: 'دانلود STL کاتر گرد', exact: true }),
+    ).toBeDisabled();
+    await expect(height).toHaveValue('32');
+  }
+  await upload(Buffer.alloc(65537, 32));
+  await expect(panel.getByRole('alert')).toContainText('فایل کاتر نامعتبر');
+  await expect(save).toBeDisabled();
+  await upload(circle.bytes);
+  await expect(save).toBeEnabled();
+  await expect(height).toHaveValue('25');
+  expect((await download('دانلود STL کاتر گرد')).bytes).toEqual(original.bytes);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
+
+test('reset cancels a delayed cutter file and its late result cannot replace a newer file', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  await page.evaluate(() => {
+    const original = File.prototype.text;
+    File.prototype.text = function () {
+      if (this.name !== 'delayed.cutter.json') return original.call(this);
+      const file = this;
+      return new Promise<string>((resolve) => {
+        (window as unknown as { releaseCutterRead: () => Promise<void> }).releaseCutterRead =
+          async () => resolve(await original.call(file));
+      });
+    };
+  });
+  const doc = {
+    format: 'patturn-cutter',
+    version: 1,
+    units: 'mm',
+    heightMm: 39,
+    wallMm: 2,
+    tipMm: 0.8,
+    shape: { kind: 'circle', diameterMm: 90 },
+  };
+  const input = panel.getByLabel('بازکردن فایل مستقل کاتر', { exact: true });
+  const save = panel.getByRole('button', { name: 'ذخیرهٔ فایل مستقل کاتر', exact: true });
+  await input.setInputFiles({
+    name: 'delayed.cutter.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(doc)),
+  });
+  await expect(save).toBeDisabled();
+  await expect(input).toBeDisabled();
+  await expect(panel.getByRole('status', { name: 'اعتبار هندسهٔ کاتر', exact: true })).toContainText(
+    'در حال خواندن',
+  );
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).click();
+  await expect(save).toBeEnabled();
+  await input.setInputFiles({
+    name: 'new.cutter.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ ...doc, heightMm: 25 })),
+  });
+  await expect(panel.getByRole('spinbutton', { name: 'ارتفاع کاتر', exact: true })).toHaveValue(
+    '25',
+  );
+  await expect(save).toBeEnabled();
+  await page.evaluate(async () => {
+    await (window as unknown as { releaseCutterRead: () => Promise<void> }).releaseCutterRead();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+  await expect(panel.getByRole('spinbutton', { name: 'ارتفاع کاتر', exact: true })).toHaveValue(
+    '25',
+  );
+  await expect(save).toBeEnabled();
+});

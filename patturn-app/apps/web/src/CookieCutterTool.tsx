@@ -1,3 +1,4 @@
+import { readCutterFile, writeCutterFile } from './cutter-file';
 import { cutterSketchSeed } from './cutter-sketch';
 import { CutterSketch } from './CutterSketch';
 import { tracedCutterGeometry } from './traced-cutter';
@@ -81,6 +82,51 @@ export function CookieCutterTool({
       <p className="hint">{sourceMode ? text.traceIntro : text.intro}</p>
       {!sourceMode && (
         <>
+          {!manual && (
+            <label>
+              {text.fileInput}
+              <input
+                type="file"
+                accept=".json,application/json"
+                disabled={importBusy}
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = '';
+                  if (!file) return;
+                  const id = ++request.current;
+                  setImportBusy(true);
+                  setImportFailed(false);
+                  setError('');
+                  void (async () => {
+                    try {
+                      if (file.size > 64 * 1024) throw Error('CUTTER_FILE_TOO_LARGE');
+                      const doc = readCutterFile(await file.text());
+                      const seed =
+                        doc.shape.kind === 'polygon' ? cutterSketchSeed(doc.shape.points) : [];
+                      if (!alive.current || request.current !== id) return;
+                      setHeight(doc.heightMm);
+                      setWall(doc.wallMm);
+                      setTip(doc.tipMm);
+                      setContour(null);
+                      setManualContour(null);
+                      setSketchSeed(seed);
+                      if (doc.shape.kind === 'circle') {
+                        setDiameter(doc.shape.diameterMm);
+                        setManual(false);
+                      } else setManual(true);
+                    } catch {
+                      if (alive.current && request.current === id) {
+                        setImportFailed(true);
+                        setError(text.fileError);
+                      }
+                    } finally {
+                      if (alive.current && request.current === id) setImportBusy(false);
+                    }
+                  })();
+                }}
+              />
+            </label>
+          )}
           {!manual && (
             <button
               type="button"
@@ -246,9 +292,9 @@ export function CookieCutterTool({
       )}
       <p role="status" aria-label={text.status}>
         {importBusy
-          ? text.svgLoading
+          ? text.fileLoading
           : importFailed
-            ? text.svgError
+            ? text.importInvalid
             : geometry?.report.ok
               ? text.valid
               : sourceMode
@@ -308,6 +354,33 @@ export function CookieCutterTool({
           </button>
         </>
       )}
+      <p className="hint">{text.fileHelp}</p>
+      <button
+        type="button"
+        className="btn"
+        disabled={!geometry?.report.ok}
+        onClick={() => {
+          if (!geometry?.report.ok) return;
+          try {
+            const bytes = writeCutterFile({
+              format: 'patturn-cutter',
+              version: 1,
+              units: 'mm',
+              heightMm,
+              wallMm,
+              tipMm,
+              shape: geometry.polygon
+                ? { kind: 'polygon', points: geometry.polygon.points }
+                : { kind: 'circle', diameterMm },
+            });
+            onExport('patturn-cutter.cutter.json', bytes);
+          } catch {
+            setError(text.fileError);
+          }
+        }}
+      >
+        {text.fileSave}
+      </button>
       {error && <p role="alert">{error}</p>}
     </>
   );
