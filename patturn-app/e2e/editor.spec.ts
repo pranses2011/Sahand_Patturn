@@ -4190,7 +4190,7 @@ test('manual cutter vertex edits require explicit apply and revalidation and rej
     }
   expect(maxX - minX).toBeGreaterThan(69);
   expect(maxX - minX).toBeLessThan(80);
-  for (const value of ['', '-1', '151', '45.5']) {
+  for (const value of ['', '-1', '151']) {
     await x.fill(value);
     await apply.click();
     await expect(panel.getByRole('alert')).toContainText('هر دو مختصات');
@@ -4417,6 +4417,85 @@ test('cutter contour SVG round trips manual and fractional imported geometry wit
     .getByLabel('ورود SVG تک‌چندضلعی محدب', { exact: true })
     .setInputFiles({ name: 'bad.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg/>') });
   await expect(svg).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
+
+test('fractional SVG can resume in the point editor without silent rounding or stale exports', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  const input = panel.getByLabel('ورود SVG تک‌چندضلعی محدب', { exact: true });
+  const edit = panel.getByRole('button', { name: 'ویرایش نقاط SVG واردشده', exact: true });
+  const stl = panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true });
+  const svg = panel.getByRole('button', { name: 'دانلود SVG مرز داخلی کاتر', exact: true });
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return await readFile((await (await pending).path())!);
+  };
+  await expect(edit).toHaveCount(0);
+  await input.setInputFiles({
+    name: 'source.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="100mm" viewBox="0 0 100 100"><polygon points="10.25,12.5 70.625,12.5 70.625,73.75 10.25,73.75"/></svg>',
+    ),
+  });
+  await expect(edit).toBeVisible();
+  const height = panel.getByRole('spinbutton', { name: 'ارتفاع کاتر', exact: true });
+  await height.fill('25');
+  await height.press('Enter');
+  const before = await download('دانلود STL کاتر چندضلعی');
+  await edit.click();
+  await expect(stl).toBeDisabled();
+  await expect(svg).toBeDisabled();
+  await expect(input).toHaveCount(0);
+  await expect(height).toHaveValue('25');
+  const finish = panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true });
+  await finish.click();
+  await expect(stl).toBeEnabled();
+  expect(await download('دانلود STL کاتر چندضلعی')).toEqual(before);
+  const selection = panel.getByLabel('انتخاب رأس کاتر', { exact: true });
+  await selection.selectOption('1');
+  const x = panel.getByRole('spinbutton', { name: 'مختصات افقی رأس کاتر (mm)', exact: true });
+  await expect(x).toHaveValue('60.375');
+  await x.fill('61.125');
+  await expect(stl).toBeDisabled();
+  await expect(svg).toBeDisabled();
+  await expect(finish).toBeDisabled();
+  await panel.getByRole('button', { name: 'اعمال مختصات رأس کاتر', exact: true }).click();
+  await finish.click();
+  await expect(x).toHaveValue('61.125');
+  await expect(stl).toBeEnabled();
+  const saved = await download('دانلود SVG مرز داخلی کاتر');
+  expect(saved.toString('utf8')).toContain('width="61.125mm"');
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).click();
+  await input.setInputFiles({ name: 'saved.svg', mimeType: 'image/svg+xml', buffer: saved });
+  await expect(edit).toBeVisible();
+  await edit.click();
+  await expect(stl).toBeDisabled();
+  await selection.selectOption('1');
+  await expect(x).toHaveValue('61.125');
+  await finish.click();
+  await expect(stl).toBeEnabled();
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).click();
+  await input.setInputFiles({
+    name: 'bad.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg/>'),
+  });
+  await expect(panel.getByRole('alert')).toContainText('SVG پشتیبانی نشد');
+  await expect(edit).toHaveCount(0);
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).click();
+  await panel.getByRole('button', { name: 'رسم چندضلعی محدب با نقاط', exact: true }).click();
+  await expect(selection).toHaveCount(0);
+  await expect(finish).toBeDisabled();
+  await expect(stl).toBeDisabled();
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });

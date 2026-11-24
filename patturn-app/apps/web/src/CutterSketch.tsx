@@ -3,8 +3,14 @@ import { convexCutterProfile, type CutterPoint } from '@patturn/kernel';
 import { cutterSketchHit, cutterSketchPoint } from './cutter-sketch';
 import { cookieSketch as text } from './messages/fa.json';
 import { formatNumber } from './number-format';
-export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | null) => void }) {
-  const [points, setPoints] = useState<CutterPoint[]>([]),
+export function CutterSketch({
+  onChange,
+  initialPoints = [],
+}: {
+  onChange: (points: CutterPoint[] | null) => void;
+  initialPoints?: readonly CutterPoint[];
+}) {
+  const [points, setPoints] = useState<CutterPoint[]>(() => initialPoints.map((p) => [p[0], p[1]])),
     [cursor, setCursor] = useState<[number, number]>([30, 30]);
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [draftDirty, setDraftDirty] = useState(false);
@@ -316,7 +322,7 @@ function CutterVertexEditor({
           type="number"
           min={0}
           max={150}
-          step={1}
+          step="any"
           value={x}
           aria-describedby={id}
           onChange={(event) => {
@@ -332,7 +338,7 @@ function CutterVertexEditor({
           type="number"
           min={0}
           max={150}
-          step={1}
+          step="any"
           value={y}
           aria-describedby={id}
           onChange={(event) => {
@@ -350,7 +356,7 @@ function CutterVertexEditor({
           if (
             !x.trim() ||
             !y.trim() ||
-            values.some((n) => !Number.isInteger(n) || n < 0 || n > 150)
+            values.some((n) => !Number.isFinite(n) || n < 0 || n > 150)
           ) {
             setError(true);
             onDirty();

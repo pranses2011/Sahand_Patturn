@@ -1,3 +1,4 @@
+import { cutterSketchSeed } from './cutter-sketch';
 import { CutterSketch } from './CutterSketch';
 import { tracedCutterGeometry } from './traced-cutter';
 import { cutterSvgPoints } from './cutter-svg';
@@ -27,6 +28,7 @@ export function CookieCutterTool({
     [tipMm, setTip] = useState(0.6);
   const [error, setError] = useState('');
   const [contour, setContour] = useState<CutterPoint[] | null>(null);
+  const [sketchSeed, setSketchSeed] = useState<CutterPoint[]>([]);
   const [manual, setManual] = useState(false),
     [manualContour, setManualContour] = useState<CutterPoint[] | null>(null);
   const [importBusy, setImportBusy] = useState(false),
@@ -90,13 +92,35 @@ export function CookieCutterTool({
                 setImportFailed(false);
                 setError('');
                 setManualContour(null);
+                setSketchSeed([]);
                 setManual(true);
               }}
             >
               {text.startSketch}
             </button>
           )}
-          {manual && <CutterSketch onChange={setManualContour} />}
+          {!manual && contour && !importBusy && !importFailed && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                try {
+                  const seed = cutterSketchSeed(contour);
+                  request.current++;
+                  setSketchSeed(seed);
+                  setManualContour(null);
+                  setContour(null);
+                  setError('');
+                  setManual(true);
+                } catch {
+                  setError(text.svgError);
+                }
+              }}
+            >
+              {text.editImported}
+            </button>
+          )}
+          {manual && <CutterSketch initialPoints={sketchSeed} onChange={setManualContour} />}
           {!manual && (
             <>
               <label>

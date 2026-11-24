@@ -264,6 +264,20 @@ test('convex SVG cutter preview and rejected import remain accessible at 320px',
     panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true }),
   ).toBeEnabled();
   await audit(page, info, 'convex-cutter-svg-320');
+  await panel.getByRole('button', { name: 'ویرایش نقاط SVG واردشده', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true }),
+  ).toBeDisabled();
+  await audit(page, info, 'convex-cutter-svg-edit-pending-320');
+  await panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true }),
+  ).toBeEnabled();
+  await audit(page, info, 'convex-cutter-svg-edit-closed-320');
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).click();
+
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
   await input.setInputFiles({
     name: 'invalid.svg',

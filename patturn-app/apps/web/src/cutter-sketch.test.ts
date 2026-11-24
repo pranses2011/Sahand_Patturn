@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { cutterSketchHit, cutterSketchPoint } from './cutter-sketch';
+import { cutterSketchHit, cutterSketchPoint, cutterSketchSeed } from './cutter-sketch';
 it.each([
   [160, 160],
   [320, 320],
@@ -43,4 +43,60 @@ it('hit testing preserves pixel tolerance for resized and nonsquare viewports', 
 it('hit testing rejects unusable pointer coordinates and viewport', () => {
   expect(() => cutterSketchHit([], NaN, 0, 320, 320)).toThrow('INVALID_VIEWPORT');
   expect(() => cutterSketchHit([], 0, 0, 0, 320)).toThrow('INVALID_VIEWPORT');
+});
+
+it('seeds a translated fractional SVG contour without rounding, rescaling or mutating it', () => {
+  const input = [
+    [-10.25, 20.5],
+    [20.125, 20.5],
+    [20.125, 81.75],
+    [-10.25, 81.75],
+    [-10.25, 20.5],
+  ] as const;
+  const before = JSON.stringify(input);
+  expect(cutterSketchSeed(input)).toEqual([
+    [0, 0],
+    [30.375, 0],
+    [30.375, 61.25],
+    [0, 61.25],
+  ]);
+  expect(JSON.stringify(input)).toBe(before);
+});
+it('keeps reversed winding and returns independent copies even for a contour already at the origin', () => {
+  const input: [[number, number], [number, number], [number, number]] = [
+    [0, 0],
+    [0, 40],
+    [40, 40],
+  ];
+  const result = cutterSketchSeed(input);
+  expect(result).toEqual(input);
+  expect(result).not.toBe(input);
+  expect(result[0]).not.toBe(input[0]);
+});
+it.each([
+  {
+    points: [
+      [0, 0],
+      [10, 0],
+      [0, 10],
+    ],
+  },
+  {
+    points: [
+      [0, 0],
+      [40, 0],
+      [10, 10],
+      [40, 40],
+      [0, 40],
+    ],
+  },
+  {
+    points: [
+      [0, 0],
+      [Infinity, 0],
+      [0, 40],
+    ],
+  },
+])('does not simplify unsupported SVG contours %#', ({ points }) => {
+  expect(() => cutterSketchSeed(points as [number, number][])).toThrow();
 });

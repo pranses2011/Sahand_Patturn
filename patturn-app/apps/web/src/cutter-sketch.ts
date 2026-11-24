@@ -1,3 +1,4 @@
+import { convexCutterProfile, type CutterPoint } from '@patturn/kernel';
 /** Physical 150mm workspace inside a 5mm viewport margin. Snap to 1mm, never pixels as mm. */
 export function cutterSketchPoint(
   x: number,
@@ -33,4 +34,14 @@ export function cutterSketchHit(
     }
   });
   return nearest;
+}
+
+/** Copy a supported SVG contour into the workspace without rescaling or changing topology. */
+export function cutterSketchSeed(input: readonly CutterPoint[]): CutterPoint[] {
+  convexCutterProfile(input, { heightMm: 20, wallMm: 1.6, tipMm: 0.6 });
+  const points = input.slice();
+  if (points[0]![0] === points.at(-1)![0] && points[0]![1] === points.at(-1)![1]) points.pop();
+  const minX = Math.min(...points.map((p) => p[0])),
+    minY = Math.min(...points.map((p) => p[1]));
+  return points.map(([x, y]) => [x - minX, y - minY]);
 }
