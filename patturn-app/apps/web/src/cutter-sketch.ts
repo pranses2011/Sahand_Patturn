@@ -12,3 +12,25 @@ export function cutterSketchPoint(
     Math.round(Math.max(0, Math.min(150, (y / height) * 160 - 5))),
   ];
 }
+
+/** Hit tolerance is in CSS pixels, independent of the physical workspace and zoom. */
+export function cutterSketchHit(
+  points: readonly (readonly [number, number])[],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): number | null {
+  // Share viewport validation with coordinate conversion, but do not snap before hit testing.
+  cutterSketchPoint(x, y, width, height);
+  let nearest: number | null = null;
+  let distance = 12 ** 2;
+  points.forEach(([px, py], index) => {
+    const squared = (((px + 5) / 160) * width - x) ** 2 + (((py + 5) / 160) * height - y) ** 2;
+    if (squared <= distance && (nearest === null || squared < distance)) {
+      nearest = index;
+      distance = squared;
+    }
+  });
+  return nearest;
+}

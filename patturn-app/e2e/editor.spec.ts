@@ -4216,3 +4216,119 @@ test('manual cutter vertex edits require explicit apply and revalidation and rej
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('manual cutter drag mode moves only an existing vertex, blocks stale STL and restores cancelled gestures', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  await panel.getByRole('button', { name: 'رسم چندضلعی محدب با نقاط', exact: true }).click();
+  const canvas = panel.getByRole('img', {
+    name: 'صفحهٔ رسم نقطه‌ای کاتر با نشانگر صفحه‌کلید',
+    exact: true,
+  });
+  const finish = panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true });
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true });
+  await canvas.focus();
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowRight');
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowDown');
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowLeft');
+  await page.keyboard.press('Enter');
+  await finish.click();
+  const mode = panel.getByRole('button', { name: 'حالت جابه‌جایی رأس با کشیدن', exact: true });
+  await mode.click();
+  await expect(mode).toHaveAttribute('aria-pressed', 'true');
+  const location = async (x: number, y: number) => {
+    await canvas.scrollIntoViewIfNeeded();
+    const box = (await canvas.boundingBox())!;
+    return { x: box.x + ((x + 5.3) / 160) * box.width, y: box.y + ((y + 5.3) / 160) * box.height };
+  };
+  const move = async (x: number, y: number) => {
+    const p = await location(x, y);
+    await page.mouse.move(p.x, p.y);
+  };
+  const selection = panel.getByLabel('انتخاب رأس کاتر', { exact: true });
+  // Empty space in move mode must not add a point or invalidate a closed shape.
+  await move(110, 110);
+  await page.mouse.click((await location(110, 110)).x, (await location(110, 110)).y);
+  await expect(selection.locator('option')).toHaveCount(4);
+  await expect(output).toBeEnabled();
+  await move(70, 30);
+  await page.mouse.down();
+  await expect(output).toBeDisabled();
+  await expect(finish).toBeDisabled();
+  await expect(mode).toBeDisabled();
+  await move(90, 30);
+  await page.mouse.up();
+  await expect(finish).toBeEnabled();
+  await expect(output).toBeDisabled();
+  await expect(selection).toHaveValue('1');
+  await expect(
+    panel.getByRole('spinbutton', { name: 'مختصات افقی رأس کاتر (mm)', exact: true }),
+  ).toHaveValue('90');
+  await finish.click();
+  await expect(output).toBeEnabled();
+  await expect(panel).toContainText('۶۰ × ۴۰ mm');
+  const pending = page.waitForEvent('download');
+  await output.click();
+  const bytes = await readFile((await (await pending).path())!);
+  expect(bytes.readUInt32LE(80)).toBe(56);
+  // Move into the interior: geometry must reject, with no silent convex hull.
+  await move(90, 30);
+  await page.mouse.down();
+  await move(50, 60);
+  await page.mouse.up();
+  await finish.click();
+  await expect(panel.getByRole('alert')).toContainText('طرح پذیرفته نشد');
+  await expect(output).toBeDisabled();
+  // Escape restores the previous invalid coordinates; it does not resurrect an export.
+  await move(50, 60);
+  await page.mouse.down();
+  await move(90, 30);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await expect(
+    panel.getByRole('spinbutton', { name: 'مختصات افقی رأس کاتر (mm)', exact: true }),
+  ).toHaveValue('50');
+  await expect(output).toBeDisabled();
+  // Recover with a completed gesture.
+  await move(50, 60);
+  await page.mouse.down();
+  await move(90, 30);
+  await page.mouse.up();
+  await finish.click();
+  await expect(output).toBeEnabled();
+  // Captured pointer continues outside the SVG and clamps to the physical workspace.
+  await move(90, 30);
+  await page.mouse.down();
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + box.width + 25, box.y + box.height / 2);
+  await page.mouse.up();
+  await expect(
+    panel.getByRole('spinbutton', { name: 'مختصات افقی رأس کاتر (mm)', exact: true }),
+  ).toHaveValue('150');
+  await expect(output).toBeDisabled();
+  // Native pointer cancellation restores the snapshot, never the old validated status.
+  await move(150, 75);
+  await page.mouse.down();
+  await move(100, 30);
+  await canvas.dispatchEvent('pointercancel', {
+    pointerId: 1,
+    isPrimary: true,
+    pointerType: 'mouse',
+  });
+  await page.mouse.up();
+  await expect(
+    panel.getByRole('spinbutton', { name: 'مختصات افقی رأس کاتر (mm)', exact: true }),
+  ).toHaveValue('150');
+  await expect(output).toBeDisabled();
+  await expect(selection.locator('option')).toHaveCount(4);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import { convexCutterProfile, type CutterPoint } from '@patturn/kernel';
-import { cutterSketchPoint } from './cutter-sketch';
+import { cutterSketchHit, cutterSketchPoint } from './cutter-sketch';
 import { cookieSketch as text } from './messages/fa.json';
 import { formatNumber } from './number-format';
 export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | null) => void }) {
@@ -14,6 +14,18 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
     [error, setError] = useState('');
   const canvas = useRef<SVGSVGElement>(null);
   const help = useId();
+  const [moveMode, setMoveMode] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ pointerId: number; index: number; before: CutterPoint[] } | null>(null);
+  const cancelDrag = () => {
+    const active = drag.current;
+    if (!active) return;
+    drag.current = null;
+    setPoints(active.before);
+    setDragging(false);
+    if (canvas.current?.hasPointerCapture(active.pointerId))
+      canvas.current.releasePointerCapture(active.pointerId);
+  };
   const invalidate = () => {
     setEditorEpoch((value) => value + 1);
     setDraftDirty(false);
@@ -39,6 +51,16 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
       <p id={help} className="hint">
         {text.help}
       </p>
+      <button
+        type="button"
+        className="btn"
+        aria-pressed={moveMode}
+        disabled={dragging}
+        onClick={() => setMoveMode((value) => !value)}
+      >
+        {text.moveMode}
+      </button>
+      <p className="hint">{text.moveHelp}</p>
       <svg
         ref={canvas}
         viewBox="0 0 160 160"
@@ -47,8 +69,60 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
         tabIndex={0}
         aria-label={text.canvas}
         aria-describedby={help}
-        style={{ width: '100%', aspectRatio: '1', background: '#fff', touchAction: 'manipulation' }}
+        style={{
+          width: '100%',
+          aspectRatio: '1',
+          background: '#fff',
+          touchAction: moveMode ? 'none' : 'manipulation',
+        }}
+        onPointerDown={(event) => {
+          if (!moveMode || drag.current || !event.isPrimary || event.button !== 0) return;
+          const box = event.currentTarget.getBoundingClientRect();
+          const index = cutterSketchHit(
+            points,
+            event.clientX - box.left,
+            event.clientY - box.top,
+            box.width,
+            box.height,
+          );
+          if (index === null) return;
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          drag.current = { pointerId: event.pointerId, index, before: points };
+          invalidate();
+          setSelected(index);
+          setDragging(true);
+          event.currentTarget.focus();
+        }}
+        onPointerMove={(event) => {
+          const active = drag.current;
+          if (!active || active.pointerId !== event.pointerId) return;
+          const box = event.currentTarget.getBoundingClientRect();
+          const point = cutterSketchPoint(
+            event.clientX - box.left,
+            event.clientY - box.top,
+            box.width,
+            box.height,
+          );
+          setCursor(point);
+          setPoints(
+            active.before.map((previous, index) => (index === active.index ? point : previous)),
+          );
+        }}
+        onPointerUp={(event) => {
+          if (drag.current?.pointerId !== event.pointerId) return;
+          drag.current = null;
+          setDragging(false);
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={(event) => {
+          if (drag.current?.pointerId === event.pointerId) cancelDrag();
+        }}
+        onLostPointerCapture={(event) => {
+          if (drag.current?.pointerId === event.pointerId) cancelDrag();
+        }}
         onClick={(event) => {
+          if (moveMode) return;
           const box = event.currentTarget.getBoundingClientRect();
           const point = cutterSketchPoint(
             event.clientX - box.left,
@@ -61,6 +135,11 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
           canvas.current?.focus();
         }}
         onKeyDown={(event) => {
+          if (drag.current) {
+            event.preventDefault();
+            if (event.key === 'Escape') cancelDrag();
+            return;
+          }
           const step = event.shiftKey ? 10 : 1;
           if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
             event.preventDefault();
@@ -82,10 +161,10 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
             ]);
           } else if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            add(cursor);
+            if (!moveMode) add(cursor);
           } else if (event.key === 'Backspace') {
             event.preventDefault();
-            undo();
+            if (!moveMode) undo();
           }
         }}
       >
@@ -108,7 +187,13 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
           strokeWidth="0.8"
         />
         {points.map((p, i) => (
-          <circle key={i} cx={p[0] + 5} cy={p[1] + 5} r="1" fill="#1c1917" />
+          <circle
+            key={i}
+            cx={p[0] + 5}
+            cy={p[1] + 5}
+            r={moveMode ? 2 : 1}
+            fill={moveMode && i === selectedIndex ? '#a94f21' : '#1c1917'}
+          />
         ))}
         <path
           d={`M${cursor[0] + 2} ${cursor[1] + 5}h6M${cursor[0] + 5} ${cursor[1] + 2}v6`}
@@ -121,7 +206,7 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
         {formatNumber(cursor[1])} mm؛ {closed ? text.closed : text.open}
       </p>
       {points.length > 0 && (
-        <fieldset>
+        <fieldset disabled={dragging}>
           <legend>{text.editLegend}</legend>
           <label>
             {text.selectVertex}
@@ -172,7 +257,7 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
       <button
         type="button"
         className="btn"
-        disabled={points.length < 3 || draftDirty}
+        disabled={points.length < 3 || draftDirty || dragging}
         onClick={() => {
           try {
             convexCutterProfile(points, { heightMm: 20, wallMm: 1.6, tipMm: 0.6 });
@@ -188,13 +273,13 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
       >
         {text.finish}
       </button>{' '}
-      <button type="button" className="btn" disabled={!points.length} onClick={undo}>
+      <button type="button" className="btn" disabled={!points.length || dragging} onClick={undo}>
         {text.undo}
       </button>{' '}
       <button
         type="button"
         className="btn"
-        disabled={!points.length}
+        disabled={!points.length || dragging}
         onClick={() => {
           invalidate();
           setPoints([]);
