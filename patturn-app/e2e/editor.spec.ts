@@ -3746,7 +3746,16 @@ test('native close IPC asks about dirty named projects, supports cancellation an
         };
         triggerNativeClose: () => Promise<void>;
       };
-      const state = { destroyed: 0, prompts: 0, accept: false, fail: false, ready: false };
+      const state = {
+        destroyed: 0,
+        prompts: 0,
+        accept: false,
+        fail: false,
+        ready: false,
+        listenFail: true,
+        listenCalls: 0,
+        unlistenCalls: 0,
+      };
       target.nativeCloseState = state;
       const original = target.__TAURI_INTERNALS__.invoke;
       target.__TAURI_INTERNALS__.metadata = { currentWindow: { label: 'main' } };
@@ -3762,11 +3771,16 @@ test('native close IPC asks about dirty named projects, supports cancellation an
       };
       target.__TAURI_INTERNALS__.invoke = async (command, args) => {
         if (command === 'plugin:event|listen') {
+          state.listenCalls++;
+          if (state.listenFail) throw Error('synthetic registration failure');
           closeId = args.handler;
           state.ready = true;
           return closeId;
         }
-        if (command === 'plugin:event|unlisten') return null;
+        if (command === 'plugin:event|unlisten') {
+          state.unlistenCalls++;
+          return null;
+        }
         if (command === 'plugin:window|destroy') {
           state.destroyed++;
           return null;
@@ -3794,10 +3808,34 @@ test('native close IPC asks about dirty named projects, supports cancellation an
         () =>
           (
             window as unknown as {
-              nativeCloseState: { ready: boolean; prompts: number; destroyed: number };
+              nativeCloseState: {
+                ready: boolean;
+                prompts: number;
+                destroyed: number;
+                listenCalls: number;
+                unlistenCalls: number;
+              };
             }
           ).nativeCloseState,
       );
+    const guardStatus = manager.getByRole('status', {
+      name: 'وضعیت هشدار بستن دسکتاپ',
+      exact: true,
+    });
+    const retry = manager.getByRole('button', {
+      name: 'تلاش دوباره برای هشدار بستن دسکتاپ',
+      exact: true,
+    });
+    await expect(guardStatus).toContainText('فعال نیست یا خطا داده است');
+    await page.evaluate(
+      () =>
+        ((
+          window as unknown as { nativeCloseState: { listenFail: boolean } }
+        ).nativeCloseState.listenFail = false),
+    );
+    await retry.click();
+    await expect(guardStatus).toContainText('آماده است');
+    expect((await state()).listenCalls).toBe(2);
     await expect.poll(async () => (await state()).ready).toBe(true);
     const close = () =>
       page.evaluate(() =>
@@ -3830,6 +3868,11 @@ test('native close IPC asks about dirty named projects, supports cancellation an
       state.fail = false;
       state.accept = true;
     });
+    await retry.click();
+    await expect(guardStatus).toContainText('آماده است');
+    await expect(retry).toHaveCount(0);
+    expect((await state()).listenCalls).toBe(3);
+    await expect.poll(async () => (await state()).unlistenCalls).toBe(1);
     await close();
     expect((await state()).destroyed).toBe(2);
     expect(

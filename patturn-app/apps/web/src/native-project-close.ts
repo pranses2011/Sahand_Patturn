@@ -1,7 +1,11 @@
 import { installCloseGuard } from './close-guard';
 import { projectClose as text } from './messages/fa.json';
 /** Desktop-only adapter. Native close is confirmed, never advertised as an exit flush. */
-export function nativeProjectCloseGuard(shouldWarn: () => boolean, onError: () => void) {
+export function nativeProjectCloseGuard(
+  shouldWarn: () => boolean,
+  onError: () => void,
+  onReady: () => void = () => {},
+) {
   let confirm: (() => Promise<boolean>) | null = null;
   return installCloseGuard(
     {
@@ -29,5 +33,6 @@ export function nativeProjectCloseGuard(shouldWarn: () => boolean, onError: () =
     },
     shouldWarn,
     onError,
+    onReady,
   );
 }

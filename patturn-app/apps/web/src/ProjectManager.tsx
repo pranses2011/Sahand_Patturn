@@ -37,7 +37,10 @@ export function ProjectManager({
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [attempt, setAttempt] = useState(0);
-  const [closeGuardFailed, setCloseGuardFailed] = useState(false);
+  const [closeGuardStatus, setCloseGuardStatus] = useState<'loading' | 'ready' | 'failed'>(
+    'loading',
+  );
+  const [closeGuardAttempt, setCloseGuardAttempt] = useState(0);
   const closeWarning = useRef(false);
   const nameInput = useRef<HTMLInputElement>(null);
   const active = useRef(true),
@@ -140,13 +143,21 @@ export function ProjectManager({
   closeWarning.current = dirty;
   useEffect(() => {
     if (!isDesktop()) return;
-    return nativeProjectCloseGuard(
+    let alive = true;
+    const stop = nativeProjectCloseGuard(
       () => closeWarning.current || lock.current,
       () => {
-        if (active.current) setCloseGuardFailed(true);
+        if (alive) setCloseGuardStatus('failed');
+      },
+      () => {
+        if (alive) setCloseGuardStatus('ready');
       },
     );
-  }, []);
+    return () => {
+      alive = false;
+      stop();
+    };
+  }, [closeGuardAttempt]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => {
@@ -168,7 +179,29 @@ export function ProjectManager({
           {projectWriteLockSupported() ? concurrencyText.supported : concurrencyText.unsupported}
         </p>
       )}
-      {closeGuardFailed && <p className="hint">{closeText.failed}</p>}
+      {isDesktop() && (
+        <div>
+          <p role="status" aria-label={closeText.status}>
+            {closeGuardStatus === 'ready'
+              ? closeText.ready
+              : closeGuardStatus === 'loading'
+                ? closeText.loading
+                : closeText.failed}
+          </p>
+          {closeGuardStatus === 'failed' && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setCloseGuardStatus('loading');
+                setCloseGuardAttempt((value) => value + 1);
+              }}
+            >
+              {closeText.retry}
+            </button>
+          )}
+        </div>
+      )}
       {opened && (
         <div>
           <p>پروژهٔ بازشده: {opened.name}</p>

@@ -125,3 +125,74 @@ it('grants the explicit destroy permission required by the native onCloseRequest
   expect(capability.windows).toEqual(['main']);
   expect(capability.permissions).toContain('core:window:allow-destroy');
 });
+
+it('blocks a second close while a prompt is pending even if the document became clean', async () => {
+  let release = (value: boolean) => {};
+  const gate = new Promise<boolean>((resolve) => {
+    release = resolve;
+  });
+  const state = setup(() => gate);
+  const first = state.close();
+  state.clean();
+  expect((await state.close()).preventDefault).toHaveBeenCalledOnce();
+  release(false);
+  expect((await first).preventDefault).toHaveBeenCalledOnce();
+  state.dispose();
+});
+it('prevents close and reports a synchronous dirty-check failure', async () => {
+  let handler!: Parameters<CloseGuardDriver['subscribe']>[0];
+  const failed = vi.fn();
+  const stop = installCloseGuard(
+    {
+      subscribe: async (callback) => {
+        handler = callback;
+        return () => {};
+      },
+      confirm: async () => true,
+    },
+    () => {
+      throw Error('predicate');
+    },
+    failed,
+  );
+  const event = { preventDefault: vi.fn() };
+  await handler(event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  expect(failed).toHaveBeenCalledOnce();
+  stop();
+});
+it('reports synchronous registration failure and tolerates repeated disposal', () => {
+  const failed = vi.fn();
+  const stop = installCloseGuard(
+    {
+      subscribe: () => {
+        throw Error('registration');
+      },
+      confirm: async () => true,
+    },
+    () => true,
+    failed,
+  );
+  expect(failed).toHaveBeenCalledOnce();
+  expect(() => {
+    stop();
+    stop();
+  }).not.toThrow();
+});
+it('announces readiness only for a live registration and handles throwing cleanup', async () => {
+  const ready = vi.fn();
+  const dispose = installCloseGuard(
+    {
+      subscribe: async () => () => {
+        throw Error('cleanup');
+      },
+      confirm: async () => true,
+    },
+    () => false,
+    vi.fn(),
+    ready,
+  );
+  await Promise.resolve();
+  expect(ready).toHaveBeenCalledOnce();
+  expect(() => dispose()).not.toThrow();
+});

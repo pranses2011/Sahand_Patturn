@@ -7,42 +7,53 @@ export function installCloseGuard(
   driver: CloseGuardDriver,
   shouldWarn: () => boolean,
   onError: () => void,
+  onReady: () => void = () => {},
 ): () => void {
   let active = true,
     asking = false;
   let unlisten: (() => void) | null = null;
-  void driver
-    .subscribe(async (event) => {
-      if (!active) {
-        event.preventDefault();
-        return;
-      }
-      if (!shouldWarn()) return;
-      if (asking) {
-        event.preventDefault();
-        return;
-      }
-      asking = true;
-      try {
-        const accepted = await driver.confirm();
-        if (!active || !accepted) event.preventDefault();
-      } catch {
-        event.preventDefault();
-        if (active) onError();
-      } finally {
-        asking = false;
-      }
-    })
-    .then((stop) => {
-      if (active) unlisten = stop;
-      else stop();
-    })
-    .catch(() => {
+  const release = (stop: () => void) => {
+    try {
+      stop();
+    } catch {
       if (active) onError();
-    });
-  return () => {
+    }
+  };
+  const dispose = () => {
     active = false;
-    unlisten?.();
+    if (unlisten) release(unlisten);
     unlisten = null;
   };
+  try {
+    void driver
+      .subscribe(async (event) => {
+        if (!active || asking) {
+          event.preventDefault();
+          return;
+        }
+        try {
+          if (!shouldWarn()) return;
+          asking = true;
+          const accepted = await driver.confirm();
+          if (!active || !accepted) event.preventDefault();
+        } catch {
+          event.preventDefault();
+          if (active) onError();
+        } finally {
+          asking = false;
+        }
+      })
+      .then((stop) => {
+        if (active) {
+          unlisten = stop;
+          onReady();
+        } else release(stop);
+      })
+      .catch(() => {
+        if (active) onError();
+      });
+  } catch {
+    if (active) onError();
+  }
+  return dispose;
 }
