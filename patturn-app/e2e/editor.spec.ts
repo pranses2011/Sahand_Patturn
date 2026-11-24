@@ -2399,3 +2399,48 @@ test('rib tool derives a live 2D cavity profile and exports mm templates without
   await page.getByText('ریب‌ساز — الگوی دوبعدی پروفیل داخلی', { exact: true }).click();
   await expect(backing).toHaveValue('30');
 });
+
+test('rib solid exports validated thickness in binary STL and refreshes with the cavity', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ریب‌ساز — الگوی دوبعدی پروفیل داخلی', { exact: true }).click();
+  const preview = page.getByRole('img', { name: 'پیش‌نمایش ریب پروفیل', exact: true });
+  const before = await preview.locator('path').getAttribute('d');
+  const thickness = page.getByRole('spinbutton', { name: 'ضخامت ریب', exact: true });
+  await thickness.fill('6');
+  await thickness.press('Enter');
+  await expect(
+    page.getByRole('img', { name: 'نمای ضخامت ریب', exact: true }).locator('rect'),
+  ).toHaveAttribute('width', '6');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'دانلود STL ریب', exact: true }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('rib_solid_back20-T6mm.stl');
+  const bytes = await readFile((await file.path())!);
+  const count = bytes.readUInt32LE(80);
+  expect(bytes.length).toBe(84 + 50 * count);
+  expect(count).toBeGreaterThan(100);
+  let minZ = Infinity,
+    maxZ = -Infinity;
+  for (let t = 0; t < count; t++)
+    for (let v = 0; v < 3; v++) {
+      const z = bytes.readFloatLE(84 + t * 50 + 12 + v * 12 + 8);
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
+    }
+  expect(minZ).toBe(0);
+  expect(maxZ).toBe(6);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  await page.getByRole('button', { name: '🏺 فرم', exact: true }).click();
+  const wall = page
+    .locator('.ctl')
+    .filter({ hasText: 'ضخامت شعاعی برای ظرفیت' })
+    .locator('input.num');
+  await wall.fill('6');
+  await wall.press('Enter');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ریب‌ساز — الگوی دوبعدی پروفیل داخلی', { exact: true }).click();
+  await expect(preview.locator('path')).not.toHaveAttribute('d', before!);
+});

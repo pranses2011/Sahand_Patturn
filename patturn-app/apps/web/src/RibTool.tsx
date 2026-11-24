@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import type { Profile } from '@patturn/kernel';
+import { buildRibMesh, type Profile } from '@patturn/kernel';
 import { buildRib } from '@patturn/patterns';
-import { toSvg, toDxf, exportName } from '@patturn/exporters';
+import { toSvg, toDxf, toBinaryStl, exportName } from '@patturn/exporters';
 import { NumericControl } from './NumericControl';
 import { dxfErrorMessage } from './export-error';
 import { formatNumber } from './number-format';
@@ -14,6 +14,7 @@ export function RibTool({
   onExport: (name: string, bytes: Uint8Array) => void;
 }) {
   const [backing, setBacking] = useState(20);
+  const [thickness, setThickness] = useState(4);
   const [error, setError] = useState('');
   const drawing = useMemo(() => {
     try {
@@ -22,6 +23,19 @@ export function RibTool({
       return null;
     }
   }, [profile, backing]);
+  function downloadStl() {
+    if (!drawing) return;
+    try {
+      const result = toBinaryStl(buildRibMesh(drawing.contact, thickness), 'rib');
+      if (!result.ok || !result.bytes) throw new Error('RIB_MESH_INVALID');
+      setError('');
+      onExport(exportName('rib', 'solid', `back${backing}-T${thickness}mm`, 'stl'), result.bytes);
+    } catch {
+      setError(
+        'مش ریب معتبر ساخته نشد؛ فاصلهٔ ارتفاع نقاط باید دست‌کم ۰٫۰۰۱mm باشد. فایلی تحویل نشد.',
+      );
+    }
+  }
   function download(format: 'svg' | 'dxf') {
     if (!drawing) return;
     const result =
@@ -54,6 +68,20 @@ export function RibTool({
         onBeginEdit={() => {}}
         onEndEdit={() => {}}
       />
+      <NumericControl
+        label="ضخامت ریب"
+        value={thickness}
+        onChange={(n) => {
+          setThickness(n);
+          setError('');
+        }}
+        min={1}
+        max={12}
+        step={0.5}
+        unit="mm"
+        onBeginEdit={() => {}}
+        onEndEdit={() => {}}
+      />
       {drawing ? (
         <>
           <p>
@@ -67,6 +95,23 @@ export function RibTool({
           >
             <path d={drawing.paths[0]!.d} fill="none" stroke="currentColor" strokeWidth={0.2} />
           </svg>
+          <svg
+            role="img"
+            aria-label="نمای ضخامت ریب"
+            viewBox={`-1 -1 ${thickness + 2} ${drawing.height + 2}`}
+            style={{ width: '100%', maxHeight: 100 }}
+          >
+            <rect
+              width={thickness}
+              height={drawing.height}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={0.2}
+            />
+          </svg>
+          <button type="button" className="btn" onClick={downloadStl}>
+            دانلود STL ریب
+          </button>
           <button type="button" className="btn" onClick={() => download('svg')}>
             دانلود SVG ریب
           </button>
@@ -78,8 +123,8 @@ export function RibTool({
         <p role="alert">پروفیل ریب معتبر نیست؛ ارتفاع باید صعودی و ابعاد در محدودهٔ مجاز باشد.</p>
       )}
       <p className="hint">
-        الگوی دوبعدی موقت و خارج از پروژه/ZIP است؛ خروجی STL و PDF و ریب سه‌بعدی هنوز پشتیبانی
-        نمی‌شود. تغییر فرم یا دیواره، پیش‌نمایش را به‌روز می‌کند.
+        ریب با ضخامت یکنواخت و موقت، خارج از پروژه/ZIP است؛ خروجی PDF هنوز پشتیبانی نمی‌شود. تغییر
+        فرم یا دیواره، پیش‌نمایش را به‌روز می‌کند.
       </p>
       {error && <p role="alert">{error}</p>}
     </>
