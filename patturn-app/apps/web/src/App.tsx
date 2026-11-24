@@ -9,7 +9,7 @@ import { PrivacyNotice } from './PrivacyNotice';
 import { requestBrowserDownload } from './browser-download';
 import { historyShortcut } from './history-shortcut';
 import { preserveNativeUndo } from './native-undo';
-import { zipErrorMessage } from './export-error';
+import { zipErrorMessage, dxfErrorMessage } from './export-error';
 import { createPatternCanvas } from './pattern-canvas';
 import { useEditorMode } from './useEditorMode';
 import { EditorNavigation, type EditorSection as Part } from './EditorNavigation';
@@ -888,9 +888,7 @@ export function App() {
   const doExportDxf = () => {
     const res = toDxf(getPatternPaths(), { width: 300, height: 300 }, { bezierToleranceMm: 0.05 });
     if (!res.ok) {
-      setProjectError(
-        'خروجی DXF ساخته نشد: این نسخه مسیر نامعتبر یا پشتیبانی‌نشده است یا تقریب منحنی به تلورانس نرسید. از SVG استفاده کنید.',
-      );
+      setProjectError(`خروجی DXF ساخته نشد: ${dxfErrorMessage(res.error)}`);
       return;
     }
     download(res.filename, res.bytes!);

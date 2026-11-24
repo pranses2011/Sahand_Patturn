@@ -1,3 +1,4 @@
+import { dxfErrorMessage } from './export-error';
 import { useMemo, useState } from 'react';
 import { buildJigsaw } from '@patturn/patterns';
 import { exportName, toSvg, toDxf } from '@patturn/exporters';
@@ -46,7 +47,11 @@ export function JigsawTool({ onExport }: { onExport: (name: string, bytes: Uint8
             { bezierToleranceMm: 0.05 },
           );
     if (!output.ok || !output.bytes) {
-      setError('تولید خروجی پازل ناموفق بود؛ پارامترها را بررسی کنید.');
+      setError(
+        format === 'dxf'
+          ? dxfErrorMessage(output.error)
+          : 'تولید خروجی پازل ناموفق بود؛ پارامترها را بررسی کنید.',
+      );
       return;
     }
     onExport(

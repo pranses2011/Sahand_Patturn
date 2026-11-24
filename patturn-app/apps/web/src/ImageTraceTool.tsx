@@ -1,3 +1,4 @@
+import { dxfErrorMessage } from './export-error';
 import { StampTool } from './StampTool';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { traceImage, detectIslands, bridgeIsland } from '@patturn/patterns';
@@ -95,7 +96,7 @@ export function ImageTraceTool({
         ? toSvg(drawing.paths, drawing.width, drawing.height, { strokeMm: 0.2 })
         : toDxf(drawing.paths, { width: drawing.width, height: drawing.height });
     if (!output.ok || !output.bytes) {
-      setError('تولید فایل ردیابی ناموفق بود.');
+      setError(format === 'dxf' ? dxfErrorMessage(output.error) : 'تولید فایل ردیابی ناموفق بود.');
       return;
     }
     onExport(

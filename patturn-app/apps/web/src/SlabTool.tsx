@@ -1,3 +1,4 @@
+import { dxfErrorMessage } from './export-error';
 import { useMemo, useState } from 'react';
 import { buildSlab } from '@patturn/patterns';
 import { exportName, toSvg, toDxf } from '@patturn/exporters';
@@ -40,7 +41,7 @@ export function SlabTool({ onExport }: { onExport: (name: string, bytes: Uint8Ar
         ? toSvg(drawing.paths, drawing.width, drawing.height, { strokeMm: 0.2 })
         : toDxf(drawing.paths, { width: drawing.width, height: drawing.height });
     if (!out.ok || !out.bytes) {
-      setError('خروجی اسلب تولید نشد.');
+      setError(format === 'dxf' ? dxfErrorMessage(out.error) : 'خروجی اسلب تولید نشد.');
       return;
     }
     onExport(
