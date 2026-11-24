@@ -193,3 +193,37 @@ test('keyboard camera zoom and orbit controls change the view and reset without 
     page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true }),
   ).toHaveValue('4');
 });
+
+test('software WebGL resizes its drawing surface across narrow reflow and desktop layouts', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  const canvas = page.locator('.viewport canvas');
+  await expect(canvas).toBeVisible();
+  for (const width of [320, 900, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const host = document.querySelector('.viewport') as HTMLElement;
+          const canvas = host.querySelector('canvas')!;
+          const ratio = Math.min(window.devicePixelRatio, 2);
+          return (
+            Math.abs(canvas.width / ratio - host.clientWidth) <= 1 &&
+            Math.abs(canvas.height / ratio - host.clientHeight) <= 1 &&
+            host.clientHeight >= 300
+          );
+        }),
+      )
+      .toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width + 1,
+    );
+  }
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'نمایش سه‌بعدی در دسترس نیست' }),
+  ).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
