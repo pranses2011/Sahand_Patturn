@@ -3483,3 +3483,152 @@ for (const desktop of [false, true]) {
     }
   });
 }
+
+test('real Web Locks serialize project writes across tabs and reject a stale opened snapshot', async ({
+  page,
+  context,
+}) => {
+  const second = await context.newPage();
+  const label = 'مدیریت پروژه‌ها — ذخیره با نام و بازکردن';
+  const hold = async () => {
+    await page.evaluate(() => {
+      const target = window as unknown as {
+        releaseProjectLock: () => void;
+        projectLockHeld: boolean;
+      };
+      target.projectLockHeld = false;
+      const gate = new Promise<void>((resolve) => {
+        target.releaseProjectLock = resolve;
+      });
+      void navigator.locks.request('patturn:projects:write', async () => {
+        target.projectLockHeld = true;
+        await gate;
+      });
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(() => (window as unknown as { projectLockHeld: boolean }).projectLockHeld),
+      )
+      .toBe(true);
+  };
+  const release = () =>
+    page.evaluate(() =>
+      (window as unknown as { releaseProjectLock: () => void }).releaseProjectLock(),
+    );
+  const queued = async () =>
+    await page.evaluate(
+      async () =>
+        (await navigator.locks.query()).pending?.filter(
+          (lock) => lock.name === 'patturn:projects:write',
+        ).length ?? 0,
+    );
+  try {
+    for (const tab of [page, second]) {
+      await tab.goto('/');
+      await tab.getByText(label, { exact: true }).click();
+    }
+    const firstManager = page.locator('.project-manager'),
+      secondManager = second.locator('.project-manager');
+    await expect(firstManager).toContainText('با Web Locks هماهنگ است');
+    await hold();
+    await firstManager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('تب اول');
+    await secondManager
+      .getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true })
+      .fill('تب دوم');
+    await Promise.all(
+      [firstManager, secondManager].map((manager) =>
+        manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click(),
+      ),
+    );
+    await expect.poll(queued).toBe(2);
+    expect(await page.evaluate(() => localStorage.getItem('patturn:projects'))).toBeNull();
+    await release();
+    await expect
+      .poll(() =>
+        page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects') ?? '[]').length),
+      )
+      .toBe(2);
+    for (const tab of [page, second]) {
+      const manager = tab.locator('.project-manager');
+      await expect(
+        manager.getByRole('button', { name: 'بازخوانی فهرست پروژه‌ها', exact: true }),
+      ).toBeEnabled();
+      await manager.getByRole('button', { name: 'بازخوانی فهرست پروژه‌ها', exact: true }).click();
+      const open = manager.getByRole('button', { name: 'بازکردن تب اول', exact: true });
+      await expect(open).toBeEnabled();
+      tab.once('dialog', (dialog) => dialog.accept());
+      await open.click();
+      await expect(
+        manager.getByRole('button', { name: 'ذخیرهٔ تغییرات در پروژهٔ بازشده', exact: true }),
+      ).toBeVisible();
+    }
+    const wall = (tab: import('@playwright/test').Page) =>
+      tab.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+    await wall(page).fill('5');
+    await wall(page).press('Enter');
+    await wall(second).fill('6');
+    await wall(second).press('Enter');
+    await hold();
+    page.once('dialog', (dialog) => dialog.accept());
+    second.once('dialog', (dialog) => dialog.accept());
+    await Promise.all(
+      [firstManager, secondManager].map((manager) =>
+        manager.getByRole('button', { name: 'ذخیرهٔ تغییرات در پروژهٔ بازشده', exact: true }).click(),
+      ),
+    );
+    await expect.poll(queued).toBe(2);
+    await release();
+    await expect
+      .poll(
+        async () =>
+          (await firstManager.getByRole('alert').count()) +
+          (await secondManager.getByRole('alert').count()),
+      )
+      .toBe(1);
+    const error = (await firstManager.getByRole('alert').count()) ? firstManager : secondManager;
+    await expect(error.getByRole('alert')).toContainText('تعارض ذخیره');
+    const records = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('patturn:projects')!),
+    );
+    expect(records).toHaveLength(2);
+    expect([5, 6]).toContain(
+      records.find((r: { name: string }) => r.name === 'تب اول').data.form.wallThickness,
+    );
+    expect(records.find((r: { name: string }) => r.name === 'تب دوم').data.form.wallThickness).toBe(
+      4,
+    );
+    await expect(wall(page)).toHaveValue('5');
+    await expect(wall(second)).toHaveValue('6');
+  } finally {
+    await release().catch(() => {});
+    await second.close();
+  }
+});
+
+test('browser without Web Locks displays the single-tab limitation and still saves locally', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, 'locks', { value: undefined, configurable: true }),
+  );
+  await page.goto('/');
+  await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+  const manager = page.locator('.project-manager');
+  await expect(manager).toContainText('فقط یک تب باز نگه دارید');
+  await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('تک‌تب');
+  await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+  await expect(manager.getByRole('button', { name: 'بازکردن تک‌تب', exact: true })).toBeVisible();
+  const before = await page.evaluate(() => localStorage.getItem('patturn:projects'));
+  await page.evaluate(() =>
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: { request: () => Promise.reject(Error('LOCK_FAILED')) },
+    }),
+  );
+  await manager
+    .getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true })
+    .fill('نباید نوشته شود');
+  await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+  await expect(manager.getByRole('alert')).toContainText('عملیات پروژه انجام نشد');
+  expect(await page.evaluate(() => localStorage.getItem('patturn:projects'))).toBe(before);
+});

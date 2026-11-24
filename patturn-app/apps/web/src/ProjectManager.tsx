@@ -1,8 +1,10 @@
+import { projectConcurrency as concurrencyText } from './messages/fa.json';
 import { useEffect, useRef, useState } from 'react';
 import {
   desktopProjectRepo,
   isDesktop,
   LocalRepo,
+  projectWriteLockSupported,
   parseProject,
   serializeProject,
   type ProjectRecord,
@@ -143,6 +145,11 @@ export function ProjectManager({
         با شناسهٔ مستقل می‌سازد. بازکردن به‌تنهایی ذخیرهٔ خودکار را فعال نمی‌کند؛ تغییرات فعلی را با
         نام تازه یا دکمهٔ ذخیرهٔ پروژهٔ بازشده نگه دارید. ابزارهای موقت داخل پروژه نیستند.
       </p>
+      {!isDesktop() && (
+        <p className="hint">
+          {projectWriteLockSupported() ? concurrencyText.supported : concurrencyText.unsupported}
+        </p>
+      )}
       {opened && (
         <div>
           <p>پروژهٔ بازشده: {opened.name}</p>

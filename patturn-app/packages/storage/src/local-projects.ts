@@ -1,9 +1,25 @@
 import { importedProjectCopy, validatedProjectRecord } from './project-record.js';
 import type { ProjectRecord, ProjectRepo } from './index.js';
 import type { HistoryStorage } from './history.js';
+export interface ProjectWriteLock {
+  run<T>(action: () => T): Promise<T>;
+}
+export const projectWriteLockSupported = () =>
+  typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function';
+/** Cooperative origin-wide lock; failure never silently downgrades to an unlocked write. */
+const browserLock: ProjectWriteLock = {
+  async run<T>(action: () => T): Promise<T> {
+    if (projectWriteLockSupported())
+      return navigator.locks.request('patturn:projects:write', { mode: 'exclusive' }, action);
+    return action();
+  },
+};
 /** Validated web counterpart; unreadable data is never interpreted as an empty library. */
 export class LocalRepo implements ProjectRepo {
-  constructor(private source: () => HistoryStorage = () => localStorage) {}
+  constructor(
+    private source: () => HistoryStorage = () => localStorage,
+    private lock: ProjectWriteLock = browserLock,
+  ) {}
   private read(): ProjectRecord[] {
     const raw = this.source().getItem('patturn:projects');
     if (raw === null) return [];
@@ -30,61 +46,71 @@ export class LocalRepo implements ProjectRepo {
     return this.read().find((p) => p.id === id) ?? null;
   }
   async save(input: ProjectRecord) {
-    const record = validatedProjectRecord(input),
-      records = this.read();
-    const index = records.findIndex((p) => p.id === record.id);
-    if (index < 0) records.push(record);
-    else records[index] = record;
-    this.write(records);
+    const record = validatedProjectRecord(input);
+    return this.lock.run(() => {
+      const records = this.read();
+      const index = records.findIndex((p) => p.id === record.id);
+      if (index < 0) records.push(record);
+      else records[index] = record;
+      this.write(records);
+    });
   }
   async updateIfUnchanged(previous: ProjectRecord, next: ProjectRecord): Promise<void> {
     const expected = validatedProjectRecord(previous),
       record = validatedProjectRecord(next);
     if (expected.id !== record.id || expected.createdAt !== record.createdAt)
       throw Error('PROJECT_IDENTITY_CHANGED');
-    const records = this.read(),
-      index = records.findIndex((p) => p.id === record.id);
-    if (index < 0 || JSON.stringify(records[index]) !== JSON.stringify(expected))
-      throw Error('PROJECT_UPDATE_CONFLICT');
-    records[index] = record;
-    this.write(records);
+    return this.lock.run(() => {
+      const records = this.read(),
+        index = records.findIndex((p) => p.id === record.id);
+      if (index < 0 || JSON.stringify(records[index]) !== JSON.stringify(expected))
+        throw Error('PROJECT_UPDATE_CONFLICT');
+      records[index] = record;
+      this.write(records);
+    });
   }
   async importCopy(input: ProjectRecord): Promise<ProjectRecord> {
-    const copy = importedProjectCopy(input),
-      records = this.read();
-    if (records.some((record) => record.id === copy.id)) throw Error('PROJECT_ID_CONFLICT');
-    records.push(copy);
-    this.write(records);
-    return copy;
+    const copy = importedProjectCopy(input);
+    return this.lock.run(() => {
+      const records = this.read();
+      if (records.some((record) => record.id === copy.id)) throw Error('PROJECT_ID_CONFLICT');
+      records.push(copy);
+      this.write(records);
+      return copy;
+    });
   }
   async importIntoEmpty(inputs: ProjectRecord[]): Promise<number> {
     if (!Array.isArray(inputs) || inputs.length > 100) throw Error('PROJECT_LIBRARY_INVALID');
     const records = inputs.map(validatedProjectRecord);
     if (new Set(records.map((p) => p.id)).size !== records.length)
       throw Error('PROJECT_DUPLICATE_ID');
-    if (this.read().length) throw Error('PROJECT_IMPORT_NOT_EMPTY');
-    if (records.length) this.write(records);
-    return records.length;
+    return this.lock.run(() => {
+      if (this.read().length) throw Error('PROJECT_IMPORT_NOT_EMPTY');
+      if (records.length) this.write(records);
+      return records.length;
+    });
   }
   async delete(id: string) {
-    this.write(this.read().filter((p) => p.id !== id));
+    return this.lock.run(() => this.write(this.read().filter((p) => p.id !== id)));
   }
   async duplicate(id: string, newName: string) {
-    const source = await this.get(id);
-    if (!source) throw Error('NOT_FOUND');
-    const now = new Date().toISOString();
-    const copy = validatedProjectRecord({
-      ...source,
-      id: crypto.randomUUID(),
-      name: newName,
-      createdAt: now,
-      updatedAt: now,
-      data: { ...(source.data as object), name: newName, createdAt: now, updatedAt: now },
+    return this.lock.run(() => {
+      const records = this.read(),
+        source = records.find((p) => p.id === id);
+      if (!source) throw Error('NOT_FOUND');
+      const now = new Date().toISOString();
+      const copy = validatedProjectRecord({
+        ...source,
+        id: crypto.randomUUID(),
+        name: newName,
+        createdAt: now,
+        updatedAt: now,
+        data: { ...(source.data as object), name: newName, createdAt: now, updatedAt: now },
+      });
+      if (records.some((p) => p.id === copy.id)) throw Error('PROJECT_ID_CONFLICT');
+      records.push(copy);
+      this.write(records);
+      return copy;
     });
-    const records = this.read();
-    if (records.some((p) => p.id === copy.id)) throw Error('PROJECT_ID_CONFLICT');
-    records.push(copy);
-    this.write(records);
-    return copy;
   }
 }

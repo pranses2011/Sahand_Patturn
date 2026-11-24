@@ -22,7 +22,7 @@ export interface ProjectRepo {
   duplicate(id: string, newName: string): Promise<ProjectRecord>;
 }
 
-export { LocalRepo } from './local-projects.js';
+export { LocalRepo, projectWriteLockSupported, type ProjectWriteLock } from './local-projects.js';
 
 /** File export/import of a project as .patturn (JSON). */
 export function serializeProject(rec: ProjectRecord): string {

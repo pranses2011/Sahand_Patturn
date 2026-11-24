@@ -162,3 +162,79 @@ it('preserves source bytes containing unsupported nested settings and refuses ev
   await expect(repo.importCopy(fixture())).rejects.toThrow();
   expect(raw()).toBe(source);
 });
+
+it('waits for the write lock before reading and snapshots caller arguments before waiting', async () => {
+  const { source, setRaw, raw } = setup();
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const repo = new LocalRepo(() => source, {
+    run: async (action) => {
+      await gate;
+      return action();
+    },
+  });
+  const input = fixture();
+  const pending = repo.save(input);
+  input.name = 'changed by caller';
+  setRaw(JSON.stringify([{ ...fixture(), id: 'racer' }]));
+  expect(source.setItem).not.toHaveBeenCalled();
+  release();
+  await pending;
+  const records = JSON.parse(raw()!);
+  expect(records).toHaveLength(2);
+  expect(records.find((r: { id: string }) => r.id === 'one').name).toBe('نمونه');
+});
+it('checks the opened revision inside the lock after a competing writer finishes', async () => {
+  const { source, setRaw, raw } = setup();
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const repo = new LocalRepo(() => source, {
+    run: async (action) => {
+      await gate;
+      return action();
+    },
+  });
+  const pending = repo.updateIfUnchanged(fixture(), fixture());
+  const competitor = {
+    ...fixture(),
+    name: 'رقیب',
+    data: { ...(fixture().data as object), name: 'رقیب' },
+  };
+  const bytes = JSON.stringify([competitor]);
+  setRaw(bytes);
+  release();
+  await expect(pending).rejects.toThrow('CONFLICT');
+  expect(raw()).toBe(bytes);
+});
+it.each(['save', 'update', 'copy', 'empty', 'delete', 'duplicate'])(
+  'does not write or fall back when lock acquisition fails: %s',
+  async (operation) => {
+    const { source, setRaw, raw } = setup();
+    const bytes = JSON.stringify([fixture()]);
+    setRaw(bytes);
+    const repo = new LocalRepo(() => source, {
+      run: async () => {
+        throw Error('LOCK_FAILED');
+      },
+    });
+    const pending =
+      operation === 'save'
+        ? repo.save(fixture())
+        : operation === 'update'
+          ? repo.updateIfUnchanged(fixture(), fixture())
+          : operation === 'copy'
+            ? repo.importCopy(fixture())
+            : operation === 'empty'
+              ? repo.importIntoEmpty([fixture()])
+              : operation === 'delete'
+                ? repo.delete('one')
+                : repo.duplicate('one', 'کپی');
+    await expect(pending).rejects.toThrow('LOCK_FAILED');
+    expect(raw()).toBe(bytes);
+    expect(source.setItem).not.toHaveBeenCalled();
+  },
+);
