@@ -56,3 +56,37 @@ describe('SVG close continuation, compact flags and aggregate DXF limits', () =>
     expect(open!.vertices[0]).toMatchObject({ x: 0, y: 0 });
   });
 });
+
+describe('SVG numeric separator validation before exact or flattened recognition', () => {
+  it.each([
+    ',M0 0L1 1',
+    'M,0 0L1 1',
+    'M0,,0L1 1',
+    'M0, ,0L1 1',
+    'M0 0,L1 1',
+    'M0 0L1 1,',
+    'M0 0L1 1,Z',
+    'M0 0L1 1Z,',
+    'M0 0A10 10 0,0,,1 20 0',
+    'M0 0A10 10 0 0 1 20 0,',
+    'M0 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0,z',
+    'M0\u00a00L1 1',
+    'M0\v0L1 1',
+    'M0\f0L1 1',
+    'M0\u20280L1 1',
+  ])('rejects invalid separators atomically: %s', (d) => {
+    const result = toDxf([{ d: 'M0 0L2 2' }, { d }], undefined, options);
+    expect(result.ok).toBe(false);
+    expect(result.bytes).toBeUndefined();
+    expect(result.error).toMatch(/DXF_INVALID_(SEPARATOR|PATH)/);
+  });
+  it.each([
+    ['M0,0L1,1', 'M0 0L1 1'],
+    ['M\t0\r0\nL1 , \t1', 'M0 0L1 1'],
+    ['M.5.5L1e1-2', 'M.5 .5L10 -2'],
+    ['M0 0A20,10,30,0,1,40,0', 'M0 0A20 10 30 0 1 40 0'],
+    ['M0 0A20 10 30 0140 0', 'M0 0A20 10 30 0 1 40 0'],
+  ])('preserves legal SVG separators: %s', (d, explicit) => {
+    expect(bytes(d)).toEqual(bytes(explicit));
+  });
+});

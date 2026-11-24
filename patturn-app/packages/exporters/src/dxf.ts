@@ -272,6 +272,10 @@ export function toDxf(
     const budget = { vertices: 0 };
     // Parse everything first so unsupported geometry cannot yield a partial successful file.
     const parsed = paths.map((p) => {
+      // Validate before exact recognizers too; SVG permits only ASCII whitespace.
+      if (/[^a-zA-Z0-9+.,\- \t\r\n]/.test(p.d)) throw Error('DXF_INVALID_PATH');
+      const compact = p.d.replace(/[ \t\r\n]/g, '');
+      if (/(^,|,$|,,|[a-zA-Z],|,[a-zA-Z])/.test(compact)) throw Error('DXF_INVALID_SEPARATOR');
       const c = circle(p.d);
       const arc = c ? null : circularArc(p.d);
       return {
