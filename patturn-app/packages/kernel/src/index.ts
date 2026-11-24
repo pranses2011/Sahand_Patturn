@@ -13,3 +13,4 @@ export * from './rib.js';
 export * from './extruder.js';
 export * from './cookie-cutter.js';
 export * from './convex-cutter.js';
+export * from './orthogonal-cutter.js';
