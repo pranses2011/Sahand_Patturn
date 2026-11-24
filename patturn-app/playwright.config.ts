@@ -19,7 +19,7 @@ export default defineConfig({
   projects: [
     {
       name: 'no-webgl',
-      testMatch: ['**/editor.spec.ts', '**/pipeline.spec.ts'],
+      testMatch: ['**/editor.spec.ts', '**/pipeline.spec.ts', '**/accessibility.spec.ts'],
       use: {
         launchOptions: {
           executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,

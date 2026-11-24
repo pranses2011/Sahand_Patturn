@@ -28,6 +28,7 @@
     "release:gate": "node scripts/release-gate.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.1",
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "@typescript-eslint/parser": "^8.73.0",

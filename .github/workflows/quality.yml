@@ -50,6 +50,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser smoke tests (disabled and software WebGL)
         run: npm run test:e2e
+      - name: Keep automated accessibility scans including manual-review items
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-scans
+          path: patturn-app/test-results/*/accessibility-*.json
+          if-no-files-found: warn
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

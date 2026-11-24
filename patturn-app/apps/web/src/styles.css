@@ -84,12 +84,12 @@ select {
   background: var(--sunken);
 }
 .btn.primary {
-  background: var(--clay);
-  border-color: var(--clay);
+  background: var(--clay-dark);
+  border-color: var(--clay-dark);
   color: #fff;
 }
 .btn.primary:hover {
-  background: var(--clay-dark);
+  background: #8f4019;
 }
 
 /* ── layout ── */
