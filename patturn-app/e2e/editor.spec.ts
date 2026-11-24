@@ -1,3 +1,4 @@
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -2524,4 +2525,201 @@ test('changing rib settings while PDF imports are pending suppresses the old dow
   await pending;
   await expect(pdfButton).toBeEnabled();
   expect(downloads).toEqual(['rib_template_A4-1to1.pdf']);
+});
+
+// Actual SQLite behind a synthetic Tauri IPC bridge: not an installed-Windows test.
+const desktopLegacy = JSON.stringify({
+  version: 1,
+  entries: [
+    {
+      id: 'desktop-original',
+      savedAt: '2026-01-01T00:00:00.000Z',
+      state: {
+        profileMode: 'reference',
+        segments: 96,
+        wall: 4,
+        shrink: 12,
+        fill: 80,
+        patternId: 'dot-grid',
+        tileSize: 40,
+      },
+    },
+  ],
+});
+async function installSqlBridge(
+  page: import('@playwright/test').Page,
+  database: DatabaseSync,
+  before?: (command: string, query: string) => Promise<void>,
+) {
+  await page.exposeFunction(
+    'testSqlInvoke',
+    async (command: string, args: { query?: string; values?: unknown[] }) => {
+      await before?.(command, args.query ?? '');
+      if (command === 'plugin:sql|load') return 'sqlite:patturn.db';
+      if (command === 'plugin:sql|execute') {
+        const result = database.prepare(args.query!).run(...(args.values as SQLInputValue[]));
+        return [Number(result.changes), Number(result.lastInsertRowid)];
+      }
+      if (command === 'plugin:sql|select')
+        return database.prepare(args.query!).all(...(args.values as SQLInputValue[]));
+      throw Error('Unsupported synthetic native command');
+    },
+  );
+  await page.addInitScript((raw) => {
+    const target = window as unknown as {
+      isTauri: boolean;
+      __TAURI_INTERNALS__: unknown;
+      testSqlInvoke: (command: string, args: unknown) => Promise<unknown>;
+    };
+    target.isTauri = true;
+    target.__TAURI_INTERNALS__ = {
+      invoke: (command: string, args: unknown) => target.testSqlInvoke(command, args),
+    };
+    if (localStorage.getItem('patturn:editor-history:v1') === null)
+      localStorage.setItem('patturn:editor-history:v1', raw);
+  }, desktopLegacy);
+}
+function sqlEntries(database: DatabaseSync) {
+  return JSON.parse(
+    database.prepare('select document from patturn_editor_history').get()!.document as string,
+  ).entries as { id: string; state: { wall: number } }[];
+}
+test('desktop bridge uses actual SQLite for migration, autosave, reload and historical restore', async ({
+  page,
+}) => {
+  const database = new DatabaseSync(':memory:');
+  try {
+    await installSqlBridge(page, database);
+    await page.goto('/');
+    const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+    await expect(wall).toHaveValue('4');
+    expect(sqlEntries(database)[0]!.id).toBe('desktop-original');
+    await wall.fill('6');
+    await wall.press('Enter');
+    await expect.poll(() => sqlEntries(database)[0]!.state.wall).toBe(6);
+    await page.reload();
+    await expect(wall).toHaveValue('6');
+    expect(await page.evaluate(() => localStorage.getItem('patturn:editor-history:v1'))).toBe(
+      desktopLegacy,
+    );
+    await page.locator('.history-panel').first().locator('summary').click();
+    await expect(page.locator('.history-panel').first()).toContainText('SQLite');
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('.history-entry').nth(1).getByRole('button').click();
+    await expect(wall).toHaveValue('4');
+    await expect.poll(() => sqlEntries(database)[0]!.state.wall).toBe(4);
+    expect(sqlEntries(database)[1]!.state.wall).toBe(6);
+  } finally {
+    await page.close();
+    database.close();
+  }
+});
+test('desktop SQL startup failure blocks autosave, retries explicitly and preserves corrupt data', async ({
+  page,
+}) => {
+  const database = new DatabaseSync(':memory:');
+  let fail = true;
+  try {
+    await installSqlBridge(page, database, async (command) => {
+      if (fail && command === 'plugin:sql|load') throw Error('database locked');
+    });
+    await page.goto('/');
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'تاریخچهٔ SQLite دسکتاپ' }),
+    ).toBeVisible();
+    await expect(page.getByRole('spinbutton')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('patturn:editor-history:v1'))).toBe(
+      desktopLegacy,
+    );
+    fail = false;
+    await page
+      .getByRole('button', { name: 'تلاش دوباره برای تاریخچهٔ دسکتاپ', exact: true })
+      .click();
+    await expect(
+      page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true }),
+    ).toHaveValue('4');
+    database.prepare("update patturn_editor_history set document='broken'").run();
+    await page.reload();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'تاریخچهٔ SQLite دسکتاپ' }),
+    ).toBeVisible();
+    expect(database.prepare('select document from patturn_editor_history').get()!.document).toBe(
+      'broken',
+    );
+  } finally {
+    await page.close();
+    database.close();
+  }
+});
+test('desktop async save does not acknowledge newer edits when an old SQL write finishes', async ({
+  page,
+}) => {
+  const database = new DatabaseSync(':memory:');
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let seen!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    seen = resolve;
+  });
+  let held = false;
+  try {
+    await installSqlBridge(page, database, async (command, query) => {
+      if (command === 'plugin:sql|select' && query.startsWith('update') && !held) {
+        held = true;
+        seen();
+        await gate;
+      }
+    });
+    await page.goto('/');
+    const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+    await wall.fill('5');
+    await wall.press('Enter');
+    await waiting;
+    await wall.fill('6');
+    await wall.press('Enter');
+    release();
+    await expect.poll(() => sqlEntries(database)[0]!.state.wall).toBe(5);
+    await expect(page.locator('header')).not.toContainText('✓ ذخیره شد');
+    await expect.poll(() => sqlEntries(database)[0]!.state.wall, { timeout: 10000 }).toBe(6);
+    await expect(page.locator('header')).toContainText('✓ ذخیره شد');
+  } finally {
+    release();
+    await page.close();
+    database.close();
+  }
+});
+
+test('desktop SQL write failure preserves history without browser fallback and explicit retry saves', async ({
+  page,
+}) => {
+  const database = new DatabaseSync(':memory:');
+  let deny = false;
+  try {
+    await installSqlBridge(page, database, async (command, query) => {
+      if (deny && command === 'plugin:sql|select' && query.startsWith('update'))
+        throw Error('synthetic disk full');
+    });
+    await page.goto('/');
+    const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+    await expect(wall).toHaveValue('4');
+    deny = true;
+    await wall.fill('6');
+    await wall.press('Enter');
+    const error = page.getByRole('alert').filter({ hasText: /^ذخیرهٔ محلی ناموفق بود/ });
+    await expect(error).toBeVisible({ timeout: 10000 });
+    expect(sqlEntries(database)[0]!.state.wall).toBe(4);
+    expect(await page.evaluate(() => localStorage.getItem('patturn:editor-history:v1'))).toBe(
+      desktopLegacy,
+    );
+    await expect(page.locator('header')).not.toContainText('✓ ذخیره شد');
+    deny = false;
+    await error.getByRole('button', { name: 'تلاش دوباره', exact: true }).click();
+    await expect(error).toHaveCount(0);
+    expect(sqlEntries(database)[0]!.state.wall).toBe(6);
+  } finally {
+    await page.close();
+    database.close();
+  }
 });

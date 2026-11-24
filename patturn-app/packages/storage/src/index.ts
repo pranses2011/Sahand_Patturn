@@ -1,6 +1,6 @@
 /**
  * Platform storage contract (ADR-004/009): SQLite is the intended desktop source of truth.
- * The editor still uses localStorage; the SQLite history repository/factory is not wired to UI yet.
+ * Desktop editor history uses SQLite; browser history and other local libraries use localStorage.
  */
 export interface ProjectRecord {
   id: string;

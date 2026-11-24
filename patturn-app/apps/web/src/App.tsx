@@ -1,3 +1,4 @@
+import type { HistorySession, AsyncEditorHistory } from './history-session';
 import { DeferredTool } from './DeferredTool';
 import { FlowArrow } from './FlowArrow';
 import { formatNumber } from './number-format';
@@ -152,14 +153,40 @@ function loadEditorStartup() {
   }
 }
 
-export function App() {
+export function App({ historySession }: { historySession?: HistorySession } = {}) {
   const {
     download,
     status: deliveryStatus,
     retry: retryDelivery,
     discard: discardDelivery,
   } = useFileDelivery(writeOutput);
-  const [startup] = useState(loadEditorStartup);
+  const [startup] = useState(() =>
+    historySession
+      ? {
+          state: historySession.entries[0]?.state ?? DEFAULT_EDITOR,
+          entries: historySession.entries,
+          error: null as string | null,
+        }
+      : loadEditorStartup(),
+  );
+  const [historyRepo] = useState<AsyncEditorHistory>(
+    () =>
+      historySession?.history ?? {
+        list: async () => localHistory().list(),
+        save: async (state) => localHistory().save(state),
+        restore: async (id) => localHistory().restore(id),
+      },
+  );
+  const [savingLocal, setSavingLocal] = useState(false);
+  const saveBusy = useRef(false);
+  const lastFailedSave = useRef<string | null>(null);
+  const editorMounted = useRef(true);
+  useEffect(() => {
+    editorMounted.current = true;
+    return () => {
+      editorMounted.current = false;
+    };
+  }, []);
   const [historyEntries, setHistoryEntries] = useState(startup.entries);
   const [autosaveError, setAutosaveError] = useState(startup.error);
   const [folderBackups, setFolderBackups] = useState<BackupEntry[]>([]);
@@ -197,6 +224,8 @@ export function App() {
     () => ({ profileMode, segments, wall, shrink, fill, patternId, tileSize }),
     [profileMode, segments, wall, shrink, fill, patternId, tileSize],
   );
+  const latestParameters = useRef(currentParameters);
+  latestParameters.current = currentParameters;
   useEffect(() => {
     if (parameterHistory.record(currentParameters)) updateHistoryUi((n) => n + 1);
   }, [parameterHistory, currentParameters]);
@@ -253,9 +282,19 @@ export function App() {
     window.addEventListener('keydown', keyboard);
     return () => window.removeEventListener('keydown', keyboard);
   }, [currentParameters, parameterHistory]);
-  const restoreHistory = (id: string) => {
+  const restoreRequest = useRef(0);
+  const restoreHistory = async (id: string) => {
+    const request = ++restoreRequest.current;
+    const requestedState = JSON.stringify(latestParameters.current);
     try {
-      const state = localHistory().restore(id);
+      const state = await historyRepo.restore(id);
+      if (!editorMounted.current || request !== restoreRequest.current) return;
+      if (requestedState !== JSON.stringify(latestParameters.current)) {
+        setProjectError(
+          'هنگام خواندن نسخه، پارامترها تغییر کردند؛ بازیابی را دوباره درخواست کنید.',
+        );
+        return;
+      }
       if (
         !window.confirm('این نسخه بازیابی شود؟ نسخه‌های ذخیره‌شدهٔ جدیدتر در تاریخچه باقی می‌مانند.')
       )
@@ -263,7 +302,8 @@ export function App() {
       applyEditorState(state);
       setProjectError(null);
     } catch (error) {
-      setProjectError(`بازیابی نسخه ناموفق بود: ${String(error).slice(0, 180)}`);
+      if (editorMounted.current)
+        setProjectError(`بازیابی نسخه ناموفق بود: ${String(error).slice(0, 180)}`);
     }
   };
   const restoreFolderBackup = async (name: string) => {
@@ -558,35 +598,49 @@ export function App() {
     [markDirty],
   );
 
-  const saveLocalState = () => {
+  const saveLocalState = async () => {
+    if (saveBusy.current) return;
+    saveBusy.current = true;
+    setSavingLocal(true);
+    const snapshot = { ...currentParameters };
     try {
-      const entries = localHistory().save({
-        profileMode,
-        segments,
-        wall,
-        shrink,
-        fill,
-        patternId,
-        tileSize,
-      });
+      const entries = await historyRepo.save(snapshot);
+      if (!editorMounted.current) return;
       setHistoryEntries(entries);
+      lastFailedSave.current = null;
       setAutosaveError(null);
-      setSaved(true);
-      if (isDesktop())
-        void saveFolderBackup({ profileMode, segments, wall, shrink, fill, patternId, tileSize });
+      setSaved(JSON.stringify(snapshot) === JSON.stringify(latestParameters.current));
+      if (isDesktop()) void saveFolderBackup(snapshot);
     } catch (error) {
+      if (!editorMounted.current) return;
       setSaved(false);
+      lastFailedSave.current = JSON.stringify(snapshot);
       setAutosaveError(
         `ذخیرهٔ محلی ناموفق بود؛ فایل پروژه را جداگانه دانلود کنید: ${String(error).slice(0, 180)}`,
       );
+    } finally {
+      saveBusy.current = false;
+      if (editorMounted.current) setSavingLocal(false);
     }
   };
-  // Debounced autosave: report success only after the atomic storage write succeeds.
+  // Serial writes; a stale completion cannot mark newer parameters saved.
   useEffect(() => {
-    if (saved) return;
-    const timer = setTimeout(saveLocalState, 2000);
+    if (saved || savingLocal || lastFailedSave.current === JSON.stringify(currentParameters))
+      return;
+    const timer = setTimeout(() => void saveLocalState(), 2000);
     return () => clearTimeout(timer);
-  }, [saved, profileMode, segments, wall, shrink, fill, patternId, tileSize]);
+  }, [
+    saved,
+    savingLocal,
+    autosaveError,
+    profileMode,
+    segments,
+    wall,
+    shrink,
+    fill,
+    patternId,
+    tileSize,
+  ]);
 
   useEffect(() => {
     if (saved) return;
@@ -1042,7 +1096,7 @@ export function App() {
       {autosaveError && (
         <div className="hint" role="alert">
           {autosaveError}{' '}
-          <button className="btn" onClick={saveLocalState}>
+          <button className="btn" disabled={savingLocal} onClick={() => void saveLocalState()}>
             تلاش دوباره
           </button>
         </div>
@@ -1050,8 +1104,10 @@ export function App() {
       <details className="history-panel">
         <summary>تاریخچهٔ محلی — {formatNumber(historyEntries.length)} نسخه از ۱۰ نسخهٔ اخیر</summary>
         <div className="hint">
-          این نسخه‌ها فقط در همین محیط مرورگر نگهداری می‌شوند؛ جایگزین فایل پروژه یا پوشهٔ بکاپ
-          ویندوز نیستند.
+          {historySession
+            ? 'این نسخه‌ها در SQLite همین برنامهٔ دسکتاپ نگهداری می‌شوند؛'
+            : 'این نسخه‌ها فقط در همین محیط مرورگر نگهداری می‌شوند؛'}{' '}
+          جایگزین فایل پروژه یا پوشهٔ بکاپ ویندوز نیستند.
         </div>
         {historyEntries.map((entry, i) => (
           <div className="history-entry" key={entry.id}>
@@ -1059,7 +1115,7 @@ export function App() {
               {i === 0 ? 'آخرین ذخیره' : `نسخهٔ ${formatNumber(i + 1)}`} —{' '}
               {new Date(entry.savedAt).toLocaleString('fa-IR')} — {entry.state.profileMode}
             </span>
-            <button className="btn" onClick={() => restoreHistory(entry.id)}>
+            <button className="btn" onClick={() => void restoreHistory(entry.id)}>
               بازیابی این نسخه
             </button>
           </div>

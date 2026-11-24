@@ -2,7 +2,12 @@ import { and, eq } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { drizzle } from 'drizzle-orm/sqlite-proxy';
 import { EditorState, type EditorState as State } from '@patturn/schema';
-import { EDITOR_HISTORY_KEY, EditorHistory, type HistoryEntry } from './history.js';
+import {
+  EDITOR_HISTORY_KEY,
+  EditorHistory,
+  type HistoryEntry,
+  type HistoryStorage,
+} from './history.js';
 
 /** Drivers must bind parameters, not interpolate them. Rows are named, never order-dependent. */
 export interface SqliteHistoryDriver {
@@ -84,6 +89,25 @@ export class SqliteEditorHistory {
       },
       this.patterns,
     );
+  }
+  /** Import validated browser history only into an absent SQL row. Never remove the source. */
+  async importLegacy(source: () => HistoryStorage): Promise<HistoryEntry[]> {
+    const row = await this.read();
+    if (row) return this.history(row.document).list();
+    const entries = new EditorHistory(source(), this.patterns).list();
+    if (!entries.length) return [];
+    const document = JSON.stringify({ version: 1, entries });
+    await this.db
+      .insert(historyTable)
+      .values({ slot: 'editor', version: 1, revision: 1, document })
+      .onConflictDoNothing()
+      .returning()
+      .all()
+      .catch((error) => {
+        throw new Error('SQLITE_HISTORY_IMPORT_FAILED', { cause: error });
+      });
+    // If another writer won, its row remains authoritative.
+    return this.list();
   }
   async list(): Promise<HistoryEntry[]> {
     const row = await this.read();

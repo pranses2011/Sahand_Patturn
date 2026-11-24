@@ -44,6 +44,8 @@ for (const name of optionalTools) {
   const key = keys.find((key) => key.endsWith(`/${name}.tsx`));
   if (!key || editor.has(key)) throw Error(`OPTIONAL_TOOL_NOT_LAZY: ${name}`);
 }
+const sqliteHistory = keys.find((key) => key.endsWith('/sqlite-history.ts'));
+if (!sqliteHistory || editor.has(sqliteHistory)) throw Error('SQLITE_HISTORY_NOT_LAZY');
 const editorSummary = summary(editor);
 console.log(
   JSON.stringify(
@@ -60,6 +62,7 @@ console.log(
       },
       note: 'Viewport is requested on first render. PDF, WASM, workers and optional imports excluded. Not an LCP measurement.',
       pdfAndFontLazy: true,
+      sqliteHistoryLazy: true,
       optionalToolsLazy: optionalTools,
     },
     null,

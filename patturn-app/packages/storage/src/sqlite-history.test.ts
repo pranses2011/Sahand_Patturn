@@ -230,3 +230,98 @@ it('refuses revision exhaustion without wrapping or replacing the document', asy
     database.close();
   }
 });
+
+it('migrates all validated legacy entries without changing ids, dates or source bytes', async () => {
+  const { database, repo } = setup();
+  try {
+    const entries = [
+      { id: 'old-1', savedAt: '2026-01-01T00:00:00.000Z', state },
+      { id: 'old-2', savedAt: '2025-01-01T00:00:00.000Z', state: { ...state, wall: 3 } },
+    ];
+    const raw = JSON.stringify({ version: 1, entries });
+    const source = { getItem: vi.fn(() => raw), setItem: vi.fn() };
+    expect(await repo.importLegacy(() => source)).toEqual(entries);
+    expect(await repo.list()).toEqual(entries);
+    expect(source.setItem).not.toHaveBeenCalled();
+    expect(
+      await repo.importLegacy(() => {
+        throw Error('storage blocked');
+      }),
+    ).toEqual(entries);
+  } finally {
+    database.close();
+  }
+});
+it('does not replace SQL state with stale or corrupt local history', async () => {
+  const { database, repo } = setup();
+  try {
+    const entries = await repo.save(state);
+    expect(
+      await repo.importLegacy(() => {
+        throw Error('must not read source');
+      }),
+    ).toEqual(entries);
+  } finally {
+    database.close();
+  }
+});
+it('leaves empty SQL untouched when the legacy source is corrupt or inaccessible', async () => {
+  const { database, repo } = setup();
+  try {
+    await expect(
+      repo.importLegacy(() => ({ getItem: () => '{broken', setItem: vi.fn() })),
+    ).rejects.toThrow();
+    expect(await repo.list()).toEqual([]);
+    await expect(
+      repo.importLegacy(() => {
+        throw Error('blocked');
+      }),
+    ).rejects.toThrow('blocked');
+    expect(await repo.list()).toEqual([]);
+  } finally {
+    database.close();
+  }
+});
+it('imports the original patturn:last format without deleting it', async () => {
+  const { database, repo } = setup();
+  try {
+    const source = {
+      getItem: (key: string) =>
+        key === 'patturn:last'
+          ? JSON.stringify({ ...state, at: Date.parse('2026-01-01T00:00:00Z') })
+          : null,
+      setItem: vi.fn(),
+    };
+    const entries = await repo.importLegacy(() => source);
+    expect(entries[0]!.id).toBe('legacy');
+    expect(entries[0]!.state).toEqual(state);
+    expect(source.setItem).not.toHaveBeenCalled();
+  } finally {
+    database.close();
+  }
+});
+it('keeps a concurrent SQL winner when legacy import races the first save', async () => {
+  const { database, driver, repo } = setup();
+  try {
+    await repo.list();
+    const original = driver.select;
+    let injected = false;
+    driver.select = async (query, params) => {
+      if (query.startsWith('insert') && !injected) {
+        injected = true;
+        await new SqliteEditorHistory({ execute: driver.execute, select: original }, ['grid']).save(
+          { ...state, wall: 6 },
+        );
+      }
+      return original(query, params);
+    };
+    const source = {
+      getItem: () =>
+        JSON.stringify({ version: 1, entries: [{ id: 'old', savedAt: '2026-01-01', state }] }),
+      setItem: vi.fn(),
+    };
+    expect((await repo.importLegacy(() => source))[0]!.state.wall).toBe(6);
+  } finally {
+    database.close();
+  }
+});
