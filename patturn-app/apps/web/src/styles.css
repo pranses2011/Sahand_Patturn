@@ -264,6 +264,7 @@ h3.sec {
 .btn:focus-visible,
 .parts button:focus-visible,
 .ctl input:focus-visible,
+.project-manager input:focus-visible,
 .history-panel summary:focus-visible {
   outline: 3px solid var(--clay-dark);
   outline-offset: 2px;

@@ -181,3 +181,63 @@ test('narrow reflow preserves keyboard navigation order and reveals the focused 
   await expect(number).toHaveValue('30');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('named project manager remains accessible through opened, dirty and conflicting states at 320px', async ({
+  page,
+}, info) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+  const manager = page.locator('.project-manager');
+  await expect(manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true })).toBeVisible();
+  await audit(page, info, 'projects-empty-320');
+  const name = 'پروژهٔ آزمایشی با نام بلند برای بررسی دسترس‌پذیری و شکست خطوط '.repeat(3).trim();
+  await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill(name);
+  await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+  const open = manager.getByRole('button', { name: `بازکردن ${name}`, exact: true });
+  await expect(open).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+  await audit(page, info, 'projects-saved-long-name-320');
+  page.once('dialog', (dialog) => dialog.accept());
+  await open.focus();
+  await page.keyboard.press('Enter');
+  const toggle = manager.getByRole('checkbox', {
+    name: 'ذخیرهٔ خودکار پروژهٔ بازشده پس از ۲ ثانیه مکث',
+    exact: true,
+  });
+  await expect(toggle).not.toBeChecked();
+  await toggle.focus();
+  await page.keyboard.press('Space');
+  await expect(toggle).toBeChecked();
+  await page.keyboard.press('Space');
+  await expect(toggle).not.toBeChecked();
+  await audit(page, info, 'projects-opened-320');
+  const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+  await wall.fill('6');
+  await wall.press('Enter');
+  await expect(
+    manager.getByRole('status').filter({ hasText: 'هنوز ذخیره نشده‌اند' }),
+  ).toBeVisible();
+  await audit(page, info, 'projects-dirty-320');
+  await page.evaluate(() => {
+    const records = JSON.parse(localStorage.getItem('patturn:projects')!);
+    records[0].updatedAt = '2099-01-01T00:00:00.000Z';
+    records[0].data.updatedAt = records[0].updatedAt;
+    localStorage.setItem('patturn:projects', JSON.stringify(records));
+  });
+  page.once('dialog', (dialog) => dialog.accept());
+  await manager.getByRole('button', { name: 'ذخیرهٔ تغییرات در پروژهٔ بازشده', exact: true }).click();
+  await expect(manager.getByRole('alert')).toContainText('تعارض ذخیره');
+  await audit(page, info, 'projects-conflict-320');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+  const disconnect = manager.getByRole('button', {
+    name: 'پایان ارتباط با پروژهٔ نام‌دار',
+    exact: true,
+  });
+  await disconnect.focus();
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveCount(0);
+  await expect(manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true })).toBeFocused();
+  await expect(wall).toHaveValue('6');
+});

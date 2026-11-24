@@ -29,6 +29,7 @@ export function ProjectManager({
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [attempt, setAttempt] = useState(0);
+  const nameInput = useRef<HTMLInputElement>(null);
   const active = useRef(true),
     lock = useRef(false),
     latest = useRef({ state, onApply });
@@ -148,18 +149,19 @@ export function ProjectManager({
           <label>
             <input
               type="checkbox"
+              aria-describedby="named-project-autosave-help"
               checked={autoSave}
               disabled={!repo || busy}
               onChange={(event) => setAutoSave(event.currentTarget.checked)}
             />
             ذخیرهٔ خودکار پروژهٔ بازشده پس از ۲ ثانیه مکث
           </label>
-          <p role="status">
+          <p role="status" aria-label="وضعیت تغییرات پروژهٔ بازشده">
             {dirty
               ? 'تغییرات پروژهٔ نام‌دار هنوز ذخیره نشده‌اند.'
               : 'پارامترها با نسخهٔ ذخیره‌شدهٔ پروژهٔ بازشده یکسان‌اند.'}
           </p>
-          <p className="hint">
+          <p className="hint" id="named-project-autosave-help">
             ذخیرهٔ خودکار {autoSave ? 'فعال' : 'خاموش'} است؛ خطا یا تعارض آن را خاموش می‌کند.
             خاموش‌کردن، نوشتن شروع‌شده را لغو نمی‌کند. بستن برنامه تضمین ذخیرهٔ آخرین تغییر را ندارد.
           </p>
@@ -187,6 +189,7 @@ export function ProjectManager({
             onClick={() => {
               setAutoSave(false);
               setOpened(null);
+              nameInput.current?.focus();
             }}
           >
             پایان ارتباط با پروژهٔ نام‌دار
@@ -211,6 +214,7 @@ export function ProjectManager({
         <label>
           نام پروژهٔ جدید
           <input
+            ref={nameInput}
             aria-label="نام پروژهٔ جدید"
             value={name}
             maxLength={200}
@@ -261,6 +265,7 @@ export function ProjectManager({
         <input
           type="file"
           accept=".patturn,application/json"
+          aria-describedby="named-project-file-help"
           disabled={!repo || busy}
           onChange={(event) => {
             const file = event.currentTarget.files?.[0];
@@ -291,12 +296,12 @@ export function ProjectManager({
           }}
         />
       </label>
-      <p className="hint">
+      <p className="hint" id="named-project-file-help">
         این فایل مربوط به پروژهٔ نام‌دار است، نه فایل وضعیت ادیتور. در مخزن خالی شناسه حفظ می‌شود؛ در
         مخزن غیرخالی یک کپی با شناسه و زمان تازه ساخته می‌شود. هیچ پروژه‌ای جایگزین و پروژهٔ واردشده
         خودکار باز نمی‌شود.
       </p>
-      <p role="status">
+      <p role="status" aria-label="وضعیت فهرست پروژه‌ها">
         {busy ? 'در حال خواندن/نوشتن پروژه…' : `${formatNumber(entries.length)} پروژه`}
       </p>
       {error && <p role="alert">{error}</p>}
