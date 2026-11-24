@@ -130,3 +130,4 @@ export * from './bundle.js';
 export * from './dimensions.js';
 export * from './obj.js';
 export * from './rib-pdf.js';
+export * from './extruder.js';

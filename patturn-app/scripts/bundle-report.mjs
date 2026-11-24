@@ -36,6 +36,7 @@ const optionalTools = [
   'JigsawTool',
   'SlabTool',
   'RibTool',
+  'ExtruderTool',
   'LoftSweepTool',
   'ImageTraceTool',
   'FootRingTool',

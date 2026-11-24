@@ -10,3 +10,4 @@ export * from './rounder.js';
 export * from './foot-ring.js';
 export * from './loft-sweep.js';
 export * from './rib.js';
+export * from './extruder.js';

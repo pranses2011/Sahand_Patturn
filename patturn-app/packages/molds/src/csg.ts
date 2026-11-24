@@ -4,7 +4,7 @@
  * Async init (WASM load) → call initCsg() once at app startup.
  */
 import type { Mesh, Profile } from '@patturn/kernel';
-import { validateMesh } from '@patturn/kernel';
+import { extruderLayout, type ExtruderOptions, validateMesh } from '@patturn/kernel';
 import type { SplitPlan } from './index.js';
 
 type ManifoldT = {
@@ -999,5 +999,28 @@ export function buildConvexStamp(
   } finally {
     section?.delete();
     for (const part of new Set(owned)) part.delete?.();
+  }
+}
+
+/** Bounded disk with circular through-holes, no flange or equipment fit implied. */
+export function buildExtruderDie(options: ExtruderOptions): Mesh {
+  const layout = extruderLayout(options);
+  const w = requireWasm();
+  const section = new w.CrossSection(layout.contours, 'EvenOdd');
+  let solid: ManifoldT | null = null;
+  try {
+    solid = section.extrude(layout.thicknessMm);
+    const mesh = fromManifold(solid);
+    const report = validateMesh(mesh);
+    if (
+      !report.ok ||
+      report.euler !== 2 - 2 * layout.holes.length ||
+      solid.genus() !== layout.holes.length
+    )
+      throw Error('EXTRUDER_INVALID_MESH');
+    return mesh;
+  } finally {
+    solid?.delete?.();
+    section.delete();
   }
 }

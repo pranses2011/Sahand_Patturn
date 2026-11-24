@@ -80,6 +80,8 @@ const loadImageTraceTool = () =>
   import('./ImageTraceTool').then((module) => ({ default: module.ImageTraceTool }));
 const loadLoftSweepTool = () =>
   import('./LoftSweepTool').then((module) => ({ default: module.LoftSweepTool }));
+const loadExtruderTool = () =>
+  import('./ExtruderTool').then((module) => ({ default: module.ExtruderTool }));
 const loadRibTool = () => import('./RibTool').then((module) => ({ default: module.RibTool }));
 const loadSlabTool = () => import('./SlabTool').then((module) => ({ default: module.SlabTool }));
 const loadFootRingTool = () =>
@@ -1308,6 +1310,12 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
                 label="الگوی پازل — اتصال jigsaw با seed قطعی"
                 className="jigsaw-tool"
                 load={loadJigsawTool}
+                toolProps={{ onExport: download }}
+              />
+              <DeferredTool
+                label="دای اکسترودر — سوراخ گرد و قطر دستی"
+                className="extruder-tool"
+                load={loadExtruderTool}
                 toolProps={{ onExport: download }}
               />
               <DeferredTool

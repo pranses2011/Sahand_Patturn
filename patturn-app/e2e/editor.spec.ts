@@ -2723,3 +2723,74 @@ test('desktop SQL write failure preserves history without browser fallback and e
     database.close();
   }
 });
+
+test('extruder manual circular die exports closed templates and STL while blocking thin web', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('دای اکسترودر — سوراخ گرد و قطر دستی', { exact: true }).click();
+  const preview = page.getByRole('img', { name: 'پیش‌نمایش دای اکسترودر', exact: true });
+  await expect(preview.locator('path')).toHaveCount(7);
+  for (const format of ['SVG', 'DXF', 'STL']) {
+    const pending = page.waitForEvent('download');
+    await page.getByRole('button', { name: `دانلود ${format} دای`, exact: true }).click();
+    const file = await pending;
+    expect(file.suggestedFilename()).toBe(
+      `extruder_round-holes_D60-T8-H8-N6-R16mm.${format.toLowerCase()}`,
+    );
+    const bytes = await readFile((await file.path())!);
+    if (format === 'STL') {
+      expect(bytes.length).toBe(84 + 50 * bytes.readUInt32LE(80));
+      let min = Infinity,
+        max = -Infinity;
+      for (let i = 0; i < bytes.readUInt32LE(80); i++)
+        for (let v = 0; v < 3; v++) {
+          const z = bytes.readFloatLE(84 + i * 50 + 12 + v * 12 + 8);
+          min = Math.min(min, z);
+          max = Math.max(max, z);
+        }
+      expect(min).toBe(0);
+      expect(max).toBe(8);
+    } else expect(bytes.toString()).toContain(format === 'SVG' ? 'mm"' : 'AC1009');
+  }
+  const count = page.getByRole('spinbutton', { name: 'تعداد سوراخ دای', exact: true });
+  await count.fill('12');
+  await count.press('Enter');
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'ابعاد یا آرایش دای معتبر نیست' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'دانلود STL دای', exact: true })).toHaveCount(0);
+  const hole = page.getByRole('spinbutton', { name: 'قطر سوراخ دای', exact: true });
+  await hole.fill('4');
+  await hole.press('Enter');
+  await expect(preview.locator('path')).toHaveCount(13);
+  await page.getByText('دای اکسترودر — سوراخ گرد و قطر دستی', { exact: true }).click();
+  await page.getByText('دای اکسترودر — سوراخ گرد و قطر دستی', { exact: true }).click();
+  await expect(count).toHaveValue('12');
+  await expect(hole).toHaveValue('4');
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
+test('extruder WASM failure leaves drawing exports available and explicit retry recovers', async ({
+  page,
+}) => {
+  let allow = false;
+  await page.route('**/*.wasm', async (route) => {
+    if (allow) await route.continue();
+    else await route.abort('failed');
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('دای اکسترودر — سوراخ گرد و قطر دستی', { exact: true }).click();
+  const stl = page.getByRole('button', { name: 'دانلود STL دای', exact: true });
+  await stl.click();
+  await expect(page.getByRole('alert').filter({ hasText: 'STL دای ساخته نشد' })).toBeVisible();
+  const svg = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'دانلود SVG دای', exact: true }).click();
+  await svg;
+  allow = true;
+  const download = page.waitForEvent('download');
+  await stl.click();
+  await download;
+  await expect(page.getByRole('alert').filter({ hasText: 'STL دای ساخته نشد' })).toHaveCount(0);
+});
