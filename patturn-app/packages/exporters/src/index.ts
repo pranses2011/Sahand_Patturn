@@ -131,3 +131,4 @@ export * from './dimensions.js';
 export * from './obj.js';
 export * from './rib-pdf.js';
 export * from './extruder.js';
+export { toCutterSvg } from './cutter-svg.js';

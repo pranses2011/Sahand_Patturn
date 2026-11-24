@@ -11,7 +11,7 @@ import {
   type CutterPoint,
   validateMesh,
 } from '@patturn/kernel';
-import { toBinaryStl, exportName } from '@patturn/exporters';
+import { toBinaryStl, toCutterSvg, exportName } from '@patturn/exporters';
 import { NumericControl } from './NumericControl';
 import { formatNumber } from './number-format';
 export function CookieCutterTool({
@@ -263,6 +263,27 @@ export function CookieCutterTool({
       >
         {polygonMode ? text.polygonDownload : text.download}
       </button>
+      {polygonMode && (
+        <>
+          <p className="hint">{text.svgExportHelp}</p>
+          <button
+            type="button"
+            className="btn"
+            disabled={!geometry?.report.ok || !geometry.polygon}
+            onClick={() => {
+              if (!geometry?.report.ok || !geometry.polygon) return;
+              const result = toCutterSvg(geometry.polygon.points);
+              if (!result.ok || !result.bytes) {
+                setError(text.svgExportError);
+                return;
+              }
+              onExport(result.filename, result.bytes);
+            }}
+          >
+            {text.svgDownload}
+          </button>
+        </>
+      )}
       {error && <p role="alert">{error}</p>}
     </>
   );
