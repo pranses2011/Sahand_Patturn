@@ -4,8 +4,17 @@ import { clipLine, clipCircle, type DxfBounds } from './dxf-clip.js';
 import { exportName, type ExportResult } from './index.js';
 
 type Point = [number, number];
+export const DXF_PARSE_LIMITS = Object.freeze({
+  paths: 4096,
+  pathCharacters: 1024 * 1024,
+  vertices: 100_000,
+});
 /** Linear SVG plus C/S/Q/T/A with explicit flattening tolerance. Unsupported commands fail atomically. */
-function polylines(d: string, tolerance?: number): { points: Point[]; closed: boolean }[] {
+function polylines(
+  d: string,
+  tolerance: number | undefined,
+  budget: { vertices: number },
+): { points: Point[]; closed: boolean }[] {
   const tokens = d.match(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g) ?? [];
   if (d.replace(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g, '').replace(/[\s,]/g, ''))
     throw Error('DXF_INVALID_PATH');
@@ -15,6 +24,13 @@ function polylines(d: string, tolerance?: number): { points: Point[]; closed: bo
     y = 0;
   let points: Point[] = [];
   let previousOp = '';
+  let hasCurrent = false;
+  const append = (values: Point[]) => {
+    if (budget.vertices + values.length > DXF_PARSE_LIMITS.vertices)
+      throw Error('DXF_VERTEX_LIMIT');
+    budget.vertices += values.length;
+    points.push(...values);
+  };
   let cubicControl: Point | null = null,
     quadraticControl: Point | null = null;
   const out: { points: Point[]; closed: boolean }[] = [];
@@ -29,33 +45,44 @@ function polylines(d: string, tolerance?: number): { points: Point[]; closed: bo
       throw Error('DXF_INVALID_NUMBER');
     return Number(token);
   };
+  const flag = () => {
+    const token = tokens[i];
+    if (!token || !/^[01]/.test(token)) throw Error('DXF_INVALID_ARC_FLAG');
+    const value = Number(token[0]);
+    if (token.length === 1) i++;
+    else tokens[i] = token.slice(1);
+    return value;
+  };
   while (i < tokens.length) {
     if (/^[a-zA-Z]$/.test(tokens[i]!)) command = tokens[i++]!;
     if (!/^[MmLlHhVvZzCcSsQqTtAa]$/.test(command)) throw Error('DXF_UNSUPPORTED_COMMAND');
     const op = command.toUpperCase(),
       relative = command !== op;
     if (op === 'Z') {
-      if (!points.length) throw Error('DXF_INVALID_CLOSE');
-      [x, y] = points[0]!;
-      flush(true);
+      if (!hasCurrent) throw Error('DXF_INVALID_CLOSE');
+      if (points.length) {
+        [x, y] = points[0]!;
+        flush(true);
+      }
       command = '';
       previousOp = '';
       cubicControl = null;
       quadraticControl = null;
       continue;
     }
-    if (op !== 'M' && !points.length) throw Error('DXF_MISSING_MOVE');
+    if (op !== 'M' && !points.length) {
+      if (!hasCurrent) throw Error('DXF_MISSING_MOVE');
+      append([[x, y]]);
+    }
     if (op === 'A') {
       if (tolerance === undefined) throw Error('DXF_ARC_REQUIRES_EXPLICIT_TOLERANCE');
       const rx = number(),
         ry = number(),
         rotation = number(),
-        large = number(),
-        sweep = number();
+        large = flag(),
+        sweep = flag();
       const end: Point = [number() + (relative ? x : 0), number() + (relative ? y : 0)];
-      points.push(
-        ...flattenSvgArc([x, y], { rx, ry, rotation, large, sweep, end }, tolerance).slice(1),
-      );
+      append(flattenSvgArc([x, y], { rx, ry, rotation, large, sweep, end }, tolerance).slice(1));
       [x, y] = end;
       previousOp = op;
       cubicControl = null;
@@ -97,7 +124,7 @@ function polylines(d: string, tolerance?: number): { points: Point[]; closed: bo
         quadraticControl = control;
         cubicControl = null;
       }
-      points.push(...flattenCubic(start, b, c, end, tolerance).slice(1));
+      append(flattenCubic(start, b, c, end, tolerance).slice(1));
       [x, y] = end;
       previousOp = op;
       continue;
@@ -111,13 +138,14 @@ function polylines(d: string, tolerance?: number): { points: Point[]; closed: bo
       x = a + (relative ? x : 0);
       y = b + (relative ? y : 0);
       if (op === 'M') {
+        hasCurrent = true;
         if (points.length) flush();
         command = relative ? 'l' : 'L';
       }
     } else if (op === 'H') x = number() + (relative ? x : 0);
     else y = number() + (relative ? y : 0);
     if (!Number.isFinite(x) || !Number.isFinite(y)) throw Error('DXF_INVALID_NUMBER');
-    points.push([x, y]);
+    append([[x, y]]);
   }
   if (points.length) flush();
   if (!out.length) throw Error('DXF_EMPTY_PATH');
@@ -234,6 +262,14 @@ export function toDxf(
     if (bounds && ![bounds.width, bounds.height].every((n) => Number.isFinite(n) && n > 0))
       throw Error('DXF_INVALID_BOUNDS');
     if (!paths.length) throw Error('DXF_EMPTY_DRAWING');
+    if (paths.length > DXF_PARSE_LIMITS.paths) throw Error('DXF_PATH_LIMIT');
+    let characters = 0;
+    for (const p of paths) {
+      if (typeof p.d !== 'string') throw Error('DXF_INVALID_PATH');
+      characters += p.d.length;
+      if (characters > DXF_PARSE_LIMITS.pathCharacters) throw Error('DXF_PATH_CHARACTER_LIMIT');
+    }
+    const budget = { vertices: 0 };
     // Parse everything first so unsupported geometry cannot yield a partial successful file.
     const parsed = paths.map((p) => {
       const c = circle(p.d);
@@ -242,7 +278,7 @@ export function toDxf(
         arc,
         layer: p.fill ? 'outline' : 'detail',
         circle: c,
-        lines: c || arc ? [] : polylines(p.d, options.bezierToleranceMm),
+        lines: c || arc ? [] : polylines(p.d, options.bezierToleranceMm, budget),
       };
     });
     const lines: string[] = [];
