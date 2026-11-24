@@ -3886,3 +3886,88 @@ test('native close IPC asks about dirty named projects, supports cancellation an
     database.close();
   }
 });
+
+test('convex polygon SVG cutter honors physical viewBox scale, validates STL and rejects unsupported SVG without stale output', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  const input = panel.getByLabel('ورود SVG تک‌چندضلعی محدب', { exact: true });
+  const valid =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="60mm" viewBox="10 20 40 30"><polygon points="10,20 50,20 50,50 10,50"/></svg>';
+  await input.setInputFiles({
+    name: 'rectangle.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(valid),
+  });
+  const exportPolygon = panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true });
+  await expect(exportPolygon).toBeEnabled();
+  await expect(panel).toContainText('۸۰ × ۶۰ mm');
+  await expect(
+    panel.getByRole('img', {
+      name: 'پلان کاتر چندضلعی؛ دهانهٔ داخلی باز و دستگیرهٔ بیرونی',
+      exact: true,
+    }),
+  ).toBeVisible();
+  const download = page.waitForEvent('download');
+  await exportPolygon.click();
+  const file = await download;
+  expect(file.suggestedFilename()).toContain('convex-cutter');
+  const bytes = await readFile((await file.path())!);
+  const count = bytes.readUInt32LE(80);
+  expect(count).toBe(7 * 4 * 2);
+  expect(bytes.length).toBe(84 + count * 50);
+  let maxX = 0,
+    maxZ = 0,
+    maxY = 0;
+  for (let i = 0; i < count; i++)
+    for (let corner = 0; corner < 3; corner++) {
+      const offset = 84 + i * 50 + 12 + corner * 12;
+      maxX = Math.max(maxX, Math.abs(bytes.readFloatLE(offset)));
+      maxZ = Math.max(maxZ, Math.abs(bytes.readFloatLE(offset + 8)));
+      maxY = Math.max(maxY, bytes.readFloatLE(offset + 4));
+    }
+  expect(maxX).toBeCloseTo(44.6, 3);
+  expect(maxZ).toBeCloseTo(34.6, 3);
+  expect(maxY).toBe(20);
+  const invalid = [
+    valid.replace('80mm', '80px'),
+    valid.replace('80mm', '100mm'),
+    valid.replace('10,20 50,20 50,50 10,50', '10,20 50,20 30,30 50,50 10,50'),
+    valid.replace('<polygon', '<polygon transform="translate(1 1)"'),
+    valid.replace('<polygon', '<script/> <polygon'),
+    valid.replace('10,20 50,20', '10,,20 50,20'),
+    valid.replace('10,20 50,20', '0,20 50,20'),
+    valid.replace('points=', 'onclick="alert(1)" points='),
+    valid.replace('<polygon points="10,20 50,20 50,50 10,50"/>', '<path d="M10 20H50V50H10Z"/>'),
+    '<!DOCTYPE svg [<!ENTITY x "data">]>' + valid,
+    valid.replace('viewBox="10 20 40 30"', 'viewBox="10 20 0 30"'),
+    '<svg',
+    ' '.repeat(64 * 1024 + 1),
+  ];
+  for (const source of invalid) {
+    await expect(input).toBeEnabled();
+    await input.setInputFiles({
+      name: 'unsupported.svg',
+      mimeType: 'image/svg+xml',
+      buffer: Buffer.from(source),
+    });
+    await expect(
+      panel.getByRole('status', { name: 'اعتبار هندسهٔ کاتر', exact: true }),
+    ).toContainText('خروجی تا ورود فایل معتبر');
+    await expect(exportPolygon).toBeDisabled();
+  }
+  await input.setInputFiles({
+    name: 'valid-again.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(valid),
+  });
+  await expect(exportPolygon).toBeEnabled();
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر گرد', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

@@ -1,6 +1,14 @@
+import { cutterSvgPoints } from './cutter-svg';
 import { cookieCutter as text } from './messages/fa.json';
-import { useMemo, useState } from 'react';
-import { buildCircularCutter, circularCutterProfile, validateMesh } from '@patturn/kernel';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  buildCircularCutter,
+  circularCutterProfile,
+  buildConvexCutter,
+  convexCutterProfile,
+  type CutterPoint,
+  validateMesh,
+} from '@patturn/kernel';
 import { toBinaryStl, exportName } from '@patturn/exporters';
 import { NumericControl } from './NumericControl';
 import { formatNumber } from './number-format';
@@ -14,40 +22,108 @@ export function CookieCutterTool({
     [wallMm, setWall] = useState(1.6),
     [tipMm, setTip] = useState(0.6);
   const [error, setError] = useState('');
+  const [contour, setContour] = useState<CutterPoint[] | null>(null);
+  const [importBusy, setImportBusy] = useState(false),
+    [importFailed, setImportFailed] = useState(false);
+  const request = useRef(0),
+    alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      request.current++;
+    };
+  }, []);
+
   const geometry = useMemo(() => {
+    if (importBusy || importFailed) return null;
     try {
       const options = { diameterMm, heightMm, wallMm, tipMm };
-      const mesh = buildCircularCutter(options);
-      return { ...circularCutterProfile(options), mesh, report: validateMesh(mesh) };
+      const polygon = contour ? convexCutterProfile(contour, options) : null;
+      const mesh = contour ? buildConvexCutter(contour, options) : buildCircularCutter(options);
+      return { ...circularCutterProfile(options), polygon, mesh, report: validateMesh(mesh) };
     } catch {
       return null;
     }
-  }, [diameterMm, heightMm, wallMm, tipMm]);
+  }, [diameterMm, heightMm, wallMm, tipMm, contour, importBusy, importFailed]);
   return (
     <>
       <p className="hint">{text.intro}</p>
+      <label>
+        {text.svgInput}
+        <input
+          type="file"
+          accept=".svg,image/svg+xml"
+          disabled={importBusy}
+          aria-describedby="cutter-svg-help"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (!file) return;
+            const id = ++request.current;
+            setImportBusy(true);
+            setImportFailed(false);
+            setError('');
+            void (async () => {
+              try {
+                if (file.size > 64 * 1024) throw Error('CUTTER_SVG_TOO_LARGE');
+                const points = cutterSvgPoints(await file.text());
+                convexCutterProfile(points, { heightMm: 20, wallMm: 1.6, tipMm: 0.6 });
+                if (alive.current && request.current === id) setContour(points);
+              } catch {
+                if (alive.current && request.current === id) {
+                  setImportFailed(true);
+                  setError(text.svgError);
+                }
+              } finally {
+                if (alive.current && request.current === id) setImportBusy(false);
+              }
+            })();
+          }}
+        />
+      </label>
+      <p id="cutter-svg-help" className="hint">
+        {text.svgHelp}
+      </p>
+      {(contour || importFailed || importBusy) && (
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            request.current++;
+            setContour(null);
+            setImportBusy(false);
+            setImportFailed(false);
+            setError('');
+          }}
+        >
+          {text.resetCircle}
+        </button>
+      )}
       {[
         { label: text.diameter, value: diameterMm, set: setDiameter, min: 20, max: 150 },
         { label: text.height, value: heightMm, set: setHeight, min: 10, max: 40 },
         { label: text.wall, value: wallMm, set: setWall, min: 0.8, max: 3 },
         { label: text.tip, value: tipMm, set: setTip, min: 0.4, max: 1.2 },
-      ].map((control) => (
-        <NumericControl
-          key={control.label}
-          label={control.label}
-          value={control.value}
-          step={control.min < 1 ? 0.1 : 1}
-          min={control.min}
-          max={control.max}
-          onChange={(value) => {
-            control.set(value);
-            setError('');
-          }}
-          onBeginEdit={() => {}}
-          onEndEdit={() => {}}
-        />
-      ))}
-      {geometry && (
+      ]
+        .filter((control) => !contour || control.label !== text.diameter)
+        .map((control) => (
+          <NumericControl
+            key={control.label}
+            label={control.label}
+            value={control.value}
+            step={control.min < 1 ? 0.1 : 1}
+            min={control.min}
+            max={control.max}
+            onChange={(value) => {
+              control.set(value);
+              setError('');
+            }}
+            onBeginEdit={() => {}}
+            onEndEdit={() => {}}
+          />
+        ))}
+      {geometry && !geometry.polygon && (
         <>
           <svg
             viewBox={`0 -${heightMm + 4} ${diameterMm / 2 + wallMm + 8} ${heightMm + 8}`}
@@ -64,8 +140,38 @@ export function CookieCutterTool({
           </p>
         </>
       )}
+      {geometry?.polygon && (
+        <>
+          <svg
+            role="img"
+            aria-label={text.polygonPreview}
+            viewBox={`${-geometry.polygon.width / 2 - 30} ${-geometry.polygon.depth / 2 - 30} ${geometry.polygon.width + 60} ${geometry.polygon.depth + 60}`}
+          >
+            <path
+              fill="#3f6c7a"
+              fillRule="evenodd"
+              d={[geometry.polygon.loops.at(-2)!.points, geometry.polygon.points]
+                .map(
+                  (points) =>
+                    points.map((p, i) => `${i ? 'L' : 'M'}${p[0]} ${p[1]}`).join(' ') + ' Z',
+                )
+                .join(' ')}
+            />
+          </svg>
+          <p>
+            {text.polygonSize} {formatNumber(geometry.polygon.width)} ×{' '}
+            {formatNumber(geometry.polygon.depth)} mm
+          </p>
+        </>
+      )}
       <p role="status" aria-label={text.status}>
-        {geometry?.report.ok ? text.valid : text.invalid}
+        {importBusy
+          ? text.svgLoading
+          : importFailed
+            ? text.svgError
+            : geometry?.report.ok
+              ? text.valid
+              : text.invalid}
       </p>
       <p className="hint">{text.safety}</p>
       <button
@@ -74,23 +180,25 @@ export function CookieCutterTool({
         disabled={!geometry?.report.ok}
         onClick={() => {
           if (!geometry?.report.ok) return;
-          const result = toBinaryStl(geometry.mesh, 'circular-cutter');
+          const result = toBinaryStl(geometry.mesh, contour ? 'convex-cutter' : 'circular-cutter');
           if (!result.ok || !result.bytes) {
             setError(text.exportError);
             return;
           }
           onExport(
             exportName(
-              'circular-cutter',
+              contour ? 'convex-cutter' : 'circular-cutter',
               'ring',
-              `D${diameterMm}-H${heightMm}-W${wallMm}-T${tipMm}mm`,
+              geometry.polygon
+                ? `W${geometry.polygon.width}-D${geometry.polygon.depth}-H${heightMm}mm`
+                : `D${diameterMm}-H${heightMm}-W${wallMm}-T${tipMm}mm`,
               'stl',
             ),
             result.bytes,
           );
         }}
       >
-        {text.download}
+        {contour ? text.polygonDownload : text.download}
       </button>
       {error && <p role="alert">{error}</p>}
     </>

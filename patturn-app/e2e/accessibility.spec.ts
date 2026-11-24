@@ -242,3 +242,39 @@ test('named project manager remains accessible through opened, dirty and conflic
   await expect(manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true })).toBeFocused();
   await expect(wall).toHaveValue('6');
 });
+
+test('convex SVG cutter preview and rejected import remain accessible at 320px', async ({
+  page,
+}, info) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  const input = panel.getByLabel('ورود SVG تک‌چندضلعی محدب', { exact: true });
+  const source =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40"><polygon points="0,0 40,0 40,40 0,40"/></svg>';
+  await input.setInputFiles({
+    name: 'square.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(source),
+  });
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true }),
+  ).toBeEnabled();
+  await audit(page, info, 'convex-cutter-svg-320');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+  await input.setInputFiles({
+    name: 'invalid.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(source.replace('40mm', '40px')),
+  });
+  await expect(panel.getByRole('alert')).toContainText('SVG پشتیبانی نشد');
+  await audit(page, info, 'convex-cutter-svg-rejected-320');
+  await panel.getByRole('button', { name: 'بازگشت به کاتر گرد', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر گرد', exact: true }),
+  ).toBeEnabled();
+});
