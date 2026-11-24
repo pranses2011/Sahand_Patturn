@@ -399,3 +399,33 @@ test('standalone cutter file success and rejection are accessible at 320px', asy
   await audit(page, info, 'cutter-file-rejected-320');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal cutter accepted and rejected SVG remain accessible at 320px', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  await audit(page, info, 'orthogonal-cutter-L-320');
+  await panel.getByLabel('ورود SVG کاتر قائم‌الزاویه', { exact: true }).setInputFiles({
+    name: 'invalid.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg/>'),
+  });
+  await expect(panel.getByRole('alert')).toContainText('SVG قائم‌الزاویه');
+  await audit(page, info, 'orthogonal-cutter-rejected-320');
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ U کاتر قائم‌الزاویه', exact: true })
+    .focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

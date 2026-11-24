@@ -4780,3 +4780,153 @@ test('local sketch undo groups drags, restores cleared contours and never consum
   await page.getByRole('button', { name: '🏺 فرم', exact: true }).click();
   await expect(projectWall).toHaveValue('7');
 });
+
+test('orthogonal cutter panel stays lazy, exports concave L/U STL and blocks obsolete or unsafe SVG geometry', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const requests: string[] = [];
+  page.on('request', (req) => {
+    if (req.url().includes('OrthogonalCutterTool-')) requests.push(req.url());
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await expect(panel.locator('summary')).toBeVisible();
+  expect(requests).toHaveLength(0);
+  await panel.locator('summary').click();
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true });
+  await expect(output).toBeEnabled();
+  expect(requests).toHaveLength(1);
+  const download = async () => {
+    const pending = page.waitForEvent('download');
+    await output.click();
+    const file = await pending;
+    expect(file.suggestedFilename()).toMatch(/^orthogonal-cutter_ring_/);
+    return await readFile((await file.path())!);
+  };
+  const initial = await download();
+  expect(initial.readUInt32LE(80)).toBe(84);
+  let maxX = 0,
+    maxY = 0;
+  for (let i = 0; i < 84; i++)
+    for (let j = 0; j < 3; j++) {
+      maxX = Math.max(maxX, Math.abs(initial.readFloatLE(84 + i * 50 + 12 + j * 12)));
+      maxY = Math.max(maxY, initial.readFloatLE(84 + i * 50 + 16 + j * 12));
+    }
+  expect(maxX).toBeCloseTo(44.6, 3);
+  expect(maxY).toBe(20);
+  await expect(panel).toContainText('۸۰ × ۸۰ mm');
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ U کاتر قائم‌الزاویه', exact: true })
+    .click();
+  expect((await download()).readUInt32LE(80)).toBe(112);
+  await expect(panel).toContainText('۱۰۰ × ۱۰۰ mm');
+  const input = panel.getByLabel('ورود SVG کاتر قائم‌الزاویه', { exact: true });
+  const upload = async (svg: string) => {
+    await expect(input).toBeEnabled();
+    await input.setInputFiles({
+      name: 'shape.svg',
+      mimeType: 'image/svg+xml',
+      buffer: Buffer.from(svg),
+    });
+  };
+  const source = (points: string) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="100mm" viewBox="0 0 100 100"><polygon points="${points}"/></svg>`;
+  const scaled =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="80mm" viewBox="10 20 40 40"><polygon points="10,20 50,20 50,35 25,35 25,60 10,60"/></svg>';
+  await upload(scaled);
+  await expect(output).toBeEnabled();
+  expect(await download()).toEqual(initial);
+  // A notch valid at default wall is deliberately blocked at the wider grip, without fallback.
+  await upload(source('0,0 100,0 100,100 58,100 58,40 42,40 42,100 0,100'));
+  await expect(output).toBeEnabled();
+  const wall = panel.getByRole('spinbutton', {
+    name: 'ضخامت دیوارهٔ کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  await wall.fill('3');
+  await wall.press('Enter');
+  await expect(output).toBeDisabled();
+  await expect(panel.getByRole('img')).toHaveCount(0);
+  await wall.fill('0.8');
+  await wall.press('Enter');
+  await expect(output).toBeEnabled();
+  for (const svg of [
+    source('0,0 80,0 80,80 43,80 43,30 37,30 37,80 0,80'),
+    source('0,0 80,0 80,80 30,30 0,80'),
+    scaled.replace('</svg>', '<polygon points="20,25 30,25 30,30 20,30"/></svg>'),
+    scaled.replace('80mm', '80px'),
+    '<svg/>',
+  ]) {
+    await upload(svg);
+    await expect(panel.getByRole('alert')).toContainText('SVG قائم‌الزاویه پشتیبانی نشد');
+    await expect(output).toBeDisabled();
+    await expect(panel.getByRole('img')).toHaveCount(0);
+  }
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ L کاتر قائم‌الزاویه', exact: true })
+    .click();
+  await expect(output).toBeEnabled();
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  const tip = panel.getByRole('spinbutton', { name: 'ضخامت لبهٔ کاتر قائم‌الزاویه', exact: true });
+  await tip.fill('1.2');
+  await tip.press('Enter');
+  await expect(output).toBeDisabled();
+  await tip.fill('0.6');
+  await tip.press('Enter');
+  await expect(output).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
+
+test('orthogonal cutter sample recovery cancels delayed SVG reads without reviving the old contour', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  await page.evaluate(() => {
+    const original = File.prototype.text;
+    File.prototype.text = function () {
+      if (this.name !== 'delayed-ortho.svg') return original.call(this);
+      const file = this;
+      return new Promise<string>((resolve) => {
+        (window as unknown as { releaseOrtho: () => Promise<void> }).releaseOrtho = async () =>
+          resolve(await original.call(file));
+      });
+    };
+  });
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true });
+  const input = panel.getByLabel('ورود SVG کاتر قائم‌الزاویه', { exact: true });
+  await expect(output).toBeEnabled();
+  await input.setInputFiles({
+    name: 'delayed-ortho.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="80mm" viewBox="0 0 80 80"><polygon points="0,0 80,0 80,30 30,30 30,80 0,80"/></svg>',
+    ),
+  });
+  await expect(output).toBeDisabled();
+  await expect(input).toBeDisabled();
+  await expect(
+    panel.getByRole('status', { name: 'اعتبار هندسهٔ کاتر قائم‌الزاویه', exact: true }),
+  ).toContainText('در حال بررسی');
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ U کاتر قائم‌الزاویه', exact: true })
+    .click();
+  await expect(output).toBeEnabled();
+  await expect(panel).toContainText('۱۰۰ × ۱۰۰ mm');
+  await page.evaluate(async () => {
+    await (window as unknown as { releaseOrtho: () => Promise<void> }).releaseOrtho();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+  await expect(panel).toContainText('۱۰۰ × ۱۰۰ mm');
+  await expect(output).toBeEnabled();
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+});

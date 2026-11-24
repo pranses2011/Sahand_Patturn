@@ -33,6 +33,7 @@ const optionalTools = [
   'ChuckTool',
   'RounderTool',
   'CookieCutterTool',
+  'OrthogonalCutterTool',
   'HorizontalSplitTool',
   'JigsawTool',
   'SlabTool',

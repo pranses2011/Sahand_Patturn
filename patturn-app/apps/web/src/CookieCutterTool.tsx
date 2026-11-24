@@ -1,3 +1,4 @@
+import { DeferredTool } from './DeferredTool';
 import { readCutterFile, writeCutterFile } from './cutter-file';
 import { cutterSketchSeed } from './cutter-sketch';
 import { CutterSketch } from './CutterSketch';
@@ -16,6 +17,8 @@ import {
 import { toBinaryStl, toCutterSvg, exportName } from '@patturn/exporters';
 import { NumericControl } from './NumericControl';
 import { formatNumber } from './number-format';
+const loadOrthogonalCutterTool = () =>
+  import('./OrthogonalCutterTool').then((module) => ({ default: module.OrthogonalCutterTool }));
 export function CookieCutterTool({
   onExport,
   sourceContours,
@@ -382,6 +385,14 @@ export function CookieCutterTool({
         {text.fileSave}
       </button>
       {error && <p role="alert">{error}</p>}
+      {!sourceMode && (
+        <DeferredTool
+          label={text.orthogonalTitle}
+          className="orthogonal-cutter-tool"
+          load={loadOrthogonalCutterTool}
+          toolProps={{ onExport }}
+        />
+      )}
     </>
   );
 }
