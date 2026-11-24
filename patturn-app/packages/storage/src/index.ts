@@ -85,3 +85,4 @@ export * from './local-profile.js';
 export * from './feature-requests.js';
 export { desktopSqliteHistory } from './desktop-sqlite-history.js';
 export type { SqliteHistoryDriver } from './sqlite-history.js';
+export { desktopProjectRepo } from './desktop-projects.js';
