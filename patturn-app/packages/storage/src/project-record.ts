@@ -59,3 +59,16 @@ export function validatedProjectRecord(input: unknown): ProjectRecord {
     throw Error('PROJECT_RECORD_TOO_LARGE');
   return normalized;
 }
+
+/** Snapshot and validate an external record before creating an independent identity. */
+export function importedProjectCopy(input: ProjectRecord): ProjectRecord {
+  const record = validatedProjectRecord(input);
+  const now = new Date().toISOString();
+  return validatedProjectRecord({
+    ...record,
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+    data: { ...(record.data as object), createdAt: now, updatedAt: now },
+  });
+}

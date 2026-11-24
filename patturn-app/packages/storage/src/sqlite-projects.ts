@@ -6,7 +6,11 @@ import { ProjectDoc } from '@patturn/schema';
 import type { ProjectRecord, ProjectRepo } from './index.js';
 import type { SqliteHistoryDriver } from './sqlite-history.js';
 
-import { validatedProjectRecord, SQLITE_PROJECT_MAX_CHARACTERS } from './project-record.js';
+import {
+  importedProjectCopy,
+  validatedProjectRecord,
+  SQLITE_PROJECT_MAX_CHARACTERS,
+} from './project-record.js';
 export { validatedProjectRecord, SQLITE_PROJECT_MAX_CHARACTERS } from './project-record.js';
 const RecordSchema = z.object({ id: z.string().min(1).max(100) });
 const projects = sqliteTable('patturn_projects', {
@@ -102,6 +106,21 @@ export class SqliteProjectRepo implements ProjectRepo {
         throw new Error('SQLITE_PROJECT_WRITE_FAILED', { cause: error });
       });
     if (rows.length !== 1) throw Error('SQLITE_PROJECT_CONFLICT');
+  }
+  async importCopy(input: ProjectRecord): Promise<ProjectRecord> {
+    const copy = importedProjectCopy(input);
+    await this.init();
+    const rows = await this.db
+      .insert(projects)
+      .values({ id: copy.id, document: JSON.stringify(copy), updatedAt: copy.updatedAt })
+      .onConflictDoNothing()
+      .returning()
+      .all()
+      .catch((error) => {
+        throw new Error('SQLITE_PROJECT_WRITE_FAILED', { cause: error });
+      });
+    if (rows.length !== 1) throw Error('PROJECT_ID_CONFLICT');
+    return copy;
   }
   /** Single atomic statement: copy a validated browser snapshot only into an empty table.
    * Never clears the source or replaces existing SQL records, even under concurrent writers.

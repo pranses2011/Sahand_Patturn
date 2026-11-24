@@ -1,4 +1,4 @@
-import { validatedProjectRecord } from './project-record.js';
+import { importedProjectCopy, validatedProjectRecord } from './project-record.js';
 import type { ProjectRecord, ProjectRepo } from './index.js';
 import type { HistoryStorage } from './history.js';
 /** Validated web counterpart; unreadable data is never interpreted as an empty library. */
@@ -36,6 +36,14 @@ export class LocalRepo implements ProjectRepo {
     if (index < 0) records.push(record);
     else records[index] = record;
     this.write(records);
+  }
+  async importCopy(input: ProjectRecord): Promise<ProjectRecord> {
+    const copy = importedProjectCopy(input),
+      records = this.read();
+    if (records.some((record) => record.id === copy.id)) throw Error('PROJECT_ID_CONFLICT');
+    records.push(copy);
+    this.write(records);
+    return copy;
   }
   async importIntoEmpty(inputs: ProjectRecord[]): Promise<number> {
     if (!Array.isArray(inputs) || inputs.length > 100) throw Error('PROJECT_LIBRARY_INVALID');

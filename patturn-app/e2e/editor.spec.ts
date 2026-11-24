@@ -1123,6 +1123,7 @@ test('hidden active pattern can be revealed without changing project selection o
   const library = page.getByRole('group', { name: 'الگوهای آماده', exact: true });
   await library.getByRole('radio', { name: 'شبکهٔ مربعی', exact: true }).check();
   const undo = page.getByRole('button', { name: /^واگرد/ });
+  await expect(undo).toBeEnabled();
   const title = await undo.getAttribute('title');
   const search = library.getByRole('searchbox', { name: 'جست‌وجوی الگو', exact: true });
   await search.fill('dot');
@@ -1225,6 +1226,7 @@ test('failed browser delivery can be discarded and a fresh output downloaded wit
   await wall.fill('7');
   await wall.press('Enter');
   const undo = page.getByRole('button', { name: /^واگرد/ });
+  await expect(undo).toBeEnabled();
   const title = await undo.getAttribute('title');
   await page.getByRole('button', { name: 'خروجی SVG الگو', exact: true }).click();
   const failure = page.getByRole('alert').filter({ hasText: 'ممکن است فایل مقصد ناقص باشد' });
@@ -1430,6 +1432,7 @@ test('applying a saved recipe revalidates storage rather than trusting stale dis
   );
   await expect(row).toContainText('شبکهٔ مربعی — ۶۱ میلی‌متر');
   const undo = page.getByRole('button', { name: /^واگرد/ });
+  await expect(undo).toBeEnabled();
   const title = await undo.getAttribute('title');
   await page.evaluate(() =>
     localStorage.setItem('patturn:pattern-library:v1', JSON.stringify({ version: 1, entries: [] })),
@@ -1490,6 +1493,7 @@ test('privacy notice opens by keyboard using packaged text and preserves project
   await wall.fill('7');
   await wall.press('Enter');
   const undo = page.getByRole('button', { name: /^واگرد/ });
+  await expect(undo).toBeEnabled();
   const title = await undo.getAttribute('title');
   const summary = page.getByText('حریم خصوصی و داده‌های محلی', { exact: true });
   await summary.focus();
@@ -1527,6 +1531,7 @@ test('optional support copies only the card number and reports clipboard denial 
   await wall.fill('7');
   await wall.press('Enter');
   const undo = page.getByRole('button', { name: /^واگرد/ });
+  await expect(undo).toBeEnabled();
   const title = await undo.getAttribute('title');
   const panel = page.getByRole('region', { name: 'حمایت اختیاری و پشتیبانی', exact: true });
   const button = panel.getByRole('button', { name: 'کپی شمارهٔ کارت حمایت', exact: true });
@@ -3022,7 +3027,7 @@ test('named project archive exports and imports losslessly without applying it t
   expect(JSON.parse(archive.toString()).project).toEqual(original);
   page.once('dialog', (dialog) => dialog.accept());
   await manager.getByRole('button', { name: 'حذف فایل مستقل', exact: true }).click();
-  const input = manager.getByLabel('ورود فایل پروژهٔ نام‌دار به مخزن خالی', { exact: true });
+  const input = manager.getByLabel('ورود فایل پروژهٔ نام‌دار', { exact: true });
   await expect(input).toBeEnabled();
   const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
   await wall.fill('6');
@@ -3045,7 +3050,7 @@ test('named project archive exports and imports losslessly without applying it t
   await expect(
     manager.getByRole('button', { name: 'بازکردن فایل مستقل', exact: true }),
   ).toBeVisible();
-  await expect(input).toBeDisabled();
+  await expect(input).toBeEnabled();
   await expect(wall).toHaveValue('6');
   expect(
     await page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects')!)[0]),
@@ -3061,7 +3066,7 @@ test('named archive rejects corrupt and oversized files, then imports a valid ge
     await page.goto('/');
     await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
     const manager = page.locator('.project-manager');
-    const input = manager.getByLabel('ورود فایل پروژهٔ نام‌دار به مخزن خالی', { exact: true });
+    const input = manager.getByLabel('ورود فایل پروژهٔ نام‌دار', { exact: true });
     for (const buffer of [Buffer.from('{broken'), Buffer.alloc(2 * 1024 * 1024 + 1, 32)]) {
       await input.setInputFiles({ name: 'bad.patturn', mimeType: 'application/json', buffer });
       await expect(manager.getByRole('alert')).toContainText('عملیات پروژه انجام نشد');
@@ -3097,8 +3102,57 @@ test('named archive rejects corrupt and oversized files, then imports a valid ge
       ),
     ).toEqual(record);
     expect(await page.evaluate(() => localStorage.getItem('patturn:projects'))).toBeNull();
+    page.once('dialog', (dialog) => dialog.accept());
+    await input.setInputFiles({
+      name: 'again.patturn',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ format: 'patturn', v: 1, project: record })),
+    });
+    await expect(
+      manager.getByRole('button', { name: 'بازکردن عمومی خارجی', exact: true }),
+    ).toHaveCount(2);
+    const importedRows = database
+      .prepare('select document from patturn_projects')
+      .all()
+      .map((row) => JSON.parse(row.document as string));
+    expect(importedRows.find((row) => row.id === 'external')).toEqual(record);
+    expect(new Set(importedRows.map((row) => row.id)).size).toBe(2);
   } finally {
     await page.close();
     database.close();
   }
+});
+
+test('archive import into a nonempty library creates a new identity and never replaces a matching project', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+  const manager = page.locator('.project-manager');
+  await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('اصلی');
+  await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+  await expect(manager.getByRole('button', { name: 'بازکردن اصلی', exact: true })).toBeVisible();
+  const original = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('patturn:projects')!)[0],
+  );
+  const imported = { ...original, name: 'واردشده', data: { ...original.data, name: 'واردشده' } };
+  const input = manager.getByLabel('ورود فایل پروژهٔ نام‌دار', { exact: true });
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('کپی با شناسه');
+    await dialog.accept();
+  });
+  await input.setInputFiles({
+    name: 'copy.patturn',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ format: 'patturn', v: 1, project: imported })),
+  });
+  await expect(manager.getByRole('button', { name: 'بازکردن واردشده', exact: true })).toBeVisible();
+  const records = await page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects')!));
+  expect(records).toHaveLength(2);
+  expect(records.find((r: { id: string }) => r.id === original.id)).toEqual(original);
+  expect(records.find((r: { name: string }) => r.name === 'واردشده').id).not.toBe(original.id);
+  await page.reload();
+  await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+  await expect(manager.getByRole('button', { name: 'بازکردن اصلی', exact: true })).toBeVisible();
+  await expect(manager.getByRole('button', { name: 'بازکردن واردشده', exact: true })).toBeVisible();
 });

@@ -99,3 +99,31 @@ it('rejects invalid/duplicate imports without partial browser writes', async () 
   await expect(repo.importIntoEmpty([fixture()])).rejects.toThrow();
   expect(raw()).toBe('broken');
 });
+
+it('imports a detached independent copy without replacing a matching source ID', async () => {
+  const { repo } = setup();
+  await repo.save(fixture());
+  const copy = await repo.importCopy(fixture());
+  expect(copy.id).not.toBe('one');
+  expect(copy.name).toBe(fixture().name);
+  expect(copy.createdAt).not.toBe(fixture().createdAt);
+  expect(await repo.get('one')).toEqual(fixture());
+  expect(await repo.list()).toHaveLength(2);
+});
+it('rejects UUID collisions and corrupt browser libraries without writes during copy import', async () => {
+  const { repo, raw, setRaw } = setup();
+  await repo.save(fixture());
+  const before = raw();
+  const uuid = vi
+    .spyOn(crypto, 'randomUUID')
+    .mockReturnValue('one' as ReturnType<typeof crypto.randomUUID>);
+  try {
+    await expect(repo.importCopy(fixture())).rejects.toThrow('ID_CONFLICT');
+    expect(raw()).toBe(before);
+  } finally {
+    uuid.mockRestore();
+  }
+  setRaw('broken');
+  await expect(repo.importCopy(fixture())).rejects.toThrow();
+  expect(raw()).toBe('broken');
+});

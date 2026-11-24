@@ -170,11 +170,11 @@ export function ProjectManager({
         </button>
       )}
       <label>
-        ورود فایل پروژهٔ نام‌دار به مخزن خالی
+        ورود فایل پروژهٔ نام‌دار
         <input
           type="file"
           accept=".patturn,application/json"
-          disabled={!repo || busy || entries.length > 0}
+          disabled={!repo || busy}
           onChange={(event) => {
             const file = event.currentTarget.files?.[0];
             event.currentTarget.value = '';
@@ -182,23 +182,32 @@ export function ProjectManager({
             void perform(async (current) => {
               if (file.size > 2 * 1024 * 1024) throw Error('PROJECT_FILE_TOO_LARGE');
               const record = parseProject(await file.text());
+              const empty = (await current.list()).length === 0;
               if (!active.current) return;
-              if (
-                !window.confirm(
-                  `پروژهٔ «${record.name}» به مخزن خالی وارد شود؟ ادیتور تغییر نمی‌کند.`,
+              const message = empty
+                ? `پروژهٔ «${record.name}» با شناسهٔ اصلی به مخزن خالی وارد شود؟ ادیتور تغییر نمی‌کند.`
+                : `پروژهٔ «${record.name}» به‌صورت کپی با شناسه و زمان تازه وارد شود؟ پروژه‌های موجود و ادیتور تغییر نمی‌کنند.`;
+              if (!window.confirm(message)) return;
+              if (empty) {
+                if (
+                  !('importIntoEmpty' in current) ||
+                  typeof current.importIntoEmpty !== 'function'
                 )
-              )
-                return;
-              if (!('importIntoEmpty' in current) || typeof current.importIntoEmpty !== 'function')
-                throw Error('PROJECT_IMPORT_UNAVAILABLE');
-              await current.importIntoEmpty([record]);
+                  throw Error('PROJECT_IMPORT_UNAVAILABLE');
+                await current.importIntoEmpty([record]);
+              } else {
+                if (!('importCopy' in current) || typeof current.importCopy !== 'function')
+                  throw Error('PROJECT_IMPORT_UNAVAILABLE');
+                await current.importCopy(record);
+              }
             });
           }}
         />
       </label>
       <p className="hint">
-        این فایل مربوط به پروژهٔ نام‌دار است، نه فایل وضعیت ادیتور. ورود فقط به مخزن خالی، با حفظ
-        شناسه و نام انجام می‌شود و پروژه را خودکار باز نمی‌کند.
+        این فایل مربوط به پروژهٔ نام‌دار است، نه فایل وضعیت ادیتور. در مخزن خالی شناسه حفظ می‌شود؛ در
+        مخزن غیرخالی یک کپی با شناسه و زمان تازه ساخته می‌شود. هیچ پروژه‌ای جایگزین و پروژهٔ واردشده
+        خودکار باز نمی‌شود.
       </p>
       <p role="status">
         {busy ? 'در حال خواندن/نوشتن پروژه…' : `${formatNumber(entries.length)} پروژه`}

@@ -369,3 +369,33 @@ describe('Atomic browser snapshot import', () => {
     }
   });
 });
+
+describe('External project copy import', () => {
+  it('retains original and creates an independent identity from a colliding archive', async () => {
+    const { db, repo } = setup();
+    try {
+      await repo.save(fixture());
+      const copy = await repo.importCopy(fixture());
+      expect(copy.id).not.toBe('one');
+      expect(copy.createdAt).not.toBe(date);
+      expect(await repo.get('one')).toEqual(fixture());
+      expect(await repo.list()).toHaveLength(2);
+    } finally {
+      db.close();
+    }
+  });
+  it('rejects UUID collision without changing the destination', async () => {
+    const { db, repo } = setup();
+    await repo.save(fixture());
+    const uuid = vi
+      .spyOn(crypto, 'randomUUID')
+      .mockReturnValue('one' as ReturnType<typeof crypto.randomUUID>);
+    try {
+      await expect(repo.importCopy(fixture('external'))).rejects.toThrow('ID_CONFLICT');
+      expect(await repo.list()).toEqual([fixture()]);
+    } finally {
+      uuid.mockRestore();
+      db.close();
+    }
+  });
+});
