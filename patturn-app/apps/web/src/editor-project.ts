@@ -85,3 +85,17 @@ export function projectEditor(record: ProjectRecord): EditorState {
     tileSize: pattern.tile.width,
   });
 }
+
+/** Rebuild only an editable preset snapshot; retain identity, discard stale thumbnail. */
+export function updatedEditorProject(previous: ProjectRecord, input: EditorState): ProjectRecord {
+  projectEditor(previous); // refuse lossy replacement of a general document
+  const fresh = editorProject(input, previous.name);
+  const updatedAt = new Date(Math.max(Date.now(), Date.parse(previous.updatedAt))).toISOString();
+  return {
+    ...fresh,
+    id: previous.id,
+    createdAt: previous.createdAt,
+    updatedAt,
+    data: { ...(fresh.data as object), createdAt: previous.createdAt, updatedAt },
+  };
+}

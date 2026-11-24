@@ -37,6 +37,18 @@ export class LocalRepo implements ProjectRepo {
     else records[index] = record;
     this.write(records);
   }
+  async updateIfUnchanged(previous: ProjectRecord, next: ProjectRecord): Promise<void> {
+    const expected = validatedProjectRecord(previous),
+      record = validatedProjectRecord(next);
+    if (expected.id !== record.id || expected.createdAt !== record.createdAt)
+      throw Error('PROJECT_IDENTITY_CHANGED');
+    const records = this.read(),
+      index = records.findIndex((p) => p.id === record.id);
+    if (index < 0 || JSON.stringify(records[index]) !== JSON.stringify(expected))
+      throw Error('PROJECT_UPDATE_CONFLICT');
+    records[index] = record;
+    this.write(records);
+  }
   async importCopy(input: ProjectRecord): Promise<ProjectRecord> {
     const copy = importedProjectCopy(input),
       records = this.read();

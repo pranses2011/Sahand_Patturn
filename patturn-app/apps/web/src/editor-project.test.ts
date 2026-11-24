@@ -45,3 +45,15 @@ it.each(['nodes', 'mapping', 'params', 'mold', 'foot', 'canvas', 'symmetry', 'un
     expect(() => projectEditor(record)).toThrow();
   },
 );
+
+it('updates editable parameters retaining original identity and creation date without a stale thumbnail', async () => {
+  const { updatedEditorProject } = await import('./editor-project');
+  const previous = { ...editorProject(defaults, 'اصل'), thumbnail: 'data:image/png;base64,YQ==' };
+  const next = updatedEditorProject(previous, { ...defaults, wall: 6 });
+  expect(next.id).toBe(previous.id);
+  expect(next.createdAt).toBe(previous.createdAt);
+  expect(next.name).toBe(previous.name);
+  expect(next.thumbnail).toBeUndefined();
+  expect(projectEditor(next).wall).toBe(6);
+  expect(projectEditor(previous).wall).toBe(4);
+});

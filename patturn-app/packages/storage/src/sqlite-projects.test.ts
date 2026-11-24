@@ -399,3 +399,42 @@ describe('External project copy import', () => {
     }
   });
 });
+
+describe('Opened snapshot conditional update', () => {
+  it('updates the expected snapshot but rejects stale, deleted and changed identity', async () => {
+    const { db, repo } = setup();
+    try {
+      const original = fixture();
+      await repo.save(original);
+      const next = fixture('one', 'تغییر');
+      await repo.updateIfUnchanged(original, next);
+      expect(await repo.get('one')).toEqual(next);
+      await expect(repo.updateIfUnchanged(original, original)).rejects.toThrow('CONFLICT');
+      await expect(repo.updateIfUnchanged(next, fixture('other'))).rejects.toThrow('IDENTITY');
+      await repo.delete('one');
+      await expect(repo.updateIfUnchanged(next, original)).rejects.toThrow('CONFLICT');
+      expect(await repo.list()).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+  it('rejects another writer racing between read and conditional update', async () => {
+    const { db, repo, driver } = setup();
+    try {
+      await repo.save(fixture());
+      const racing = new SqliteProjectRepo({
+        ...driver,
+        select: async (query, params) => {
+          if (query.startsWith('update ')) await repo.save(fixture('one', 'رقیب'));
+          return driver.select(query, params);
+        },
+      });
+      await expect(racing.updateIfUnchanged(fixture(), fixture('one', 'محلی'))).rejects.toThrow(
+        'CONFLICT',
+      );
+      expect(await repo.get('one')).toEqual(fixture('one', 'رقیب'));
+    } finally {
+      db.close();
+    }
+  });
+});

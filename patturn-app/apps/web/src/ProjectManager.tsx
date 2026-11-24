@@ -9,7 +9,7 @@ import {
   type ProjectRepo,
 } from '@patturn/storage';
 import type { EditorState } from '@patturn/schema';
-import { editorProject, projectEditor } from './editor-project';
+import { editorProject, projectEditor, updatedEditorProject } from './editor-project';
 import { formatNumber } from './number-format';
 
 export function ProjectManager({
@@ -23,6 +23,7 @@ export function ProjectManager({
 }) {
   const [repo, setRepo] = useState<ProjectRepo | null>(null),
     [entries, setEntries] = useState<ProjectRecord[]>([]);
+  const [opened, setOpened] = useState<ProjectRecord | null>(null);
   const [name, setName] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
@@ -67,10 +68,12 @@ export function ProjectManager({
       await action(repo);
       const refreshed = await repo.list();
       if (active.current) setEntries(refreshed);
-    } catch {
+    } catch (cause) {
       if (active.current)
         setError(
-          'عملیات پروژه انجام نشد یا فهرست تازه خوانده نشد؛ ممکن است نوشتن انجام شده باشد. پیش از تکرار، فهرست را بازخوانی کنید.',
+          cause instanceof Error && cause.message === 'PROJECT_UPDATE_CONFLICT'
+            ? 'تعارض ذخیره: پروژه پس از بازکردن تغییر کرده یا حذف شده است؛ تغییرات شما نوشته نشد. با نام تازه ذخیره کنید یا پروژه را دوباره باز کنید.'
+            : 'عملیات پروژه انجام نشد یا فهرست تازه خوانده نشد؛ ممکن است نوشتن انجام شده باشد. پیش از تکرار، فهرست را بازخوانی کنید.',
         );
     } finally {
       lock.current = false;
@@ -92,8 +95,10 @@ export function ProjectManager({
         setError('پارامترها هنگام خواندن پروژه تغییر کردند؛ دوباره بازکردن را درخواست کنید.');
         return;
       }
-      if (window.confirm('این پروژه باز شود؟ وضعیت فعلیِ ذخیره‌نشده را ابتدا جداگانه نگه دارید.'))
+      if (window.confirm('این پروژه باز شود؟ وضعیت فعلیِ ذخیره‌نشده را ابتدا جداگانه نگه دارید.')) {
         latest.current.onApply(next);
+        setOpened(record);
+      }
     } catch {
       if (active.current)
         setError(
@@ -109,8 +114,37 @@ export function ProjectManager({
       <p className="hint">
         {isDesktop() ? 'مخزن SQLite دسکتاپ' : 'مخزن مرورگر همین دستگاه'}؛ ذخیره با نام، پروژهٔ تازه
         با شناسهٔ مستقل می‌سازد. بازکردن، ذخیرهٔ خودکار روی پروژهٔ نام‌دار را فعال نمی‌کند؛ تغییرات
-        فعلی را دوباره با نام ذخیره کنید. ابزارهای موقت داخل پروژه نیستند.
+        فعلی را با نام تازه یا دکمهٔ ذخیرهٔ پروژهٔ بازشده نگه دارید. ابزارهای موقت داخل پروژه نیستند.
       </p>
+      {opened && (
+        <div>
+          <p>پروژهٔ بازشده: {opened.name}؛ ذخیرهٔ خودکار فعال نیست.</p>
+          <button
+            type="button"
+            className="btn"
+            disabled={!repo || busy}
+            onClick={() => {
+              const previous = opened,
+                snapshot = { ...state };
+              if (!window.confirm(`تغییرات فعلی در پروژهٔ «${previous.name}» ذخیره شوند؟`)) return;
+              void perform(async (current) => {
+                const next = updatedEditorProject(previous, snapshot);
+                await current.updateIfUnchanged(previous, next);
+                if (active.current) setOpened(next);
+              });
+            }}
+          >
+            ذخیرهٔ تغییرات در پروژهٔ بازشده
+          </button>
+          <button type="button" className="btn" disabled={busy} onClick={() => setOpened(null)}>
+            پایان ارتباط با پروژهٔ نام‌دار
+          </button>
+          <p className="hint">
+            اگر پروژه در مخزن تغییر یا حذف شده باشد، ذخیره رد می‌شود؛ ابتدا با نام تازه ذخیره کنید
+            یا نسخهٔ مخزن را دوباره باز کنید.
+          </p>
+        </div>
+      )}
       <form
         onSubmit={(event) => {
           event.preventDefault();

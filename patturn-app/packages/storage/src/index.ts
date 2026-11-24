@@ -17,6 +17,7 @@ export interface ProjectRepo {
   list(): Promise<ProjectRecord[]>;
   get(id: string): Promise<ProjectRecord | null>;
   save(rec: ProjectRecord): Promise<void>;
+  updateIfUnchanged(previous: ProjectRecord, next: ProjectRecord): Promise<void>;
   delete(id: string): Promise<void>;
   duplicate(id: string, newName: string): Promise<ProjectRecord>;
 }

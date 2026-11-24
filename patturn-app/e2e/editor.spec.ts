@@ -3156,3 +3156,73 @@ test('archive import into a nonempty library creates a new identity and never re
   await expect(manager.getByRole('button', { name: 'بازکردن اصلی', exact: true })).toBeVisible();
   await expect(manager.getByRole('button', { name: 'بازکردن واردشده', exact: true })).toBeVisible();
 });
+
+for (const desktop of [false, true]) {
+  test(`opened named project saves conditionally and preserves competing changes (${desktop ? 'SQLite' : 'browser'})`, async ({
+    page,
+  }) => {
+    const database = new DatabaseSync(':memory:');
+    try {
+      if (desktop) await installSqlBridge(page, database);
+      await page.goto('/');
+      await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+      const manager = page.locator('.project-manager');
+      await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('ویرایش');
+      await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+      const open = manager.getByRole('button', { name: 'بازکردن ویرایش', exact: true });
+      await expect(open).toBeVisible();
+      page.once('dialog', (dialog) => dialog.accept());
+      await open.click();
+      const save = manager.getByRole('button', {
+        name: 'ذخیرهٔ تغییرات در پروژهٔ بازشده',
+        exact: true,
+      });
+      await expect(save).toBeVisible();
+      const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+      await wall.fill('6');
+      await wall.press('Enter');
+      page.once('dialog', (dialog) => dialog.dismiss());
+      await save.click();
+      const getRecord = async () =>
+        desktop
+          ? JSON.parse(
+              database.prepare('select document from patturn_projects').get()!.document as string,
+            )
+          : await page.evaluate(() => JSON.parse(localStorage.getItem('patturn:projects')!)[0]);
+      expect((await getRecord()).data.form.wallThickness).toBe(4);
+      page.once('dialog', (dialog) => dialog.accept());
+      await save.click();
+      await expect(manager.getByRole('status')).toContainText('۱ پروژه');
+      const updated = await getRecord();
+      expect(updated.data.form.wallThickness).toBe(6);
+      const competitor = {
+        ...updated,
+        name: 'نسخهٔ رقیب',
+        data: { ...updated.data, name: 'نسخهٔ رقیب' },
+      };
+      if (desktop)
+        database
+          .prepare('update patturn_projects set document = ? where id = ?')
+          .run(JSON.stringify(competitor), updated.id);
+      else
+        await page.evaluate(
+          (record) => localStorage.setItem('patturn:projects', JSON.stringify([record])),
+          competitor,
+        );
+      await wall.fill('7');
+      await wall.press('Enter');
+      page.once('dialog', (dialog) => dialog.accept());
+      await save.click();
+      await expect(manager.getByRole('alert')).toContainText('تعارض ذخیره');
+      expect(await getRecord()).toEqual(competitor);
+      await expect(wall).toHaveValue('7');
+      await manager
+        .getByRole('button', { name: 'پایان ارتباط با پروژهٔ نام‌دار', exact: true })
+        .click();
+      await expect(save).toHaveCount(0);
+    } finally {
+      await page.close();
+      database.close();
+    }
+  });
+}

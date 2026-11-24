@@ -127,3 +127,21 @@ it('rejects UUID collisions and corrupt browser libraries without writes during 
   await expect(repo.importCopy(fixture())).rejects.toThrow();
   expect(raw()).toBe('broken');
 });
+
+it('conditionally updates the opened snapshot and rejects stale, deleted or identity-changing writes', async () => {
+  const { repo } = setup();
+  const original = fixture();
+  await repo.save(original);
+  const next = {
+    ...original,
+    name: 'تغییر',
+    data: { ...(original.data as object), name: 'تغییر' },
+  };
+  await repo.updateIfUnchanged(original, next);
+  expect(await repo.get('one')).toEqual(next);
+  await expect(repo.updateIfUnchanged(original, original)).rejects.toThrow('CONFLICT');
+  await expect(repo.updateIfUnchanged(next, { ...next, id: 'other' })).rejects.toThrow('IDENTITY');
+  await repo.delete('one');
+  await expect(repo.updateIfUnchanged(next, original)).rejects.toThrow('CONFLICT');
+  expect(await repo.list()).toEqual([]);
+});

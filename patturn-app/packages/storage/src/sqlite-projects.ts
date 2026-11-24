@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { drizzle } from 'drizzle-orm/sqlite-proxy';
 import { z } from 'zod';
@@ -106,6 +106,25 @@ export class SqliteProjectRepo implements ProjectRepo {
         throw new Error('SQLITE_PROJECT_WRITE_FAILED', { cause: error });
       });
     if (rows.length !== 1) throw Error('SQLITE_PROJECT_CONFLICT');
+  }
+  async updateIfUnchanged(previous: ProjectRecord, next: ProjectRecord): Promise<void> {
+    const expected = validatedProjectRecord(previous),
+      record = validatedProjectRecord(next);
+    if (expected.id !== record.id || expected.createdAt !== record.createdAt)
+      throw Error('PROJECT_IDENTITY_CHANGED');
+    const current = await this.row(record.id);
+    if (!current || JSON.stringify(this.decode(current)) !== JSON.stringify(expected))
+      throw Error('PROJECT_UPDATE_CONFLICT');
+    const rows = await this.db
+      .update(projects)
+      .set({ document: JSON.stringify(record), updatedAt: record.updatedAt })
+      .where(and(eq(projects.id, record.id), eq(projects.document, current.document)))
+      .returning()
+      .all()
+      .catch((error) => {
+        throw new Error('SQLITE_PROJECT_WRITE_FAILED', { cause: error });
+      });
+    if (rows.length !== 1) throw Error('PROJECT_UPDATE_CONFLICT');
   }
   async importCopy(input: ProjectRecord): Promise<ProjectRecord> {
     const copy = importedProjectCopy(input);
