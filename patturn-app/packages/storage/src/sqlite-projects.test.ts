@@ -438,3 +438,26 @@ describe('Opened snapshot conditional update', () => {
     }
   });
 });
+
+it('never normalizes away unsupported nested stored fields on reads, saves or conditional updates', async () => {
+  const { db, repo } = setup();
+  try {
+    await repo.save(fixture());
+    const record = {
+      ...fixture(),
+      data: {
+        ...(fixture().data as object),
+        settings: { unit: 'mm', shrink: 0.12, wallThickness: 4, futureOption: 7 },
+      },
+    };
+    const raw = JSON.stringify(record);
+    db.prepare('update patturn_projects set document = ?').run(raw);
+    await expect(repo.get('one')).rejects.toThrow();
+    await expect(repo.list()).rejects.toThrow();
+    await expect(repo.save(fixture())).rejects.toThrow();
+    await expect(repo.updateIfUnchanged(fixture(), fixture())).rejects.toThrow();
+    expect(db.prepare('select document from patturn_projects').get()!.document).toBe(raw);
+  } finally {
+    db.close();
+  }
+});

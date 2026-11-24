@@ -9,7 +9,7 @@ export const SCHEMA_VERSION = 3;
 export const Vec2 = z.object({ x: z.number(), y: z.number() });
 export type Vec2 = z.infer<typeof Vec2>;
 
-export const ProfileNode = z.object({
+export const ProfileNode = z.strictObject({
   x: z.number().min(0), // radius mm (>=0: profile is mirrored around Y axis)
   y: z.number(), // height mm
   hIn: z.tuple([z.number(), z.number()]).optional(),
@@ -17,14 +17,14 @@ export const ProfileNode = z.object({
 });
 export type ProfileNode = z.infer<typeof ProfileNode>;
 
-export const FormNode = z.object({
-  profile: z.object({
+export const FormNode = z.strictObject({
+  profile: z.strictObject({
     nodes: z.array(ProfileNode).min(2),
     closed: z.boolean(),
   }),
-  symmetry: z.object({ mirrorX: z.boolean(), mirrorY: z.boolean() }),
+  symmetry: z.strictObject({ mirrorX: z.boolean(), mirrorY: z.boolean() }),
   footRing: z
-    .object({
+    .strictObject({
       enabled: z.boolean(),
       width: z.number().min(0),
       depth: z.number().min(0),
@@ -37,18 +37,18 @@ export const FormNode = z.object({
 });
 export type FormNode = z.infer<typeof FormNode>;
 
-export const PatternNode = z.object({
+export const PatternNode = z.strictObject({
   baseId: z.string(),
   params: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])),
-  tile: z.object({
+  tile: z.strictObject({
     width: z.number().positive(),
     height: z.number().positive(),
     seamlessX: z.boolean(),
     seamlessY: z.boolean(),
   }),
-  canvas: z.object({ widthMm: z.number().positive(), heightMm: z.number().positive() }),
+  canvas: z.strictObject({ widthMm: z.number().positive(), heightMm: z.number().positive() }),
   mapping: z
-    .object({
+    .strictObject({
       mode: z.enum(['none', 'cylindrical', 'curvature']),
       seamAt: z.number().min(0).max(1),
       scale: z.number().positive(),
@@ -57,12 +57,12 @@ export const PatternNode = z.object({
 });
 export type PatternNode = z.infer<typeof PatternNode>;
 
-export const MoldNode = z.object({
+export const MoldNode = z.strictObject({
   mode: z.enum(['single', 'multi']),
   parts: z.number().int().min(1).max(8),
   wallThickness: z.number().min(5).max(100),
   draftAngle: z.number().min(0).max(15),
-  keys: z.object({
+  keys: z.strictObject({
     type: z.enum(['tapered-cylinder', 'hemisphere']),
     size: z.number().min(4),
     taper: z.number().min(0).max(15),
@@ -70,7 +70,7 @@ export const MoldNode = z.object({
     count: z.number().int().min(0).max(12),
   }),
   mother: z
-    .object({
+    .strictObject({
       enabled: z.boolean(),
       kind: z.enum(['print', 'silicone']),
       flangeMm: z.number().min(0),
@@ -80,13 +80,13 @@ export const MoldNode = z.object({
 });
 export type MoldNode = z.infer<typeof MoldNode>;
 
-export const ProjectDoc = z.object({
+export const ProjectDoc = z.strictObject({
   schemaVersion: z.number().int(),
   name: z.string().min(1).max(200),
   form: FormNode.optional(),
   pattern: PatternNode.optional(),
   mold: MoldNode.optional(),
-  settings: z.object({
+  settings: z.strictObject({
     unit: z.enum(['mm', 'in']),
     shrink: z.number().min(0).max(0.3),
     wallThickness: z.number().min(0.5).max(50),
@@ -100,7 +100,11 @@ export type ProjectDoc = z.infer<typeof ProjectDoc>;
 export function migrate(doc: { schemaVersion: number }): ProjectDoc {
   let d = doc as Partial<ProjectDoc> & { schemaVersion: number };
   if (d.schemaVersion < 2) {
-    d = { ...d, schemaVersion: 2, settings: { unit: 'mm', shrink: 0.12, wallThickness: 4 } };
+    d = {
+      ...d,
+      schemaVersion: 2,
+      settings: d.settings ?? { unit: 'mm', shrink: 0.12, wallThickness: 4 },
+    };
   }
   if (d.schemaVersion < 3) {
     const mold = d.mold

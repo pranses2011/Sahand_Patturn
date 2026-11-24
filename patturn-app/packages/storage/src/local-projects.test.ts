@@ -145,3 +145,20 @@ it('conditionally updates the opened snapshot and rejects stale, deleted or iden
   await expect(repo.updateIfUnchanged(next, original)).rejects.toThrow('CONFLICT');
   expect(await repo.list()).toEqual([]);
 });
+
+it('preserves source bytes containing unsupported nested settings and refuses every implicit rewrite', async () => {
+  const { repo, setRaw, raw } = setup();
+  const unknown = {
+    ...fixture(),
+    data: {
+      ...(fixture().data as object),
+      settings: { unit: 'mm', shrink: 0.12, wallThickness: 4, futureOption: 7 },
+    },
+  };
+  const source = JSON.stringify([unknown]);
+  setRaw(source);
+  await expect(repo.list()).rejects.toThrow();
+  await expect(repo.save(fixture())).rejects.toThrow();
+  await expect(repo.importCopy(fixture())).rejects.toThrow();
+  expect(raw()).toBe(source);
+});

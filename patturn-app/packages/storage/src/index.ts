@@ -31,7 +31,12 @@ export function serializeProject(rec: ProjectRecord): string {
 export function parseProject(text: string): ProjectRecord {
   if (text.length > 512 * 1024) throw Error('PROJECT_FILE_TOO_LARGE');
   const o = JSON.parse(text);
-  if (o?.format !== 'patturn' || o.v !== 1) throw new Error('NOT_PATTURN_FILE');
+  if (
+    o?.format !== 'patturn' ||
+    o.v !== 1 ||
+    Object.keys(o).some((key) => !['format', 'v', 'project'].includes(key))
+  )
+    throw new Error('NOT_PATTURN_FILE');
   return validatedProjectRecord(o.project);
 }
 

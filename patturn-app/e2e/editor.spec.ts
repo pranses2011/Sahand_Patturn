@@ -3432,3 +3432,54 @@ test('circular cutter exports an open-centered closed solid and blocks a tip thi
     page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true }),
   ).toHaveValue('4');
 });
+
+for (const desktop of [false, true]) {
+  test(`unknown nested project fields are rejected without rewriting archives or stored source (${desktop ? 'SQLite' : 'browser'})`, async ({
+    page,
+  }) => {
+    const database = new DatabaseSync(':memory:');
+    try {
+      if (desktop) await installSqlBridge(page, database);
+      await page.goto('/');
+      await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+      const manager = page.locator('.project-manager');
+      await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('دادهٔ اصلی');
+      await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+      await expect(
+        manager.getByRole('button', { name: 'بازکردن دادهٔ اصلی', exact: true }),
+      ).toBeVisible();
+      const readRaw = async () =>
+        desktop
+          ? (database.prepare('select document from patturn_projects').get()!.document as string)
+          : await page.evaluate(() => localStorage.getItem('patturn:projects')!);
+      const before = await readRaw();
+      const record = desktop ? JSON.parse(before) : JSON.parse(before)[0];
+      record.data.form.profile.nodes[0].unsupportedHandleMode = 'future';
+      const input = manager.getByLabel('ورود فایل پروژهٔ نام‌دار', { exact: true });
+      await expect(input).toBeEnabled();
+      await input.setInputFiles({
+        name: 'future-field.patturn',
+        mimeType: 'application/json',
+        buffer: Buffer.from(JSON.stringify({ format: 'patturn', v: 1, project: record })),
+      });
+      await expect(manager.getByRole('alert')).toContainText('عملیات پروژه انجام نشد');
+      expect(await readRaw()).toBe(before);
+      const corrupt = JSON.stringify(desktop ? record : [record]);
+      if (desktop) database.prepare('update patturn_projects set document = ?').run(corrupt);
+      else await page.evaluate((raw) => localStorage.setItem('patturn:projects', raw), corrupt);
+      await page.reload();
+      await page.getByText('مدیریت پروژه‌ها — ذخیره با نام و بازکردن', { exact: true }).click();
+      await expect(manager.getByRole('alert')).toContainText('فهرست پروژه‌ها خوانده نشد');
+      await expect(
+        manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }),
+      ).toBeDisabled();
+      expect(await readRaw()).toBe(corrupt);
+      await expect(
+        page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true }),
+      ).toHaveValue('4');
+    } finally {
+      await page.close();
+      database.close();
+    }
+  });
+}
