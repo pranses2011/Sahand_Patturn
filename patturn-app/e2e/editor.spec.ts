@@ -2794,3 +2794,54 @@ test('extruder WASM failure leaves drawing exports available and explicit retry 
   await download;
   await expect(page.getByRole('alert').filter({ hasText: 'STL دای ساخته نشد' })).toHaveCount(0);
 });
+
+test('extruder optional collar fuses into STL while the 2D cutting template stays unchanged', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('دای اکسترودر — سوراخ گرد و قطر دستی', { exact: true }).click();
+  const plainDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'دانلود SVG دای', exact: true }).click();
+  const plain = await readFile((await (await plainDownload).path())!, 'utf8');
+  await page.getByRole('checkbox', { name: 'فلنج نگه‌دارندهٔ اختیاری STL', exact: true }).check();
+  const width = page.getByRole('spinbutton', { name: 'عرض شعاعی فلنج دای', exact: true });
+  await width.fill('6');
+  await width.press('Enter');
+  await expect(
+    page.getByRole('img', { name: 'پیش‌نمایش دای اکسترودر', exact: true }).locator('circle'),
+  ).toHaveAttribute('r', '36');
+  await expect(page.locator('.extruder-tool')).toContainText(
+    'فلنج و شانه در SVG/DXF صادر نمی‌شوند',
+  );
+  const sameDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'دانلود SVG دای', exact: true }).click();
+  expect(await readFile((await (await sameDownload).path())!, 'utf8')).toBe(plain);
+  const pending = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'دانلود STL دای', exact: true }).click();
+  const file = await pending;
+  expect(file.suggestedFilename()).toBe('extruder_round-holes_D60-T8-H8-N6-R16-F6x4mm.stl');
+  const bytes = await readFile((await file.path())!);
+  const count = bytes.readUInt32LE(80);
+  expect(bytes.length).toBe(84 + 50 * count);
+  let topRadius = 0,
+    collarRadius = 0,
+    minZ = Infinity,
+    maxZ = -Infinity;
+  for (let i = 0; i < count; i++)
+    for (let v = 0; v < 3; v++) {
+      const offset = 84 + i * 50 + 12 + v * 12;
+      const x = bytes.readFloatLE(offset),
+        y = bytes.readFloatLE(offset + 4),
+        z = bytes.readFloatLE(offset + 8);
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
+      if (Math.abs(z - 12) < 1e-5) topRadius = Math.max(topRadius, Math.hypot(x, y));
+      if (Math.abs(z - 4) < 1e-5) collarRadius = Math.max(collarRadius, Math.hypot(x, y));
+    }
+  expect(minZ).toBe(0);
+  expect(maxZ).toBe(12);
+  expect(topRadius).toBeCloseTo(30, 4);
+  expect(collarRadius).toBeCloseTo(36, 4);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

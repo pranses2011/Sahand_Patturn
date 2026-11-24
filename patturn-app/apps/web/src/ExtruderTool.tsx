@@ -15,6 +15,8 @@ export function ExtruderTool({
     [holeDiameter, setHoleDiameter] = useState(8),
     [count, setCount] = useState(6),
     [orbit, setOrbit] = useState(16);
+  const [flangeEnabled, setFlangeEnabled] = useState(false);
+  const [flangeWidth, setFlangeWidth] = useState(5);
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
   const token = useRef(0);
@@ -25,8 +27,9 @@ export function ExtruderTool({
       holeDiameterMm: holeDiameter,
       count,
       orbitRadiusMm: orbit,
+      flangeWidthMm: flangeEnabled ? flangeWidth : 0,
     }),
-    [diameter, thickness, holeDiameter, count, orbit],
+    [diameter, thickness, holeDiameter, count, orbit, flangeEnabled, flangeWidth],
   );
   const drawing = useMemo(() => {
     try {
@@ -47,7 +50,7 @@ export function ExtruderTool({
     exportName(
       'extruder',
       'round-holes',
-      `D${diameter}-T${thickness}-H${holeDiameter}-N${count}-R${count === 1 ? 0 : orbit}mm`,
+      `D${diameter}-T${thickness}-H${holeDiameter}-N${count}-R${count === 1 ? 0 : orbit}${format === 'stl' && flangeEnabled ? `-F${flangeWidth}x4` : ''}mm`,
       format,
     );
   async function stl() {
@@ -103,7 +106,7 @@ export function ExtruderTool({
   return (
     <>
       <p className="hint">
-        دای آزمایشی با قطر دستی و سوراخ گرد؛ بدون جبران انقباض، فلنج، اتصال دستگاه یا تأیید تحمل
+        دای آزمایشی با قطر دستی و سوراخ گرد؛ بدون جبران انقباض، اتصال تأییدشدهٔ دستگاه یا تأیید تحمل
         فشار. قطر را با دستگاه واقعی اندازه بگیرید؛ این الگو برای برند مشخصی تأیید نشده است.
       </p>
       {control('قطر بیرونی دای', diameter, setDiameter, 30, 150)}
@@ -121,6 +124,23 @@ export function ExtruderTool({
         onEndEdit={() => {}}
       />
       {count > 1 && control('شعاع آرایش سوراخ‌های دای', orbit, setOrbit, 0, 60)}
+      <label>
+        <input
+          type="checkbox"
+          checked={flangeEnabled}
+          onChange={(event) => setFlangeEnabled(event.currentTarget.checked)}
+        />
+        فلنج نگه‌دارندهٔ اختیاری STL
+      </label>
+      {flangeEnabled && (
+        <>
+          {control('عرض شعاعی فلنج دای', flangeWidth, setFlangeWidth, 3, 12)}
+          <p>
+            ارتفاع فلنج ۴mm؛ ارتفاع کل STL: {formatNumber(thickness + 4)} mm. فلنج و شانه در SVG/DXF
+            صادر نمی‌شوند؛ آن فایل‌ها فقط نقشهٔ صفحهٔ اصلی‌اند.
+          </p>
+        </>
+      )}
       {drawing ? (
         <>
           <p>
@@ -130,9 +150,21 @@ export function ExtruderTool({
           <svg
             role="img"
             aria-label="پیش‌نمایش دای اکسترودر"
-            viewBox={`-1 -1 ${drawing.width + 2} ${drawing.height + 2}`}
+            viewBox={`${-1 - (flangeEnabled ? flangeWidth : 0)} ${-1 - (flangeEnabled ? flangeWidth : 0)} ${drawing.width + 2 + 2 * (flangeEnabled ? flangeWidth : 0)} ${drawing.height + 2 + 2 * (flangeEnabled ? flangeWidth : 0)}`}
             style={{ width: '100%', maxHeight: 260 }}
           >
+            {flangeEnabled && (
+              <circle
+                aria-label="مرز نمایشی فلنج، نه خط برش"
+                cx={diameter / 2}
+                cy={diameter / 2}
+                r={diameter / 2 + flangeWidth}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={0.2}
+                strokeDasharray="2 2"
+              />
+            )}
             {drawing.paths.map((path, i) => (
               <path key={i} d={path.d} fill="none" stroke="currentColor" strokeWidth={0.2} />
             ))}
@@ -156,7 +188,8 @@ export function ExtruderTool({
       <p className="hint">
         مرزها چندضلعیِ تقریب دایره‌اند؛ خط خروجی مرکز مسیر برش است و جبران ضخامت برش ندارد. فاصلهٔ
         هندسی، تضمین استحکام و ایمنی اکسترودر نیست. ابزار موقت و خارج از پروژه/ZIP است؛ طرح برش آزاد
-        و قطرهای برندها هنوز پشتیبانی نمی‌شوند.
+        و قطرهای برندها هنوز پشتیبانی نمی‌شوند. فلنج STL حلقهٔ نگه‌دارندهٔ ساده است، نه اتصال پیچی یا
+        fit تأییدشده؛ سوراخ‌ها در تمام ارتفاع باز می‌مانند.
       </p>
       {error && <p role="alert">{error}</p>}
     </>

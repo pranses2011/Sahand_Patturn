@@ -1,6 +1,6 @@
 import { extruderLayout, type ExtruderOptions } from '@patturn/kernel';
 
-/** Same polygonal centerline contours as the extruded solid. No kerf compensation. */
+/** Body plate contours only. The 3D collar/shoulder is deliberately NOT a cutting line. */
 export function extruderDrawing(options: ExtruderOptions) {
   const layout = extruderLayout(options),
     offset = layout.diameterMm / 2;

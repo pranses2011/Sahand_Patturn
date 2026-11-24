@@ -67,3 +67,21 @@ describe('Conservative circular extruder clearance', () => {
     ).toThrow('EXTRUDER_WEB_TOO_THIN');
   });
 });
+
+it.each([0, 3, 5, 12])(
+  'bounds optional flange stock %s without changing body web or openings',
+  (flangeWidthMm) => {
+    const layout = extruderLayout({ ...options, flangeWidthMm });
+    expect(layout.minWebMm).toBe(extruderLayout(options).minWebMm);
+    expect(layout.contours).toEqual(extruderLayout(options).contours);
+    expect(layout.flangeHeightMm).toBe(flangeWidthMm ? 4 : 0);
+    if (flangeWidthMm) {
+      expect(layout.flangeContours!.slice(1)).toEqual(layout.contours.slice(1));
+      for (const [x, y] of layout.flangeContours![0]!)
+        expect(Math.hypot(x, y)).toBeCloseTo(30 + flangeWidthMm, 10);
+    } else expect(layout.flangeContours).toBeNull();
+  },
+);
+it.each([-1, 1, 2.99, 12.01, NaN, Infinity])('rejects invalid flange width %s', (flangeWidthMm) => {
+  expect(() => extruderLayout({ ...options, flangeWidthMm })).toThrow('EXTRUDER_INVALID_FLANGE');
+});

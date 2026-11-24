@@ -1002,14 +1002,27 @@ export function buildConvexStamp(
   }
 }
 
-/** Bounded disk with circular through-holes, no flange or equipment fit implied. */
+/** Bounded disk and optional fused collar; all openings continue through both layers. */
 export function buildExtruderDie(options: ExtruderOptions): Mesh {
   const layout = extruderLayout(options);
   const w = requireWasm();
-  const section = new w.CrossSection(layout.contours, 'EvenOdd');
-  let solid: ManifoldT | null = null;
+  const sections: InstanceType<Wasm['CrossSection']>[] = [];
+  const owned: ManifoldT[] = [];
   try {
-    solid = section.extrude(layout.thicknessMm);
+    const section = new w.CrossSection(layout.contours, 'EvenOdd');
+    sections.push(section);
+    let solid = section.extrude(layout.thicknessMm + (layout.flangeContours ? 0.1 : 0));
+    owned.push(solid);
+    if (layout.flangeContours) {
+      const collarSection = new w.CrossSection(layout.flangeContours, 'EvenOdd');
+      sections.push(collarSection);
+      const collar = collarSection.extrude(layout.flangeHeightMm);
+      owned.push(collar);
+      const raised = solid.translate([0, 0, layout.flangeHeightMm - 0.1]);
+      owned.push(raised);
+      solid = raised.add(collar);
+      owned.push(solid);
+    }
     const mesh = fromManifold(solid);
     const report = validateMesh(mesh);
     if (
@@ -1020,7 +1033,7 @@ export function buildExtruderDie(options: ExtruderOptions): Mesh {
       throw Error('EXTRUDER_INVALID_MESH');
     return mesh;
   } finally {
-    solid?.delete?.();
-    section.delete();
+    for (const part of new Set(owned)) part.delete?.();
+    for (const section of sections) section.delete();
   }
 }

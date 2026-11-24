@@ -29,3 +29,20 @@ it.each([1, 6, 12])(
     expect(stl.bytes!.length).toBe(84 + 50 * new DataView(stl.bytes!.buffer).getUint32(80, true));
   },
 );
+
+it('keeps collar and shoulder reference lines out of laser cutting templates', () => {
+  const options = {
+    diameterMm: 60,
+    thicknessMm: 8,
+    holeDiameterMm: 4,
+    count: 6,
+    orbitRadiusMm: 16,
+  };
+  const plain = extruderDrawing(options),
+    flanged = extruderDrawing({ ...options, flangeWidthMm: 5 });
+  expect(flanged).toEqual(plain);
+  expect(toSvg(flanged.paths, flanged.width, flanged.height).bytes).toEqual(
+    toSvg(plain.paths, plain.width, plain.height).bytes,
+  );
+  expect(toDxf(flanged.paths).bytes).toEqual(toDxf(plain.paths).bytes);
+});

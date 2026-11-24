@@ -4,9 +4,12 @@ export interface ExtruderOptions {
   holeDiameterMm: number;
   count: number;
   orbitRadiusMm: number;
+  /** Optional radial stock of a 4mm-high collar; zero means a plain plate. */
+  flangeWidthMm?: number;
 }
 export const EXTRUDER_SEGMENTS = { outer: 128, hole: 64 } as const;
 export const EXTRUDER_MIN_WEB_MM = 1.5;
+export const EXTRUDER_FLANGE_HEIGHT_MM = 4;
 /** Conservative circular bounds: the faceted outer boundary contains its incircle;
  * each faceted hole is contained by its circumcircle. 0.001mm reserves roundoff.
  * Web is geometric clearance only, never a load/pressure certification.
@@ -31,6 +34,12 @@ export function extruderLayout(options: ExtruderOptions) {
     orbitRadiusMm > 60
   )
     throw Error('EXTRUDER_INVALID_OPTIONS');
+  const flangeWidthMm = options.flangeWidthMm ?? 0;
+  if (
+    !Number.isFinite(flangeWidthMm) ||
+    (flangeWidthMm !== 0 && (flangeWidthMm < 3 || flangeWidthMm > 12))
+  )
+    throw Error('EXTRUDER_INVALID_FLANGE');
   const radius = diameterMm / 2,
     holeRadius = holeDiameterMm / 2,
     orbit = count === 1 ? 0 : orbitRadiusMm;
@@ -52,5 +61,18 @@ export function extruderLayout(options: ExtruderOptions) {
     polygon(0, 0, radius, EXTRUDER_SEGMENTS.outer),
     ...holes.map((h) => polygon(h.x, h.y, h.radius, EXTRUDER_SEGMENTS.hole)),
   ];
-  return { contours, holes, minWebMm, diameterMm, thicknessMm };
+  const flangeContours =
+    flangeWidthMm > 0
+      ? [polygon(0, 0, radius + flangeWidthMm, EXTRUDER_SEGMENTS.outer), ...contours.slice(1)]
+      : null;
+  return {
+    contours,
+    flangeContours,
+    flangeWidthMm,
+    flangeHeightMm: flangeWidthMm > 0 ? EXTRUDER_FLANGE_HEIGHT_MM : 0,
+    holes,
+    minWebMm,
+    diameterMm,
+    thicknessMm,
+  };
 }
