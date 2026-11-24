@@ -2372,3 +2372,30 @@ test('failed optional chunk stays isolated while another tool and the project re
   await expect(page.getByRole('button', { name: 'دانلود SVG پازل', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('rib tool derives a live 2D cavity profile and exports mm templates without project edits', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ریب‌ساز — الگوی دوبعدی پروفیل داخلی', { exact: true }).click();
+  const preview = page.getByRole('img', { name: 'پیش‌نمایش ریب پروفیل', exact: true });
+  await expect(preview.locator('path')).toHaveCount(1);
+  const before = await preview.locator('path').getAttribute('d');
+  const backing = page.getByRole('spinbutton', { name: 'عرض پشت ریب', exact: true });
+  await backing.fill('30');
+  await backing.press('Enter');
+  await expect(preview.locator('path')).not.toHaveAttribute('d', before!);
+  for (const format of ['SVG', 'DXF']) {
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: `دانلود ${format} ریب`, exact: true }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe(`rib_sampled-profile_back30mm.${format.toLowerCase()}`);
+    const text = await readFile((await file.path())!, 'utf8');
+    expect(text).toContain(format === 'SVG' ? 'mm"' : 'AC1009');
+  }
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  await page.getByText('ریب‌ساز — الگوی دوبعدی پروفیل داخلی', { exact: true }).click();
+  await page.getByText('ریب‌ساز — الگوی دوبعدی پروفیل داخلی', { exact: true }).click();
+  await expect(backing).toHaveValue('30');
+});

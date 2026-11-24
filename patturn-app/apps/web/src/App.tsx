@@ -79,6 +79,7 @@ const loadImageTraceTool = () =>
   import('./ImageTraceTool').then((module) => ({ default: module.ImageTraceTool }));
 const loadLoftSweepTool = () =>
   import('./LoftSweepTool').then((module) => ({ default: module.LoftSweepTool }));
+const loadRibTool = () => import('./RibTool').then((module) => ({ default: module.RibTool }));
 const loadSlabTool = () => import('./SlabTool').then((module) => ({ default: module.SlabTool }));
 const loadFootRingTool = () =>
   import('./FootRingTool').then((module) => ({ default: module.FootRingTool }));
@@ -1252,6 +1253,12 @@ export function App() {
                 className="jigsaw-tool"
                 load={loadJigsawTool}
                 toolProps={{ onExport: download }}
+              />
+              <DeferredTool
+                label="ریب‌ساز — الگوی دوبعدی پروفیل داخلی"
+                className="rib-tool"
+                load={loadRibTool}
+                toolProps={{ profile: innerProfile, onExport: download }}
               />
               <DeferredTool
                 label="اسلب‌تمپلیت — استوانه و مخروط ناقص"
