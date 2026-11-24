@@ -47,6 +47,8 @@ for (const name of optionalTools) {
 }
 const sqliteHistory = keys.find((key) => key.endsWith('/sqlite-history.ts'));
 if (!sqliteHistory || editor.has(sqliteHistory)) throw Error('SQLITE_HISTORY_NOT_LAZY');
+const moldEngine = keys.find((key) => manifest[key].name === 'csg');
+if (!moldEngine || editor.has(moldEngine)) throw Error('MOLD_ENGINE_NOT_LAZY');
 const editorSummary = summary(editor);
 console.log(
   JSON.stringify(
@@ -64,6 +66,7 @@ console.log(
       note: 'Viewport is requested on first render. PDF, WASM, workers and optional imports excluded. Not an LCP measurement.',
       pdfAndFontLazy: true,
       sqliteHistoryLazy: true,
+      moldEngineLazy: true,
       optionalToolsLazy: optionalTools,
     },
     null,

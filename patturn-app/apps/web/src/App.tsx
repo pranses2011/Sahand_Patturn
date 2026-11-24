@@ -38,16 +38,14 @@ import {
 import {
   analyzeUndercut,
   keyTopRadius,
-  initCsg,
+  loadMoldEngine,
   chooseSplitPlanes,
-  buildSplitMold,
-  buildMotherMold,
   plasterForCavity,
   motherAssemblyGuide,
   type SplitPlan,
   type MotherMoldResult,
   type OffsetBarrierResult,
-} from '@patturn/molds';
+} from '@patturn/molds/analysis';
 import {
   encodeEditorProject,
   decodeEditorProject,
@@ -444,6 +442,8 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
     let cancelled = false;
     (async () => {
       try {
+        const { buildMotherMold } = await loadMoldEngine();
+        if (cancelled) return;
         const results: MotherMoldResult[] = [];
         for (const master of moldParts) results.push(await buildMotherMold(master));
         if (!cancelled) setMotherResults(results);
@@ -468,7 +468,10 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
     setMoldBusy(true);
     (async () => {
       try {
+        const { initCsg, buildSplitMold } = await loadMoldEngine();
+        if (cancelled) return;
         await initCsg();
+        if (cancelled) return;
         const plan = chooseSplitPlanes(profile);
         const parts = await buildSplitMold(formMesh, plan, { shrink: shrink / 100, profile });
         if (!cancelled) {

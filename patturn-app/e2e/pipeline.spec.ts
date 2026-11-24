@@ -225,3 +225,38 @@ test('standalone PDF supports explicit cancellation while loading and a subseque
   expect((await readFile(path!)).subarray(0, 5).toString()).toBe('%PDF-');
   expect(downloads).toHaveLength(1);
 });
+
+test('mold engine JavaScript and WASM stay deferred during form and pattern editing', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const engine: string[] = [],
+    wasm: string[] = [];
+  page.on('request', (request) => {
+    if (/\/assets\/csg-[^/]+\.js(?:\?|$)/.test(request.url())) engine.push(request.url());
+    if (request.url().includes('.wasm')) wasm.push(request.url());
+  });
+  await page.goto('/');
+  const wall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+  await wall.fill('5');
+  await wall.press('Enter');
+  await page.getByRole('button', { name: '🔷 الگو', exact: true }).click();
+  await page.getByRole('radio', { name: 'موج', exact: true }).check();
+  await expect(page.getByRole('radio', { name: 'موج', exact: true })).toBeChecked();
+  expect(engine).toEqual([]);
+  expect(wasm).toEqual([]);
+  await page.getByRole('button', { name: '🧱 قالب', exact: true }).click();
+  await expect(
+    page.getByText('✅ قالب سه‌بعدی ساخته شد — در viewport ببینید', { exact: false }),
+  ).toBeVisible({ timeout: 60_000 });
+  expect(engine).toHaveLength(1);
+  expect(wasm).toHaveLength(1);
+  await page.getByRole('button', { name: '🏺 فرم', exact: true }).click();
+  await page.getByRole('button', { name: '🧱 قالب', exact: true }).click();
+  await expect(
+    page.getByText('✅ قالب سه‌بعدی ساخته شد — در viewport ببینید', { exact: false }),
+  ).toBeVisible();
+  expect(engine).toHaveLength(1);
+  expect(wasm).toHaveLength(1);
+  await expect(wall).toHaveCount(0);
+});

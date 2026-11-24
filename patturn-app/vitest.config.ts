@@ -27,6 +27,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@patturn/molds/analysis': path.resolve(
+        import.meta.dirname,
+        'packages/molds/src/analysis.ts',
+      ),
       '@patturn/config': path.resolve(import.meta.dirname, 'packages/config/src/index.ts'),
       '@patturn/schema': path.resolve(import.meta.dirname, 'packages/schema/src/index.ts'),
       '@patturn/kernel': path.resolve(import.meta.dirname, 'packages/kernel/src/index.ts'),

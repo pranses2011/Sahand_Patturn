@@ -12,7 +12,15 @@ const alias = Object.fromEntries(
 
 export default defineConfig({
   plugins: [react()],
-  resolve: { alias },
+  resolve: {
+    alias: {
+      '@patturn/molds/analysis': path.resolve(
+        import.meta.dirname,
+        '../../packages/molds/src/analysis.ts',
+      ),
+      ...alias,
+    },
+  },
   worker: { format: 'es' },
   server: {
     host: '0.0.0.0',

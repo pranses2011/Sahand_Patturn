@@ -7,5 +7,9 @@
   "types": "src/index.ts",
   "dependencies": {
     "manifold-3d": "^3.1.0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./analysis": "./src/analysis.ts"
   }
 }
