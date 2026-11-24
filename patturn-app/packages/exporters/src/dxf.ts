@@ -1,9 +1,10 @@
+import { flattenSvgArc } from './svg-arc.js';
 import { flattenCubic } from './bezier.js';
 import { clipLine, clipCircle, type DxfBounds } from './dxf-clip.js';
 import { exportName, type ExportResult } from './index.js';
 
 type Point = [number, number];
-/** Linear SVG plus C/S/Q/T with explicit flattening tolerance. Unsupported commands fail atomically. */
+/** Linear SVG plus C/S/Q/T/A with explicit flattening tolerance. Unsupported commands fail atomically. */
 function polylines(d: string, tolerance?: number): { points: Point[]; closed: boolean }[] {
   const tokens = d.match(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g) ?? [];
   if (d.replace(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g, '').replace(/[\s,]/g, ''))
@@ -30,7 +31,7 @@ function polylines(d: string, tolerance?: number): { points: Point[]; closed: bo
   };
   while (i < tokens.length) {
     if (/^[a-zA-Z]$/.test(tokens[i]!)) command = tokens[i++]!;
-    if (!/^[MmLlHhVvZzCcSsQqTt]$/.test(command)) throw Error('DXF_UNSUPPORTED_COMMAND');
+    if (!/^[MmLlHhVvZzCcSsQqTtAa]$/.test(command)) throw Error('DXF_UNSUPPORTED_COMMAND');
     const op = command.toUpperCase(),
       relative = command !== op;
     if (op === 'Z') {
@@ -44,6 +45,23 @@ function polylines(d: string, tolerance?: number): { points: Point[]; closed: bo
       continue;
     }
     if (op !== 'M' && !points.length) throw Error('DXF_MISSING_MOVE');
+    if (op === 'A') {
+      if (tolerance === undefined) throw Error('DXF_ARC_REQUIRES_EXPLICIT_TOLERANCE');
+      const rx = number(),
+        ry = number(),
+        rotation = number(),
+        large = number(),
+        sweep = number();
+      const end: Point = [number() + (relative ? x : 0), number() + (relative ? y : 0)];
+      points.push(
+        ...flattenSvgArc([x, y], { rx, ry, rotation, large, sweep, end }, tolerance).slice(1),
+      );
+      [x, y] = end;
+      previousOp = op;
+      cubicControl = null;
+      quadraticControl = null;
+      continue;
+    }
     if (op === 'C' || op === 'S' || op === 'Q' || op === 'T') {
       if (tolerance === undefined)
         throw Error(
