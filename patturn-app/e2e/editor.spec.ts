@@ -3971,3 +3971,90 @@ test('convex polygon SVG cutter honors physical viewBox scale, validates STL and
   ).toBeEnabled();
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('image trace feeds the convex cutter at the current mm scale and never drops holes or reuses an obsolete result', async ({
+  page,
+}) => {
+  const requested: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('CookieCutterTool-')) requested.push(request.url());
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ردیابی تصویر — Otsu و کانتور', { exact: true }).click();
+  const trace = page.locator('.image-trace-tool');
+  const picture = async (hole: boolean) =>
+    await page.evaluate((hole) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 32;
+      canvas.height = 32;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, 32, 32);
+      ctx.fillStyle = 'black';
+      ctx.fillRect(8, 8, 16, 16);
+      if (hole) {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(12, 12, 8, 8);
+      }
+      return canvas.toDataURL('image/png').split(',')[1]!;
+    }, hole);
+  const upload = async (hole: boolean) =>
+    await trace.getByLabel('تصویر ردیابی', { exact: true }).setInputFiles({
+      name: hole ? 'ring.png' : 'square.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(await picture(hole), 'base64'),
+    });
+  await upload(false);
+  await expect(trace.getByRole('status').filter({ hasText: 'کانتور؛' })).toContainText('۱ کانتور');
+  expect(requested).toEqual([]);
+  const panel = trace.locator('.traced-cutter-tool');
+  await panel.locator('summary').click();
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true });
+  await expect(output).toBeEnabled();
+  expect(requested).toHaveLength(1);
+  await expect(panel).toContainText('۵۰ × ۵۰ mm');
+  await expect(panel.getByLabel('ورود SVG تک‌چندضلعی محدب', { exact: true })).toHaveCount(0);
+  const download = async () => {
+    const pending = page.waitForEvent('download');
+    await output.click();
+    const file = await pending;
+    return await readFile((await file.path())!);
+  };
+  const initial = await download();
+  const maxX = (bytes: Buffer) => {
+    let radius = 0;
+    for (let i = 0; i < bytes.readUInt32LE(80); i++)
+      for (let j = 0; j < 3; j++)
+        radius = Math.max(radius, Math.abs(bytes.readFloatLE(84 + i * 50 + 12 + j * 12)));
+    return radius;
+  };
+  expect(maxX(initial)).toBeCloseTo(29.6, 2);
+  const width = trace.getByRole('spinbutton', { name: 'عرض مرجع تصویر', exact: true });
+  await width.fill('80');
+  await width.press('Enter');
+  await expect(panel).toContainText('۴۰ × ۴۰ mm');
+  expect(maxX(await download())).toBeCloseTo(24.6, 2);
+  await width.fill('20');
+  await width.press('Enter');
+  await expect(output).toBeDisabled();
+  await expect(panel.getByRole('status', { name: 'اعتبار هندسهٔ کاتر', exact: true })).toContainText(
+    'خروجی مسدود شد',
+  );
+  await width.fill('100');
+  await width.press('Enter');
+  await expect(output).toBeEnabled();
+  await upload(true);
+  await expect(trace.getByRole('status').filter({ hasText: 'کانتور؛' })).toContainText('۲ کانتور');
+  await panel.locator('summary').click();
+  await expect(output).toBeDisabled();
+  await expect(panel).toContainText('دقیقاً یک کانتور محدب بدون سوراخ');
+  await expect(panel.getByRole('button', { name: 'دانلود STL کاتر گرد', exact: true })).toHaveCount(
+    0,
+  );
+  await upload(false);
+  await expect(trace.getByRole('status').filter({ hasText: 'کانتور؛' })).toContainText('۱ کانتور');
+  await panel.locator('summary').click();
+  await expect(output).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

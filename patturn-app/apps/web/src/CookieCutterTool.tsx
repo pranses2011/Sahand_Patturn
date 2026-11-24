@@ -1,3 +1,4 @@
+import { tracedCutterGeometry } from './traced-cutter';
 import { cutterSvgPoints } from './cutter-svg';
 import { cookieCutter as text } from './messages/fa.json';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -14,8 +15,10 @@ import { NumericControl } from './NumericControl';
 import { formatNumber } from './number-format';
 export function CookieCutterTool({
   onExport,
+  sourceContours,
 }: {
   onExport: (name: string, bytes: Uint8Array) => void;
+  sourceContours?: readonly (readonly CutterPoint[])[];
 }) {
   const [diameterMm, setDiameter] = useState(60),
     [heightMm, setHeight] = useState(20),
@@ -35,70 +38,81 @@ export function CookieCutterTool({
     };
   }, []);
 
+  const sourceMode = sourceContours !== undefined;
+  const polygonMode = sourceMode || contour !== null;
   const geometry = useMemo(() => {
     if (importBusy || importFailed) return null;
     try {
       const options = { diameterMm, heightMm, wallMm, tipMm };
+      if (sourceContours !== undefined)
+        return {
+          ...circularCutterProfile(options),
+          ...tracedCutterGeometry(sourceContours, options),
+        };
       const polygon = contour ? convexCutterProfile(contour, options) : null;
       const mesh = contour ? buildConvexCutter(contour, options) : buildCircularCutter(options);
       return { ...circularCutterProfile(options), polygon, mesh, report: validateMesh(mesh) };
     } catch {
       return null;
     }
-  }, [diameterMm, heightMm, wallMm, tipMm, contour, importBusy, importFailed]);
+  }, [diameterMm, heightMm, wallMm, tipMm, contour, importBusy, importFailed, sourceContours]);
   return (
     <>
-      <p className="hint">{text.intro}</p>
-      <label>
-        {text.svgInput}
-        <input
-          type="file"
-          accept=".svg,image/svg+xml"
-          disabled={importBusy}
-          aria-describedby="cutter-svg-help"
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            event.currentTarget.value = '';
-            if (!file) return;
-            const id = ++request.current;
-            setImportBusy(true);
-            setImportFailed(false);
-            setError('');
-            void (async () => {
-              try {
-                if (file.size > 64 * 1024) throw Error('CUTTER_SVG_TOO_LARGE');
-                const points = cutterSvgPoints(await file.text());
-                convexCutterProfile(points, { heightMm: 20, wallMm: 1.6, tipMm: 0.6 });
-                if (alive.current && request.current === id) setContour(points);
-              } catch {
-                if (alive.current && request.current === id) {
-                  setImportFailed(true);
-                  setError(text.svgError);
-                }
-              } finally {
-                if (alive.current && request.current === id) setImportBusy(false);
-              }
-            })();
-          }}
-        />
-      </label>
-      <p id="cutter-svg-help" className="hint">
-        {text.svgHelp}
-      </p>
-      {(contour || importFailed || importBusy) && (
-        <button
-          type="button"
-          className="btn"
-          onClick={() => {
-            request.current++;
-            setContour(null);
-            setImportBusy(false);
-            setImportFailed(false);
-            setError('');
-          }}
-        >
-          {text.resetCircle}
-        </button>
+      <p className="hint">{sourceMode ? text.traceIntro : text.intro}</p>
+      {!sourceMode && (
+        <>
+          <label>
+            {text.svgInput}
+            <input
+              type="file"
+              accept=".svg,image/svg+xml"
+              disabled={importBusy}
+              aria-describedby="cutter-svg-help"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (!file) return;
+                const id = ++request.current;
+                setImportBusy(true);
+                setImportFailed(false);
+                setError('');
+                void (async () => {
+                  try {
+                    if (file.size > 64 * 1024) throw Error('CUTTER_SVG_TOO_LARGE');
+                    const points = cutterSvgPoints(await file.text());
+                    convexCutterProfile(points, { heightMm: 20, wallMm: 1.6, tipMm: 0.6 });
+                    if (alive.current && request.current === id) setContour(points);
+                  } catch {
+                    if (alive.current && request.current === id) {
+                      setImportFailed(true);
+                      setError(text.svgError);
+                    }
+                  } finally {
+                    if (alive.current && request.current === id) setImportBusy(false);
+                  }
+                })();
+              }}
+            />
+          </label>
+          <p id="cutter-svg-help" className="hint">
+            {text.svgHelp}
+          </p>
+          {(contour || importFailed || importBusy) && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                request.current++;
+                setContour(null);
+                setImportBusy(false);
+                setImportFailed(false);
+                setError('');
+              }}
+            >
+              {text.resetCircle}
+            </button>
+          )}
+        </>
       )}
       {[
         { label: text.diameter, value: diameterMm, set: setDiameter, min: 20, max: 150 },
@@ -106,7 +120,7 @@ export function CookieCutterTool({
         { label: text.wall, value: wallMm, set: setWall, min: 0.8, max: 3 },
         { label: text.tip, value: tipMm, set: setTip, min: 0.4, max: 1.2 },
       ]
-        .filter((control) => !contour || control.label !== text.diameter)
+        .filter((control) => !polygonMode || control.label !== text.diameter)
         .map((control) => (
           <NumericControl
             key={control.label}
@@ -171,7 +185,9 @@ export function CookieCutterTool({
             ? text.svgError
             : geometry?.report.ok
               ? text.valid
-              : text.invalid}
+              : sourceMode
+                ? text.traceInvalid
+                : text.invalid}
       </p>
       <p className="hint">{text.safety}</p>
       <button
@@ -180,14 +196,17 @@ export function CookieCutterTool({
         disabled={!geometry?.report.ok}
         onClick={() => {
           if (!geometry?.report.ok) return;
-          const result = toBinaryStl(geometry.mesh, contour ? 'convex-cutter' : 'circular-cutter');
+          const result = toBinaryStl(
+            geometry.mesh,
+            polygonMode ? 'convex-cutter' : 'circular-cutter',
+          );
           if (!result.ok || !result.bytes) {
             setError(text.exportError);
             return;
           }
           onExport(
             exportName(
-              contour ? 'convex-cutter' : 'circular-cutter',
+              polygonMode ? 'convex-cutter' : 'circular-cutter',
               'ring',
               geometry.polygon
                 ? `W${geometry.polygon.width}-D${geometry.polygon.depth}-H${heightMm}mm`
@@ -198,7 +217,7 @@ export function CookieCutterTool({
           );
         }}
       >
-        {contour ? text.polygonDownload : text.download}
+        {polygonMode ? text.polygonDownload : text.download}
       </button>
       {error && <p role="alert">{error}</p>}
     </>

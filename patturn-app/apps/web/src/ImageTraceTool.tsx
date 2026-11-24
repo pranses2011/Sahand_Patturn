@@ -1,3 +1,7 @@
+import { DeferredTool } from './DeferredTool';
+import { cookieCutter as cutterText } from './messages/fa.json';
+const loadTracedCutter = () =>
+  import('./CookieCutterTool').then((module) => ({ default: module.CookieCutterTool }));
 import { dxfErrorMessage } from './export-error';
 import { StampTool } from './StampTool';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -275,6 +279,14 @@ export function ImageTraceTool({
         دانلود DXF ردیابی
       </button>
       {drawing && <StampTool contours={drawing.contours} onExport={onExport} />}
+      {drawing && (
+        <DeferredTool
+          label={cutterText.traceTitle}
+          className="traced-cutter-tool"
+          load={loadTracedCutter}
+          toolProps={{ sourceContours: drawing.contours, onExport }}
+        />
+      )}
       <p className="hint">
         لبهٔ ناحیهٔ تیره با marching squares و ساده‌سازی RDP؛ پیکسل‌های قطری جدا در نظر گرفته می‌شوند.
         مرز داخلی سوراخ‌ها نیز صادر می‌شود؛ تشخیص جزیره فقط برای کانتورهای ساده و جداست. پرشدگی، پل،
