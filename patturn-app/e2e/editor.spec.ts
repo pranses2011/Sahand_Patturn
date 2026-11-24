@@ -2444,3 +2444,84 @@ test('rib solid exports validated thickness in binary STL and refreshes with the
   await page.getByText('ریب‌ساز — الگوی دوبعدی پروفیل داخلی', { exact: true }).click();
   await expect(preview.locator('path')).not.toHaveAttribute('d', before!);
 });
+
+test('rib PDF loads offline font on demand, cancels safely and retries with actual A4 pages', async ({
+  page,
+}) => {
+  let releaseFont!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    releaseFont = resolve;
+  });
+  let fontRequested!: () => void;
+  const fontSeen = new Promise<void>((resolve) => {
+    fontRequested = resolve;
+  });
+  let first = true;
+  await page.route('**/*vazirmatn*.js', async (route) => {
+    if (first) {
+      first = false;
+      fontRequested();
+      await gate;
+    }
+    await route.continue();
+  });
+  const downloads: string[] = [];
+  page.on('download', (file) => downloads.push(file.suggestedFilename()));
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ریب‌ساز — الگوی دوبعدی پروفیل داخلی', { exact: true }).click();
+  const button = page.getByRole('button', { name: 'دانلود PDF ریب', exact: true });
+  await button.click();
+  await fontSeen;
+  await page.getByRole('button', { name: 'لغو PDF ریب', exact: true }).click();
+  releaseFont();
+  await expect(page.getByRole('alert').filter({ hasText: 'ساخت PDF ریب لغو شد' })).toBeVisible();
+  expect(downloads).toEqual([]);
+  await expect(button).toBeEnabled();
+  const pending = page.waitForEvent('download');
+  await button.click();
+  const file = await pending;
+  expect(file.suggestedFilename()).toBe('rib_template_A4-1to1.pdf');
+  const pdf = await readFile((await file.path())!, 'latin1');
+  expect(pdf.startsWith('%PDF-')).toBe(true);
+  expect(pdf).toContain('/FontFile2');
+  expect(pdf).toContain('/MediaBox [0 0 595.28 841.89]');
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
+
+test('changing rib settings while PDF imports are pending suppresses the old download', async ({
+  page,
+}) => {
+  let releaseFont!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    releaseFont = resolve;
+  });
+  let seen!: () => void;
+  const requested = new Promise<void>((resolve) => {
+    seen = resolve;
+  });
+  await page.route('**/*vazirmatn*.js', async (route) => {
+    seen();
+    await gate;
+    await route.continue();
+  });
+  const downloads: string[] = [];
+  page.on('download', (file) => downloads.push(file.suggestedFilename()));
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ریب‌ساز — الگوی دوبعدی پروفیل داخلی', { exact: true }).click();
+  const pdfButton = page.getByRole('button', { name: 'دانلود PDF ریب', exact: true });
+  await pdfButton.click();
+  await requested;
+  const backing = page.getByRole('spinbutton', { name: 'عرض پشت ریب', exact: true });
+  await backing.fill('30');
+  await backing.press('Enter');
+  await expect(pdfButton).toBeEnabled();
+  releaseFont();
+  // A fresh request waits for the same module graph; its download proves old work settled.
+  const pending = page.waitForEvent('download');
+  await pdfButton.click();
+  await pending;
+  await expect(pdfButton).toBeEnabled();
+  expect(downloads).toEqual(['rib_template_A4-1to1.pdf']);
+});

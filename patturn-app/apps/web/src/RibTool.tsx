@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildRibMesh, type Profile } from '@patturn/kernel';
 import { buildRib } from '@patturn/patterns';
-import { toSvg, toDxf, toBinaryStl, exportName } from '@patturn/exporters';
+import { toSvg, toDxf, toBinaryStl, toRibPdf, exportName } from '@patturn/exporters';
 import { NumericControl } from './NumericControl';
 import { dxfErrorMessage } from './export-error';
 import { formatNumber } from './number-format';
@@ -23,6 +23,37 @@ export function RibTool({
       return null;
     }
   }, [profile, backing]);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const pdfRequest = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setPdfBusy(false);
+    return () => {
+      pdfRequest.current?.abort();
+      pdfRequest.current = null;
+    };
+  }, [drawing, thickness]);
+  async function downloadPdf() {
+    if (!drawing || pdfRequest.current) return;
+    const controller = new AbortController();
+    pdfRequest.current = controller;
+    setPdfBusy(true);
+    setError('');
+    try {
+      const result = await toRibPdf(drawing.contact, thickness, controller.signal);
+      if (pdfRequest.current !== controller) return;
+      if (controller.signal.aborted) setError('ساخت PDF ریب لغو شد؛ فایلی تحویل نشد.');
+      else if (!result.ok || !result.bytes)
+        setError('PDF ریب ساخته نشد؛ هندسه و بارگذاری محلی خروجی را بررسی کنید.');
+      else onExport(result.filename, result.bytes);
+    } catch {
+      if (pdfRequest.current === controller) setError('ساخت PDF ریب ناموفق بود؛ دوباره تلاش کنید.');
+    } finally {
+      if (pdfRequest.current === controller) {
+        pdfRequest.current = null;
+        setPdfBusy(false);
+      }
+    }
+  }
   function downloadStl() {
     if (!drawing) return;
     try {
@@ -109,6 +140,19 @@ export function RibTool({
               strokeWidth={0.2}
             />
           </svg>
+          <button
+            type="button"
+            className="btn"
+            disabled={pdfBusy}
+            onClick={() => void downloadPdf()}
+          >
+            دانلود PDF ریب
+          </button>
+          {pdfBusy && (
+            <button type="button" className="btn" onClick={() => pdfRequest.current?.abort()}>
+              لغو PDF ریب
+            </button>
+          )}
           <button type="button" className="btn" onClick={downloadStl}>
             دانلود STL ریب
           </button>
@@ -123,8 +167,8 @@ export function RibTool({
         <p role="alert">پروفیل ریب معتبر نیست؛ ارتفاع باید صعودی و ابعاد در محدودهٔ مجاز باشد.</p>
       )}
       <p className="hint">
-        ریب با ضخامت یکنواخت و موقت، خارج از پروژه/ZIP است؛ خروجی PDF هنوز پشتیبانی نمی‌شود. تغییر
-        فرم یا دیواره، پیش‌نمایش را به‌روز می‌کند.
+        ریب با ضخامت یکنواخت و موقت، خارج از پروژه/ZIP است. PDF با مقیاس ۱:۱ و خط‌کش کنترل است؛ چاپ
+        را پیش از برش اندازه بگیرید. تغییر فرم یا دیواره، پیش‌نمایش را به‌روز می‌کند.
       </p>
       {error && <p role="alert">{error}</p>}
     </>
