@@ -63,8 +63,7 @@ export function HorizontalSplitTool({
     onExport(exportName('form', `horizontal-${side}`, `Y${height}mm`, 'stl'), output.bytes);
   };
   return (
-    <details className="horizontal-split-tool">
-      <summary>تقسیم افقی فرم در ارتفاع انتخابی</summary>
+    <>
       <p className="hint">
         برش روی فرم بستهٔ فعلی و محور Y بر حسب میلی‌متر؛ مختصات قطعات حفظ می‌شود. سطح برش تخت و بسته
         است؛ قفل اتصال، لقی یا جبران انقباض اضافه نمی‌شود.
@@ -112,6 +111,6 @@ export function HorizontalSplitTool({
         با تغییر فرم یا ارتفاع، نتیجهٔ قبلی کنار گذاشته می‌شود. تنظیمات و قطعات این ابزار موقتی‌اند و
         در پروژه یا ZIP قالب نیستند؛ اتصال و چاپ واقعی آزمایش نشده است.
       </p>
-    </details>
+    </>
   );
 }

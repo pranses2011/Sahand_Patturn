@@ -49,8 +49,7 @@ export function SlabTool({ onExport }: { onExport: (name: string, bytes: Uint8Ar
     );
   }
   return (
-    <details className="slab-tool">
-      <summary>اسلب‌تمپلیت — استوانه و مخروط ناقص</summary>
+    <>
       <p className="hint">
         سطح میانی مستقل، نه بازکردن فرم فعلی پروژه. شعاع برابر یعنی استوانه؛ شعاع متفاوت یعنی مخروط
         ناقص. خطوط داخلی راهنمای فرم‌دهی‌اند، نه مسیر برش یا خط تای تیز.
@@ -92,6 +91,6 @@ export function SlabTool({ onExport }: { onExport: (name: string, bytes: Uint8Ar
         دانلود DXF اسلب
       </button>
       {error && <p role="alert">{error}</p>}
-    </details>
+    </>
   );
 }

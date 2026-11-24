@@ -2331,3 +2331,44 @@ test('logical flow arrow follows inherited RTL/LTR without changing project para
   );
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('optional tools fetch only after expansion and preserve settings while collapsed', async ({
+  page,
+}) => {
+  const requested: string[] = [];
+  page.on('request', (request) => {
+    if (/(?:ImageTraceTool|JigsawTool|ChuckTool)-.*\.js/.test(request.url()))
+      requested.push(request.url());
+  });
+  await page.goto('/');
+  expect(requested).toHaveLength(0);
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  expect(requested).toHaveLength(0);
+  const summary = page.getByText('الگوی پازل — اتصال jigsaw با seed قطعی', { exact: true });
+  await summary.click();
+  const seed = page.getByRole('spinbutton', { name: 'seed پازل', exact: true });
+  await expect(seed).toBeVisible();
+  await seed.fill('123');
+  await seed.press('Enter');
+  await summary.click();
+  await summary.click();
+  await expect(seed).toHaveValue('123');
+  expect(requested.filter((url) => url.includes('JigsawTool-'))).toHaveLength(1);
+  expect(requested.some((url) => /ImageTraceTool-|ChuckTool-/.test(url))).toBe(false);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
+
+test('failed optional chunk stays isolated while another tool and the project remain usable', async ({
+  page,
+}) => {
+  await page.route('**/ChuckTool-*.js', (route) => route.abort('internetdisconnected'));
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('چاک‌ساز — شیب ۲ درجه و سوراخ تخلیه', { exact: true }).click();
+  await expect(page.locator('.chuck-tool').getByRole('alert')).toContainText(
+    'بارگذاری ابزار ناموفق بود',
+  );
+  await page.getByText('الگوی پازل — اتصال jigsaw با seed قطعی', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'دانلود SVG پازل', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

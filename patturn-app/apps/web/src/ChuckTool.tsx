@@ -39,8 +39,7 @@ export function ChuckTool({ onExport }: { onExport: (name: string, bytes: Uint8A
     />
   );
   return (
-    <details className="chuck-tool">
-      <summary>چاک‌ساز — شیب ۲ درجه و سوراخ تخلیه</summary>
+    <>
       <p className="hint">
         تکیه‌گاه مخروطی با سوراخ محوریِ عبوری؛ واحد همهٔ ابعاد میلی‌متر است. شیب به سمت بالا باریک
         می‌شود. این مدل حلقوی توپر است، نه پوستهٔ نازک.
@@ -90,6 +89,6 @@ export function ChuckTool({ onExport }: { onExport: (name: string, bytes: Uint8A
         دانلود STL چاک
       </button>
       {error && <p role="alert">{error}</p>}
-    </details>
+    </>
   );
 }

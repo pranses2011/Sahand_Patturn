@@ -55,8 +55,7 @@ export function LoftSweepTool({
     />
   );
   return (
-    <details className="loft-sweep-tool">
-      <summary>Loft / Sweep — دو مقطع بیضوی یا مسیر قوسی</summary>
+    <>
       <p className="hint">
         ساخت جامد مستقل با دو درپوش؛ شعاع‌ها و طول‌ها برحسب میلی‌متر هستند. مقطع و مسیر دلخواه،
         اتصال به بدنه و جبران انقباض پشتیبانی نمی‌شوند.
@@ -145,6 +144,6 @@ export function LoftSweepTool({
         دانلود STL {mode === 'loft' ? 'Loft' : 'Sweep'}
       </button>
       {error && <p role="alert">{error}</p>}
-    </details>
+    </>
   );
 }

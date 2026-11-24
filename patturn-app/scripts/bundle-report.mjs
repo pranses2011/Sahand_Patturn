@@ -29,6 +29,20 @@ const viewerGraph = staticGraph(manifest, viewport);
 const editor = new Set([...core, ...viewerGraph]);
 const heavy = keys.filter((key) => /jspdf|vazirmatn/.test(key));
 if (heavy.length < 2 || heavy.some((key) => editor.has(key))) throw new Error('PDF_NOT_LAZY');
+const optionalTools = [
+  'ChuckTool',
+  'RounderTool',
+  'HorizontalSplitTool',
+  'JigsawTool',
+  'SlabTool',
+  'LoftSweepTool',
+  'ImageTraceTool',
+  'FootRingTool',
+];
+for (const name of optionalTools) {
+  const key = keys.find((key) => key.endsWith(`/${name}.tsx`));
+  if (!key || editor.has(key)) throw Error(`OPTIONAL_TOOL_NOT_LAZY: ${name}`);
+}
 const editorSummary = summary(editor);
 console.log(
   JSON.stringify(
@@ -45,6 +59,7 @@ console.log(
       },
       note: 'Viewport is requested on first render. PDF, WASM, workers and optional imports excluded. Not an LCP measurement.',
       pdfAndFontLazy: true,
+      optionalToolsLazy: optionalTools,
     },
     null,
     2,

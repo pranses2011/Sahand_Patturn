@@ -19,8 +19,7 @@ export function RounderTool({ onExport }: { onExport: (name: string, bytes: Uint
   const format = (n: number) =>
     new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(n);
   return (
-    <details className="rounder-tool">
-      <summary>رینگ‌روندر — پلاگ مخروطی با شیب ۳ درجه</summary>
+    <>
       <p className="hint">
         پلاگ توپر برای گردکردن دهانه؛ قطر اسمی در نیمهٔ ارتفاع است و سر بالایی باریک‌تر است. واحد
         ابعاد میلی‌متر است.
@@ -103,6 +102,6 @@ export function RounderTool({ onExport }: { onExport: (name: string, bytes: Uint
         دانلود STL رینگ‌روندر
       </button>
       {error && <p role="alert">{error}</p>}
-    </details>
+    </>
   );
 }

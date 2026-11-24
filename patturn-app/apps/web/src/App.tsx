@@ -1,15 +1,8 @@
+import { DeferredTool } from './DeferredTool';
 import { FlowArrow } from './FlowArrow';
 import { formatNumber } from './number-format';
 import { UpdatePanel } from './UpdatePanel';
-import { ImageTraceTool } from './ImageTraceTool';
-import { LoftSweepTool } from './LoftSweepTool';
-import { SlabTool } from './SlabTool';
-import { FootRingTool } from './FootRingTool';
 import { FeatureRequests } from './FeatureRequests';
-import { JigsawTool } from './JigsawTool';
-import { HorizontalSplitTool } from './HorizontalSplitTool';
-import { RounderTool } from './RounderTool';
-import { ChuckTool } from './ChuckTool';
 import { LocalProfilePanel } from './LocalProfilePanel';
 import { SupportPanel } from './SupportPanel';
 import { PrivacyNotice } from './PrivacyNotice';
@@ -82,6 +75,21 @@ import {
   type BuildBundle,
 } from '@patturn/exporters';
 import { AUTHOR, PLANS } from '@patturn/config';
+const loadImageTraceTool = () =>
+  import('./ImageTraceTool').then((module) => ({ default: module.ImageTraceTool }));
+const loadLoftSweepTool = () =>
+  import('./LoftSweepTool').then((module) => ({ default: module.LoftSweepTool }));
+const loadSlabTool = () => import('./SlabTool').then((module) => ({ default: module.SlabTool }));
+const loadFootRingTool = () =>
+  import('./FootRingTool').then((module) => ({ default: module.FootRingTool }));
+const loadJigsawTool = () =>
+  import('./JigsawTool').then((module) => ({ default: module.JigsawTool }));
+const loadHorizontalSplitTool = () =>
+  import('./HorizontalSplitTool').then((module) => ({ default: module.HorizontalSplitTool }));
+const loadRounderTool = () =>
+  import('./RounderTool').then((module) => ({ default: module.RounderTool }));
+const loadChuckTool = () => import('./ChuckTool').then((module) => ({ default: module.ChuckTool }));
+
 const Viewport = lazy(() => import('./Viewport').then((module) => ({ default: module.Viewport })));
 
 type ProfileMode = 'reference' | 'bucket' | 'vase';
@@ -1223,14 +1231,54 @@ export function App() {
           {part === 'export' && (
             <>
               <h3 className="sec">خروجی‌ها</h3>
-              <ChuckTool onExport={download} />
-              <RounderTool onExport={download} />
-              <HorizontalSplitTool mesh={formMesh} onExport={download} />
-              <JigsawTool onExport={download} />
-              <SlabTool onExport={download} />
-              <LoftSweepTool onExport={download} />
-              <ImageTraceTool onExport={download} />
-              <FootRingTool mesh={formMesh} onExport={download} />
+              <DeferredTool
+                label="چاک‌ساز — شیب ۲ درجه و سوراخ تخلیه"
+                className="chuck-tool"
+                load={loadChuckTool}
+                toolProps={{ onExport: download }}
+              />
+              <DeferredTool
+                label="رینگ‌روندر — پلاگ مخروطی با شیب ۳ درجه"
+                className="rounder-tool"
+                load={loadRounderTool}
+                toolProps={{ onExport: download }}
+              />
+              <DeferredTool
+                label="تقسیم افقی فرم در ارتفاع انتخابی"
+                className="horizontal-split-tool"
+                load={loadHorizontalSplitTool}
+                toolProps={{ mesh: formMesh, onExport: download }}
+              />
+              <DeferredTool
+                label="الگوی پازل — اتصال jigsaw با seed قطعی"
+                className="jigsaw-tool"
+                load={loadJigsawTool}
+                toolProps={{ onExport: download }}
+              />
+              <DeferredTool
+                label="اسلب‌تمپلیت — استوانه و مخروط ناقص"
+                className="slab-tool"
+                load={loadSlabTool}
+                toolProps={{ onExport: download }}
+              />
+              <DeferredTool
+                label="Loft / Sweep — دو مقطع بیضوی یا مسیر قوسی"
+                className="loft-sweep-tool"
+                load={loadLoftSweepTool}
+                toolProps={{ onExport: download }}
+              />
+              <DeferredTool
+                label="ردیابی تصویر — Otsu و کانتور"
+                className="image-trace-tool"
+                load={loadImageTraceTool}
+                toolProps={{ onExport: download }}
+              />
+              <DeferredTool
+                label="فوت‌رینگ — اتصال حلقهٔ پایه به فرم"
+                className="foot-ring-tool"
+                load={loadFootRingTool}
+                toolProps={{ mesh: formMesh, onExport: download }}
+              />
               <div className="ctl">
                 <button
                   className="btn primary"

@@ -55,8 +55,7 @@ export function JigsawTool({ onExport }: { onExport: (name: string, bytes: Uint8
     );
   };
   return (
-    <details className="jigsaw-tool">
-      <summary>الگوی پازل — اتصال jigsaw با seed قطعی</summary>
+    <>
       <p className="hint">
         نقشهٔ خطوط برش مشترک؛ هر مرز داخلی فقط یک‌بار رسم می‌شود، نه کانتور جداگانهٔ هر قطعه. واحد
         ابعاد میلی‌متر است.
@@ -102,6 +101,6 @@ export function JigsawTool({ onExport }: { onExport: (name: string, bytes: Uint8
         نشده‌اند؛ آزمون CAD و برش واقعی لازم است.
       </p>
       {error && <p role="alert">{error}</p>}
-    </details>
+    </>
   );
 }
