@@ -1,3 +1,4 @@
+import { cookieCutterTitle } from './messages/fa.json';
 import { PRESETS, type ProfileMode } from './editor-presets';
 import type { HistorySession, AsyncEditorHistory } from './history-session';
 import { DeferredTool } from './DeferredTool';
@@ -89,6 +90,8 @@ const loadJigsawTool = () =>
   import('./JigsawTool').then((module) => ({ default: module.JigsawTool }));
 const loadHorizontalSplitTool = () =>
   import('./HorizontalSplitTool').then((module) => ({ default: module.HorizontalSplitTool }));
+const loadCookieCutterTool = () =>
+  import('./CookieCutterTool').then((module) => ({ default: module.CookieCutterTool }));
 const loadRounderTool = () =>
   import('./RounderTool').then((module) => ({ default: module.RounderTool }));
 const loadChuckTool = () => import('./ChuckTool').then((module) => ({ default: module.ChuckTool }));
@@ -1276,6 +1279,12 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
                 label="چاک‌ساز — شیب ۲ درجه و سوراخ تخلیه"
                 className="chuck-tool"
                 load={loadChuckTool}
+                toolProps={{ onExport: download }}
+              />
+              <DeferredTool
+                label={cookieCutterTitle}
+                className="cookie-cutter-tool"
+                load={loadCookieCutterTool}
                 toolProps={{ onExport: download }}
               />
               <DeferredTool

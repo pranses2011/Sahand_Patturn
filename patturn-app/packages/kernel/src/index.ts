@@ -11,3 +11,4 @@ export * from './foot-ring.js';
 export * from './loft-sweep.js';
 export * from './rib.js';
 export * from './extruder.js';
+export * from './cookie-cutter.js';

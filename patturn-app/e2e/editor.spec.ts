@@ -3068,10 +3068,12 @@ test('named archive rejects corrupt and oversized files, then imports a valid ge
     const manager = page.locator('.project-manager');
     const input = manager.getByLabel('ورود فایل پروژهٔ نام‌دار', { exact: true });
     for (const buffer of [Buffer.from('{broken'), Buffer.alloc(2 * 1024 * 1024 + 1, 32)]) {
+      await expect(input).toBeEnabled();
       await input.setInputFiles({ name: 'bad.patturn', mimeType: 'application/json', buffer });
       await expect(manager.getByRole('alert')).toContainText('عملیات پروژه انجام نشد');
       expect(database.prepare('select count(*) as n from patturn_projects').get()!.n).toBe(0);
     }
+    await expect(input).toBeEnabled();
     const time = '2020-01-01T00:00:00.000Z';
     const record = {
       id: 'external',
@@ -3373,4 +3375,60 @@ test('named autosave keeps newer edits pending during an old SQL write and stops
     await page.close();
     database.close();
   }
+});
+
+test('circular cutter exports an open-centered closed solid and blocks a tip thicker than its wall', async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('CookieCutterTool-')) requests.push(request.url());
+  });
+  await page.goto('/');
+  expect(requests).toEqual([]);
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  await expect(panel.getByRole('status', { name: 'اعتبار هندسهٔ کاتر', exact: true })).toContainText(
+    'مش کاتر بسته',
+  );
+  expect(requests).toHaveLength(1);
+  const download = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'دانلود STL کاتر گرد', exact: true }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toContain('D60-H20-W1.6-T0.6mm');
+  const bytes = await readFile((await file.path())!);
+  const triangles = bytes.readUInt32LE(80);
+  expect(bytes.length).toBe(84 + triangles * 50);
+  expect(triangles).toBe(7 * 128 * 2);
+  for (let i = 0; i < triangles; i++)
+    for (let corner = 0; corner < 3; corner++) {
+      const offset = 84 + i * 50 + 12 + corner * 12;
+      expect(Math.hypot(bytes.readFloatLE(offset), bytes.readFloatLE(offset + 8))).toBeGreaterThan(
+        29.999,
+      );
+    }
+  const wall = panel.getByRole('spinbutton', { name: 'ضخامت دیوارهٔ کاتر', exact: true });
+  const tip = panel.getByRole('spinbutton', { name: 'ضخامت لبهٔ برش کاتر', exact: true });
+  await wall.fill('0.8');
+  await wall.press('Enter');
+  await tip.fill('1');
+  await tip.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر گرد', exact: true }),
+  ).toBeDisabled();
+  await expect(panel.getByRole('status', { name: 'اعتبار هندسهٔ کاتر', exact: true })).toContainText(
+    'ضخامت لبه نباید',
+  );
+  await tip.fill('0.4');
+  await tip.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر گرد', exact: true }),
+  ).toBeEnabled();
+  await expect(panel).toContainText('ایمنی تماس با غذا');
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  await page.getByRole('button', { name: '🏺 فرم', exact: true }).click();
+  await expect(
+    page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true }),
+  ).toHaveValue('4');
 });

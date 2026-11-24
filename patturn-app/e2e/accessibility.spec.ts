@@ -41,7 +41,7 @@ async function audit(page: Page, info: TestInfo, state: string) {
   ).toEqual([]);
 }
 
-test('WCAG automated scan covers four editor sections and all ten expanded tools', async ({
+test('WCAG automated scan covers four editor sections and all eleven expanded tools', async ({
   page,
 }, info) => {
   test.setTimeout(90_000);
@@ -61,6 +61,7 @@ test('WCAG automated scan covers four editor sections and all ten expanded tools
   for (const selector of [
     '.chuck-tool',
     '.rounder-tool',
+    '.cookie-cutter-tool',
     '.horizontal-split-tool',
     '.jigsaw-tool',
     '.slab-tool',

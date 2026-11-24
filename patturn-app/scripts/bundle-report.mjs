@@ -32,6 +32,7 @@ if (heavy.length < 2 || heavy.some((key) => editor.has(key))) throw new Error('P
 const optionalTools = [
   'ChuckTool',
   'RounderTool',
+  'CookieCutterTool',
   'HorizontalSplitTool',
   'JigsawTool',
   'SlabTool',
