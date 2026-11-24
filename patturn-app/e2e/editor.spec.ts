@@ -4130,3 +4130,89 @@ test('point sketch cutter supports pointer and keyboard drafting and invalidates
   await expect(finish).toBeDisabled();
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
+
+test('manual cutter vertex edits require explicit apply and revalidation and reject invalid coordinates', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  const panel = page.locator('.cookie-cutter-tool');
+  await panel.locator('summary').click();
+  await panel.getByRole('button', { name: 'رسم چندضلعی محدب با نقاط', exact: true }).click();
+  const canvas = panel.getByRole('img', {
+    name: 'صفحهٔ رسم نقطه‌ای کاتر با نشانگر صفحه‌کلید',
+    exact: true,
+  });
+  const finish = panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true });
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true });
+  await canvas.focus();
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowRight');
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowDown');
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowLeft');
+  await page.keyboard.press('Enter');
+  await finish.click();
+  await expect(output).toBeEnabled();
+  const selection = panel.getByLabel('انتخاب رأس کاتر', { exact: true });
+  await selection.selectOption('1');
+  await expect(output).toBeEnabled();
+  const x = panel.getByRole('spinbutton', { name: 'مختصات افقی رأس کاتر (mm)', exact: true });
+  const y = panel.getByRole('spinbutton', { name: 'مختصات عمودی رأس کاتر (mm)', exact: true });
+  const apply = panel.getByRole('button', { name: 'اعمال مختصات رأس کاتر', exact: true });
+  await x.fill('90');
+  await expect(output).toBeDisabled();
+  await expect(finish).toBeDisabled();
+  await apply.click();
+  await expect(output).toBeDisabled();
+  await finish.click();
+  await expect(output).toBeEnabled();
+  await expect(panel).toContainText('۶۰ × ۴۰ mm');
+  const pending = page.waitForEvent('download');
+  await output.click();
+  const bytes = await readFile((await (await pending).path())!);
+  let minX = Infinity,
+    maxX = -Infinity;
+  for (let i = 0; i < bytes.readUInt32LE(80); i++)
+    for (let j = 0; j < 3; j++) {
+      const value = bytes.readFloatLE(84 + i * 50 + 12 + j * 12);
+      minX = Math.min(minX, value);
+      maxX = Math.max(maxX, value);
+    }
+  expect(maxX - minX).toBeGreaterThan(69);
+  expect(maxX - minX).toBeLessThan(80);
+  for (const value of ['', '-1', '151', '45.5']) {
+    await x.fill(value);
+    await apply.click();
+    await expect(panel.getByRole('alert')).toContainText('هر دو مختصات');
+    await expect(finish).toBeDisabled();
+    await expect(output).toBeDisabled();
+  }
+  await x.fill('50');
+  await y.fill('60');
+  await apply.click();
+  await finish.click();
+  await expect(panel.getByRole('alert')).toContainText('طرح پذیرفته نشد');
+  await expect(output).toBeDisabled();
+  await x.fill('90');
+  await y.fill('30');
+  await apply.click();
+  await finish.click();
+  await expect(output).toBeEnabled();
+  // Removing a selected middle vertex changes the contour, not just the last point.
+  await panel.getByRole('button', { name: 'حذف رأس انتخاب‌شدهٔ کاتر', exact: true }).click();
+  await expect(output).toBeDisabled();
+  await expect(selection.locator('option')).toHaveCount(3);
+  await finish.click();
+  await expect(output).toBeEnabled();
+  // A pending draft must never survive a structural edit while close is re-enabled.
+  await x.fill('100');
+  await expect(finish).toBeDisabled();
+  await panel.getByRole('button', { name: 'حذف آخرین نقطهٔ کاتر', exact: true }).click();
+  await expect(x).not.toHaveValue('100');
+  await expect(output).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

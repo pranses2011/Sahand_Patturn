@@ -297,7 +297,16 @@ test('manual cutter sketch is keyboard operable and reflows at 320px', async ({ 
   await page.keyboard.press('Enter');
   for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowDown');
   await page.keyboard.press('Enter');
-  await page.keyboard.press('Tab');
+  // Vertex controls now precede the close button in the tab order.
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press('Tab');
+    if (
+      await panel
+        .getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true })
+        .evaluate((el) => el === document.activeElement)
+    )
+      break;
+  }
   await expect(
     panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true }),
   ).toBeFocused();
@@ -306,5 +315,14 @@ test('manual cutter sketch is keyboard operable and reflows at 320px', async ({ 
     panel.getByRole('button', { name: 'دانلود STL کاتر چندضلعی', exact: true }),
   ).toBeEnabled();
   await audit(page, info, 'manual-cutter-closed-320');
+  const vertexX = panel.getByRole('spinbutton', { name: 'مختصات افقی رأس کاتر (mm)', exact: true });
+  await vertexX.fill('151');
+  await panel.getByRole('button', { name: 'اعمال مختصات رأس کاتر', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('هر دو مختصات');
+  await expect(
+    panel.getByRole('button', { name: 'بستن و بررسی طرح کاتر', exact: true }),
+  ).toBeDisabled();
+  await audit(page, info, 'manual-cutter-invalid-vertex-320');
+
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });

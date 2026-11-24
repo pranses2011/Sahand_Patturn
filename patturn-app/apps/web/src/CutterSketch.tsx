@@ -6,11 +6,17 @@ import { formatNumber } from './number-format';
 export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | null) => void }) {
   const [points, setPoints] = useState<CutterPoint[]>([]),
     [cursor, setCursor] = useState<[number, number]>([30, 30]);
+  const [editorEpoch, setEditorEpoch] = useState(0);
+  const [draftDirty, setDraftDirty] = useState(false);
+  const [selected, setSelected] = useState(0);
+  const selectedIndex = Math.min(selected, Math.max(0, points.length - 1));
   const [closed, setClosed] = useState(false),
     [error, setError] = useState('');
   const canvas = useRef<SVGSVGElement>(null);
   const help = useId();
   const invalidate = () => {
+    setEditorEpoch((value) => value + 1);
+    setDraftDirty(false);
     setClosed(false);
     setError('');
     onChange(null);
@@ -21,6 +27,7 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
       setError(text.limit);
       return;
     }
+    setSelected(points.length);
     setPoints([...points, [point[0], point[1]]]);
   };
   const undo = () => {
@@ -113,10 +120,59 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
         {text.points} {formatNumber(points.length)}؛ {text.cursor} {formatNumber(cursor[0])}،{' '}
         {formatNumber(cursor[1])} mm؛ {closed ? text.closed : text.open}
       </p>
+      {points.length > 0 && (
+        <fieldset>
+          <legend>{text.editLegend}</legend>
+          <label>
+            {text.selectVertex}
+            <select
+              aria-label={text.selectVertex}
+              value={selectedIndex}
+              onChange={(event) => {
+                setSelected(Number(event.currentTarget.value));
+                setDraftDirty(false);
+              }}
+            >
+              {points.map((point, index) => (
+                <option key={index} value={index}>
+                  {text.vertex} {formatNumber(index + 1)}: {formatNumber(point[0])}،{' '}
+                  {formatNumber(point[1])} mm
+                </option>
+              ))}
+            </select>
+          </label>
+          <CutterVertexEditor
+            key={`${editorEpoch}:${selectedIndex}:${points[selectedIndex]!.join(',')}`}
+            point={points[selectedIndex]!}
+            onDirty={() => {
+              setClosed(false);
+              setError('');
+              onChange(null);
+              setDraftDirty(true);
+            }}
+            onApply={(point) => {
+              invalidate();
+              setPoints(
+                points.map((previous, index) => (index === selectedIndex ? point : previous)),
+              );
+            }}
+          />
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              invalidate();
+              setPoints(points.filter((_, index) => index !== selectedIndex));
+            }}
+          >
+            {text.deleteSelected}
+          </button>
+        </fieldset>
+      )}
       <button
         type="button"
         className="btn"
-        disabled={points.length < 3}
+        disabled={points.length < 3 || draftDirty}
         onClick={() => {
           try {
             convexCutterProfile(points, { heightMm: 20, wallMm: 1.6, tipMm: 0.6 });
@@ -148,5 +204,80 @@ export function CutterSketch({ onChange }: { onChange: (points: CutterPoint[] | 
       </button>
       {error && <p role="alert">{error}</p>}
     </div>
+  );
+}
+
+function CutterVertexEditor({
+  point,
+  onDirty,
+  onApply,
+}: {
+  point: CutterPoint;
+  onDirty: () => void;
+  onApply: (point: CutterPoint) => void;
+}) {
+  const [x, setX] = useState(String(point[0])),
+    [y, setY] = useState(String(point[1]));
+  const [error, setError] = useState(false);
+  const id = useId();
+  return (
+    <>
+      <p id={id} className="hint">
+        {text.editHelp}
+      </p>
+      <label>
+        {text.vertexX}
+        <input
+          type="number"
+          min={0}
+          max={150}
+          step={1}
+          value={x}
+          aria-describedby={id}
+          onChange={(event) => {
+            setX(event.currentTarget.value);
+            setError(false);
+            onDirty();
+          }}
+        />
+      </label>
+      <label>
+        {text.vertexY}
+        <input
+          type="number"
+          min={0}
+          max={150}
+          step={1}
+          value={y}
+          aria-describedby={id}
+          onChange={(event) => {
+            setY(event.currentTarget.value);
+            setError(false);
+            onDirty();
+          }}
+        />
+      </label>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          const values = [Number(x), Number(y)];
+          if (
+            !x.trim() ||
+            !y.trim() ||
+            values.some((n) => !Number.isInteger(n) || n < 0 || n > 150)
+          ) {
+            setError(true);
+            onDirty();
+            return;
+          }
+          setError(false);
+          onApply([values[0]!, values[1]!]);
+        }}
+      >
+        {text.applyVertex}
+      </button>
+      {error && <p role="alert">{text.invalidVertex}</p>}
+    </>
   );
 }
