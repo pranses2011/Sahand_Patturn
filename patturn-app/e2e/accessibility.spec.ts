@@ -493,3 +493,36 @@ test('orthogonal cutter accepted and rejected SVG remain accessible at 320px', a
   await audit(page, info, 'orthogonal-cutter-file-rejected-320');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal notch controls and validation errors are accessible at 320px', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const mode = panel.getByRole('button', {
+    name: 'حالت افزودن و حذف فرورفتگی مستطیلی',
+    exact: true,
+  });
+  await mode.focus();
+  await page.keyboard.press('Enter');
+  await expect(mode).toHaveAttribute('aria-pressed', 'true');
+  await panel.getByRole('button', { name: 'افزودن چهار گوشهٔ فرورفتگی', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByLabel('انتخاب شروع ضلع یا فرورفتگی', { exact: true }).locator('option'),
+  ).toHaveCount(10);
+  await audit(page, info, 'orthogonal-notch-added-320');
+  await panel.getByRole('button', { name: 'حذف چهار گوشهٔ فرورفتگی', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('فرورفتگی پذیرفته نشد');
+  await audit(page, info, 'orthogonal-notch-rejected-320');
+  await panel.getByRole('button', { name: 'لغو پیش‌نویس فرورفتگی', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

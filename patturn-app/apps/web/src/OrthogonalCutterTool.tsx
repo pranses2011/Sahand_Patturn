@@ -1,3 +1,4 @@
+import { OrthogonalNotchEditor } from './OrthogonalNotchEditor';
 import { initialSketchHistory, sketchHistory } from './sketch-history';
 import { historyShortcut } from './history-shortcut';
 import { preserveNativeUndo } from './native-undo';
@@ -42,6 +43,7 @@ export function OrthogonalCutterTool({
 }: {
   onExport: (name: string, bytes: Uint8Array) => void;
 }) {
+  const [notchMode, setNotchMode] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const [editorRevision, setEditorRevision] = useState(0);
   const [history, dispatch] = useReducer(sketchHistory, samples.L, initialSketchHistory);
@@ -236,7 +238,42 @@ export function OrthogonalCutterTool({
           onEndEdit={() => {}}
         />
       ))}
-      {!busy && !failed && (
+      <button
+        type="button"
+        className="btn"
+        aria-pressed={notchMode}
+        disabled={busy || failed}
+        onClick={() => {
+          setNotchMode((value) => !value);
+          setDraftDirty(false);
+          setError('');
+          setEditorRevision((value) => value + 1);
+        }}
+      >
+        {text.notchMode}
+      </button>
+      {!busy && !failed && notchMode && (
+        <OrthogonalNotchEditor
+          key={editorRevision}
+          points={points}
+          options={{ heightMm, wallMm, tipMm }}
+          onDirty={() => {
+            setDraftDirty(true);
+            setError('');
+          }}
+          onApply={(next) => {
+            dispatch({ type: 'edit', points: next });
+            setDraftDirty(false);
+            setError('');
+            setEditorRevision((value) => value + 1);
+          }}
+          onCancel={() => {
+            setDraftDirty(false);
+            setError('');
+          }}
+        />
+      )}
+      {!busy && !failed && !notchMode && (
         <OrthogonalVertexEditor
           key={editorRevision}
           points={points}
