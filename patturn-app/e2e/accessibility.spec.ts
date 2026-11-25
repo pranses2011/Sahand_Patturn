@@ -796,6 +796,9 @@ test('orthogonal boolean rectangle controls and rejected hole are accessible at 
   await panel.getByRole('spinbutton', { name: 'ارتفاع مستطیل بولی (mm)', exact: true }).fill('10');
   await panel.getByRole('button', { name: 'اعمال عملیات بولی مستطیلی', exact: true }).click();
   await expect(panel.getByRole('alert')).toContainText('دقیقاً یک کانتور');
+  await expect(
+    panel.getByRole('status', { name: 'اعتبار پیش‌نمایش عملیات بولی', exact: true }),
+  ).toContainText('قابل اعمال نیست');
   await audit(page, info, 'orthogonal-boolean-hole-error-320');
   await panel.getByRole('button', { name: 'لغو پیش‌نویس بولی مستطیلی', exact: true }).click();
   await expect(

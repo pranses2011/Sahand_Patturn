@@ -6329,3 +6329,71 @@ test('orthogonal rectangle booleans commit validated regions and never discard h
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal boolean preview retains rejected rings and never commits or exports a draft', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true });
+  const download = async () => {
+    const pending = page.waitForEvent('download');
+    await output.click();
+    return readFile((await (await pending).path())!);
+  };
+  const original = await download();
+  await panel.getByRole('button', { name: 'حالت عملیات بولی مستطیلی کاتر', exact: true }).click();
+  const preview = panel.getByRole('img', {
+      name: 'پیش‌نمایش اعمال‌نشدهٔ عملیات بولی مستطیلی',
+      exact: true,
+    }),
+    candidate = preview.locator('[data-layer="candidate"]'),
+    status = panel.getByRole('status', { name: 'اعتبار پیش‌نمایش عملیات بولی', exact: true });
+  await expect(preview.locator('[data-layer="operand"]')).toHaveAttribute('y', '-20');
+  await expect(candidate).toHaveAttribute('data-valid', 'false');
+  await panel.getByRole('spinbutton', { name: 'ارتفاع مستطیل بولی (mm)', exact: true }).fill('34');
+  await expect(candidate).toHaveAttribute('data-valid', 'true');
+  await expect(status).toContainText('هنوز اعمال نشده');
+  await expect(output).toBeDisabled();
+  await expect(
+    panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  const wall = panel.getByRole('spinbutton', {
+    name: 'ضخامت دیوارهٔ کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  await wall.fill('4');
+  await wall.press('Enter');
+  await expect(candidate).toHaveAttribute('data-valid', 'false');
+  await wall.fill('1.6');
+  await wall.press('Enter');
+  await expect(candidate).toHaveAttribute('data-valid', 'true');
+  for (const [name, value] of [
+    ['مبدأ افقی مستطیل بولی (mm)', '5'],
+    ['مبدأ عمودی مستطیل بولی (mm)', '40'],
+    ['عرض مستطیل بولی (mm)', '10'],
+    ['ارتفاع مستطیل بولی (mm)', '10'],
+  ] as const)
+    await panel.getByRole('spinbutton', { name, exact: true }).fill(value);
+  await expect(candidate).toHaveAttribute('data-valid', 'false');
+  await expect(candidate).toHaveAttribute('data-contours', '2');
+  expect((await candidate.getAttribute('d'))!.match(/Z/g)).toHaveLength(2);
+  await expect(candidate).toHaveAttribute('fill', 'none');
+  await expect(status).toContainText('قابل اعمال نیست');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await panel.getByRole('spinbutton', { name: 'عرض مستطیل بولی (mm)', exact: true }).fill('');
+  await expect(preview.locator('[data-layer="operand"]')).toHaveCount(0);
+  await expect(candidate).toHaveAttribute('data-contours', '0');
+  expect(await preview.getAttribute('viewBox')).not.toMatch(/NaN|Infinity/);
+  await panel.getByRole('button', { name: 'لغو پیش‌نویس بولی مستطیلی', exact: true }).click();
+  expect(await download()).toEqual(original);
+  await expect(
+    panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
