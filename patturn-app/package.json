@@ -1,7 +1,7 @@
 {
   "name": "patturn-app",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Patturn-style parametric pottery design tool — desktop (Windows, offline) first",
   "type": "module",
   "workspaces": [
@@ -9,7 +9,7 @@
     "apps/*"
   ],
   "scripts": {
-    "test": "vitest run && node --test scripts/installer-checksums.test.mjs scripts/bundle-graph.test.mjs scripts/bundle-metrics.test.mjs scripts/version-bump.test.mjs scripts/package-web.test.mjs scripts/lint-config.test.mjs scripts/release-metadata.test.mjs scripts/release-gate.test.mjs",
+    "test": "vitest run && node --test scripts/installer-checksums.test.mjs scripts/bundle-graph.test.mjs scripts/bundle-metrics.test.mjs scripts/version-bump.test.mjs scripts/desktop-version.test.mjs scripts/package-web.test.mjs scripts/lint-config.test.mjs scripts/release-metadata.test.mjs scripts/release-gate.test.mjs",
     "test:watch": "vitest",
     "typecheck": "node scripts/typecheck.mjs",
     "build": "npm run build -w @patturn/web",
@@ -29,7 +29,8 @@
     "release:check": "node scripts/release-metadata.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "release:gate": "node scripts/release-gate.mjs"
+    "release:gate": "node scripts/release-gate.mjs",
+    "desktop:prepare": "node scripts/desktop-version.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.1",
