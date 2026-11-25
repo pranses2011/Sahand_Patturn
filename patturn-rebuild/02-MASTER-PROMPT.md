@@ -403,3 +403,17 @@ type MoldNode = {
 
 ### 📎 پیوست‌های پیشنهادی برای ضمیمه کردن
 `15-RULES.md` (اول از همه) · `14-CHECKLIST.md` · `03-ARCHITECTURE.md` · `04-DATA-MODEL.md` · `05-MODULE-FORMS.md` · `06-MODULE-PATTERNS.md` · `07-MODULE-MOLDS.md` · `08-MODULE-TOOLS.md` · `09-UI-DESIGN-SYSTEM.md` · `10-BACKEND-AUTH-BILLING.md` · `11-QA-ACCEPTANCE.md` · `13-GAP-ANALYSIS.md`
+
+
+---
+
+## دستور تکمیلی اجباری: دامنهٔ SolidVents
+
+پیش از کار، [16-SOLIDVENTS-SPEC.md](16-SOLIDVENTS-SPEC.md) را همراه قوانین بخوان. تمام SV-01…SV-50 نیاز محصول‌اند، نه قابلیت‌های تمام‌شده. ابتدا ID، وضعیت کد، وابستگی فاز S0…S11 و معیار پذیرش را اعلام و کوچک‌ترین برش قابل‌آزمون را انتخاب کن. دامنهٔ قبلی سفال/قالب/ابزار و شواهد واقعی را حذف نکن.
+
+- پیاده‌سازی clean-room از رفتار عمومی و ریاضیات مستقل؛ کپی کد/برند/preset/video ممنوع. سازگاری فرمت اختصاصی بدون قرارداد و بررسی حقوقی ادعا نشود.
+- ترتیب: canonical vector و parser امن → layouts → controllers/image → custom layers/morph → STEP/Wrap؛ cloud/API اختیاری و پس از core آفلاین.
+- هر قابلیت recipe نسخه‌دار، validation، Undo/Redo، UI فارسی/RTL، cancel/stale guard، خروجی همان snapshot و unit/integration/browser test لازم دارد.
+- ۹ حالت پایه را با AI Custom اشتباه نگیر؛ PNG را فراموش نکن؛ STEP فعلی مرجع Shapes Only است و mesh با پسوند STEP ممنوع. Fixed در آخرین قرارداد می‌تواند target morph داشته باشد.
+- هر فایل را جدا با توضیح کامل فارسی کامیت و بلافاصله پوش کن. کامیت میانی `[skip ci]`؛ تحویل سازگار افزایش SemVer هماهنگ و CI/Release واقعی. تا موفقیت CI/دانلودها «منتشر شد» نگو.
+- در نبود نصب ویندوز، امضا، CAD مستقل یا fixture فیزیکی، مانع صریح ثبت شود؛ چک‌لیست تیک نخورد. تمام‌کردن اسناد به معنی تمام‌شدن محصول نیست.
