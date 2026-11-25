@@ -257,3 +257,18 @@ it('reference vase capacity matches published value', () => {
 ---
 
 ➡️ ادامه در [`12-PHASE-PROMPTS.md`](./12-PHASE-PROMPTS.md)
+
+
+---
+
+## دروازه‌های پذیرش SolidVents و برابری مستقل
+
+تمام [SV-01…SV-50 و SV-E01…SV-E09](16-SOLIDVENTS-SPEC.md) باید trace داشته باشند: نیاز→کد→تست→نسخه→artifact/evidence. وضعیت اولیهٔ همهٔ موارد جدید باز/بخشی است. اسناد، stub، API تنها یا شباهت تصویر برای تیک کامل کافی نیستند.
+
+آزمون‌های اجباری: seed و ترتیب پایدار؛ clip منحنی با extrema؛ boolean جزیره و tangent؛ controller distance oracle؛ morph 180° و mirrored target و Fixed؛ image alpha/ramp/invert/contrast؛ roundtrip recipe/SVG/DXF؛ cap مرز چرخیده و flow خارج range؛ SVG script/URL/DTD و DXF malformed و ZIP traversal؛ quota/cancel/worker stale.
+
+CAD/Wrap: STEP حقیقی surface/solid در دو CAD مستقل، unit و coordinate و volume/area، split برابر unsplit، draft offset failure، cylinder/cone analytic unroll، freeform distortion/Jacobian/seam/pole، donut/cross-face و preview/export topology یکسان. Watertight STL آزمون self-intersection فضایی یا B-rep نیست.
+
+کارایی: دستگاه/مرورگر/حافظه و recipe benchmark ثبت شود؛ اندازهٔ wasm/vector/cad lazy budget و interaction latency اندازه‌گیری شود. هدف200k مرجع تعهد عملکرد ما نیست. خطای approximate area همراه bound و دقت/زمان نمونه‌برداری گزارش شود.
+
+QA عملی باقی: keyboard و WCAG و touch/pen واقعی، نصب/حذف/ارتقای ویندوز و آفلاین سیستم‌عامل، امضای ناشر/updater، slicer و نمونهٔ فیزیکی. انتشار آزمایشی بدون امضا این گیت‌ها را نمی‌بندد؛ گیت release نهایی تضعیف نشود.
