@@ -307,3 +307,8 @@ type Mesh = {
 - API/MCP همان توابع schema/engine/export را فراخوانی کند؛ tenant/rate/scope و temporary object cleanup خارج core. DSL برای AI Custom بدون eval/I/O.
 
 ADRهای باز: انتخاب CAD kernel و مجوز، vector boolean و exact predicates، tolerance policy، سطح distortion و topology naming. هیچ سرویس آنلاین اجباری برای صادرات محلی پذیرفته نیست.
+
+
+### منبع واحد نسخهٔ app
+
+نسخهٔ جاری فقط `patturn-app/package.json.version` است؛ packageهای private نسخهٔ انتشار مستقل ندارند. UI/export/CI آن را مصرف می‌کنند، Tauri مسیر JSON را resolve می‌کند و Cargo از workspace تولیدی/خارج Git ریشه ارث می‌برد. wrapper npm دسکتاپ قبل از CLI فایل تولیدی را تازه می‌کند؛ مسیر target سابق با `.cargo/config.toml` ثابت است. CHANGELOG نسخه‌های تاریخی دارد، نه متغیر جاری. گیت انتشار تکرار scalar جاری در workspace/lock/Tauri/Cargo و pin داخلی را رد می‌کند؛ افزودن مصرف‌کنندهٔ جدید باید به همین مرجع متصل باشد. اجرای مستقیم cargo پس از `desktop:prepare` است.
