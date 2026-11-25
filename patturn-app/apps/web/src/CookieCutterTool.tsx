@@ -4,7 +4,7 @@ import { cutterSketchSeed } from './cutter-sketch';
 import { CutterSketch } from './CutterSketch';
 import { tracedCutterGeometry } from './traced-cutter';
 import { cutterSvgPoints } from './cutter-svg';
-import { cookieCutter as text } from './messages/fa.json';
+import text from 'virtual:patturn-messages/cookieCutter';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildCircularCutter,

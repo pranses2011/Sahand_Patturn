@@ -27,7 +27,7 @@ import { toBinaryStl, toOrthogonalCutterSvg, exportName } from '@patturn/exporte
 import { cutterSvgPoints } from './cutter-svg';
 import { NumericControl } from './NumericControl';
 import { formatNumber } from './number-format';
-import { orthogonalCutter as text } from './messages/fa.json';
+import text from 'virtual:patturn-messages/orthogonalCutter';
 const samples: Record<'L' | 'U', readonly CutterPoint[]> = {
   L: [
     [0, 0],

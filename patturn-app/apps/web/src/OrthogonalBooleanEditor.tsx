@@ -7,7 +7,7 @@ import {
   previewOrthogonalRectangle,
 } from './orthogonal-boolean';
 import { formatNumber } from './number-format';
-import { orthogonalCutter as text } from './messages/fa.json';
+import text from 'virtual:patturn-messages/orthogonalCutter';
 export function OrthogonalBooleanEditor({
   points,
   options,

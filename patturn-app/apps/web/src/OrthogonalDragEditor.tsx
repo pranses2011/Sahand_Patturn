@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import type { CutterPoint, ConvexCutterOptions } from '@patturn/kernel';
 import { moveOrthogonalVertex } from './orthogonal-vertex';
 import { orthogonalDragBox, orthogonalDragHit, orthogonalDragPoint } from './orthogonal-drag';
-import { orthogonalCutter as text } from './messages/fa.json';
+import text from 'virtual:patturn-messages/orthogonalCutter';
 export function OrthogonalDragEditor({
   points,
   options,

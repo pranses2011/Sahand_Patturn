@@ -8,7 +8,7 @@ import {
   closeOrthogonalSketch,
   orthogonalSketchPointer,
 } from './orthogonal-sketch';
-import { orthogonalCutter as text } from './messages/fa.json';
+import text from 'virtual:patturn-messages/orthogonalCutter';
 import { formatNumber } from './number-format';
 export function OrthogonalSketchEditor({
   options,

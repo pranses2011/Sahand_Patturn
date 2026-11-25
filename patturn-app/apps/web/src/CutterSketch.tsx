@@ -3,7 +3,7 @@ import { initialSketchHistory, sketchHistory } from './sketch-history';
 import { useId, useReducer, useRef, useState } from 'react';
 import { convexCutterProfile, type CutterPoint } from '@patturn/kernel';
 import { cutterSketchHit, cutterSketchPoint } from './cutter-sketch';
-import { cookieSketch as text } from './messages/fa.json';
+import text from 'virtual:patturn-messages/cookieSketch';
 import { formatNumber } from './number-format';
 export function CutterSketch({
   onChange,

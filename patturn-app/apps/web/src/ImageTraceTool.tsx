@@ -1,9 +1,7 @@
 import { DeferredTool } from './DeferredTool';
-import {
-  cookieCutter as cutterText,
-  orthogonalCutter as orthoText,
-  pixelTrace as pixelText,
-} from './messages/fa.json';
+import cutterText from 'virtual:patturn-messages/cookieCutter';
+import orthoText from 'virtual:patturn-messages/orthogonalCutter';
+import pixelText from 'virtual:patturn-messages/pixelTrace';
 const loadTracedCutter = () =>
   import('./CookieCutterTool').then((module) => ({ default: module.CookieCutterTool }));
 const loadTracedOrthogonalCutter = () =>

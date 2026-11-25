@@ -1,3 +1,4 @@
+import { optionalMessages } from './tooling/optional-messages';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
@@ -11,7 +12,7 @@ const alias = Object.fromEntries(
 );
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [optionalMessages(), react()],
   resolve: {
     alias: {
       '@patturn/molds/analysis': path.resolve(

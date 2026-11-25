@@ -6493,3 +6493,36 @@ test('orthogonal polygon SVG booleans import exact operands, commit once and can
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('optional Persian message chunks stay out of the initial editor and load with cutter tools', async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/(cookieCutter|orthogonalCutter)-[^/]+\.js(?:\?|$)/.test(request.url()))
+      requests.push(request.url());
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '📤 خروجی', exact: true })).toBeVisible();
+  expect(requests).toEqual([]);
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  expect(requests).toEqual([]);
+  await page.locator('.cookie-cutter-tool > summary').click();
+  await expect(
+    page.getByRole('button', { name: 'دانلود STL کاتر گرد', exact: true }),
+  ).toBeEnabled();
+  expect(requests.filter((url) => url.includes('/cookieCutter-'))).toHaveLength(1);
+  expect(requests.filter((url) => url.includes('/orthogonalCutter-'))).toHaveLength(0);
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  await expect(
+    panel.getByRole('button', { name: 'حالت عملیات بولی با SVG قائم‌الزاویه', exact: true }),
+  ).toBeVisible();
+  expect(requests.filter((url) => url.includes('/orthogonalCutter-'))).toHaveLength(1);
+  await panel.locator('summary').click();
+  await panel.locator('summary').click();
+  expect(requests.filter((url) => url.includes('/orthogonalCutter-'))).toHaveLength(1);
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+});

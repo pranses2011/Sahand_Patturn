@@ -6,7 +6,7 @@ import {
   addOrthogonalTab,
   removeOrthogonalTab,
 } from './orthogonal-notch';
-import { orthogonalCutter as text } from './messages/fa.json';
+import text from 'virtual:patturn-messages/orthogonalCutter';
 import { formatNumber } from './number-format';
 export function OrthogonalNotchEditor({
   points,
