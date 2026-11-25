@@ -252,3 +252,19 @@ voteCount در جدول feature_requests (denormalized) + trigger یا محاس�
 ---
 
 ➡️ ادامه در [`11-QA-ACCEPTANCE.md`](./11-QA-ACCEPTANCE.md)
+
+
+---
+
+## cloud، marketplace و API/MCP افزوده (اختیاری)
+
+نیازهای [SV-40…SV-48](16-SOLIDVENTS-SPEC.md) پوشه/نسخه/همگام‌سازی، بازار جامعه، entitlement و AI را پوشش می‌دهند. قیمت/۳ خروجی روزانه/تک‌دستگاه در مرجع مشاهده‌اند، نه تصمیم مصوب Patturn. desktop core محلی نباید برای شمارش خروجی/فعالیت شبکه یا اثرانگشت دستگاه لازم داشته باشد.
+
+- Cloud: opt-in، tenant isolation، revision/conflict و tombstone، quota و recovery؛ قطع Pro فایل کاربر را پاک نکند و export محلی قابل‌استفاده باشد. قطع cloud با تأیید و نسخهٔ محلی معتبر.
+- Marketplace: original/fit size، preview و attribution/license، submit/review/status/withdraw/takedown، likes با ضدسوءاستفاده؛ عدم دانلود bulk یا بازتوزیع presetهای مرجع.
+- Billing: pass با انقضای ثابت و subscription با renewal، cancel/refund و webhook signed/idempotent؛ sandbox و رویداد خارج ترتیب؛ card data در سرویس ما ذخیره نشود.
+- MCP/REST: list/schema/preview/export/open-editable و AI Custom؛ adapter همان core، scope محدود، token hash و یک‌بارنمایش/revoke، OAuth consent، rate و bytes/pixels/points limits، TTL فایل و لینک موقت و cleanup.
+- عکس/mockup AI اندازه‌گیری مهندسی نیست؛ recipe/engine منبع ابعاد. rule تولیدشده فقط DSL محدود بدون eval، شبکه یا فایل و با timeout اجرا شود.
+- گزارش Geometry Check فقط با رضایت و نمایش محتوا/حقوق اشتراک؛ عدم log recipe/prompt/image/secret؛ retention و حذف حساب/گزارش مستند و قابل‌آزمون.
+
+نبود حساب یا سرویس production مانع بسته‌شدن این IDs است؛ UI محلی رأی یا pricing stub جای backend واقعی نیست.
