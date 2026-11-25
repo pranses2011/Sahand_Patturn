@@ -30,7 +30,13 @@ export interface BuildBundle {
 /** Atomic archive: all STL inputs validated before compression/download. */
 export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Promise<ExportResult> {
   const project = input.project;
-  const fail = (error: string): ExportResult => ({ ok: false, filename: '', error });
+  let meshValidation: ExportResult['validation'];
+  const fail = (error: string): ExportResult => ({
+    ok: false,
+    filename: '',
+    error,
+    ...(meshValidation ? { validation: meshValidation } : {}),
+  });
   if (signal?.aborted) return fail('EXPORT_CANCELLED');
   if (!input.meshes.length) return fail('BUNDLE_NO_MESHES');
   const budget = createBundleBudget();
@@ -94,19 +100,28 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
     for (const item of input.meshes) {
       if (!item.path.toLowerCase().endsWith('.stl')) throw new Error('BUNDLE_STL_EXTENSION');
       const output = toBinaryStl(item.mesh, item.path);
-      if (!output.ok) throw new Error(`${item.path}:${output.error}`);
+      if (!output.ok) {
+        meshValidation = output.validation;
+        throw new Error(`${item.path}:${output.error}`);
+      }
       add(item.path, output.bytes!);
     }
     for (const item of input.assemblies ?? []) {
       if (!item.path.toLowerCase().endsWith('.obj')) throw new Error('BUNDLE_OBJ_EXTENSION');
       const output = toObj(item.parts, project);
-      if (!output.ok) throw new Error(`${item.path}:${output.error}`);
+      if (!output.ok) {
+        meshValidation = output.validation;
+        throw new Error(`${item.path}:${output.error}`);
+      }
       add(item.path, output.bytes!);
     }
     for (const item of input.dxfPatterns ?? []) {
       if (!item.path.toLowerCase().endsWith('.dxf')) throw new Error('BUNDLE_DXF_EXTENSION');
       const output = toDxf(item.paths, item.bounds, { bezierToleranceMm: item.bezierToleranceMm });
-      if (!output.ok) throw new Error(`${item.path}:${output.error}`);
+      if (!output.ok) {
+        meshValidation = output.validation;
+        throw new Error(`${item.path}:${output.error}`);
+      }
       add(item.path, output.bytes!);
     }
     for (const item of input.orthogonalCutterBoundaries ?? []) {

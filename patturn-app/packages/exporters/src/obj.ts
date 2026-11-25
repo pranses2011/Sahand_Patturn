@@ -14,13 +14,21 @@ export function toObj(parts: ObjPart[], project = 'patturn'): ExportResult {
   if (!parts.length) return fail('OBJ_NO_PARTS');
   // Validate everything before emitting any bytes.
   for (const part of parts) {
+    const invalidMesh = (error: string): ExportResult => ({
+      ...fail(error),
+      validation: validateMesh(part.mesh),
+    });
     if (part.mesh.positions.length % 3 !== 0 || part.mesh.indices.length % 3 !== 0)
-      return fail('OBJ_INVALID_ARRAY_LENGTH');
-    if (!part.mesh.positions.every(Number.isFinite)) return fail('OBJ_NONFINITE_POSITION');
+      return invalidMesh('OBJ_INVALID_ARRAY_LENGTH');
+    if (!part.mesh.positions.every(Number.isFinite)) return invalidMesh('OBJ_NONFINITE_POSITION');
     if (part.mesh.indices.some((i) => i >= part.mesh.positions.length / 3))
-      return fail('OBJ_INDEX_OUT_OF_RANGE');
+      return invalidMesh('OBJ_INDEX_OUT_OF_RANGE');
     const report = validateMesh(part.mesh);
-    if (!report.ok) return fail(`MESH_INVALID:${part.name}:${report.problems.join(',')}`);
+    if (!report.ok)
+      return {
+        ...fail(`MESH_INVALID:${part.name}:${report.problems.join(',')}`),
+        validation: report,
+      };
     if (
       part.color &&
       (part.color.length !== 3 || !part.color.every((c) => Number.isFinite(c) && c >= 0 && c <= 1))

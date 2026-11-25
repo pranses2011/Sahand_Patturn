@@ -1,3 +1,4 @@
+import { meshValidationMessage, meshExportErrorMessage } from './mesh-error';
 import { cookieCutterTitle } from './messages/fa.json';
 import { PRESETS, type ProfileMode } from './editor-presets';
 import type { HistorySession, AsyncEditorHistory } from './history-session';
@@ -378,7 +379,10 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
       // An open rim cannot be passed to manifold CSG or exported as a validated solid STL.
       const m = revolve(profile, { segments, closeBottom: true, closeTop: true });
       const rep = validateMesh(m);
-      return { mesh: rep.ok ? m : null, error: rep.ok ? null : rep.problems.join(' · ') };
+      return {
+        mesh: rep.ok ? m : null,
+        error: rep.ok ? null : meshValidationMessage(rep.problems),
+      };
     } catch (e) {
       return { mesh: null, error: String(e) };
     }
@@ -639,7 +643,7 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
     if (!formMesh) return;
     const res = toBinaryStl(formMesh, `form-${profileMode}`);
     if (!res.ok) {
-      alert(`خروجی نامعتبر: ${res.error}`);
+      alert(`خروجی نامعتبر: ${meshExportErrorMessage(res)}`);
       return;
     }
     download(res.filename, res.bytes!);
@@ -650,7 +654,7 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
     if (!p || moldBusy) return;
     const result = toBinaryStl(p, `mold-${profileMode}-part-${index + 1}`);
     if (!result.ok) {
-      alert(`خروجی نامعتبر: ${result.error}`);
+      alert(`خروجی نامعتبر: ${meshExportErrorMessage(result)}`);
       return;
     }
     download(result.filename, result.bytes!);
@@ -696,7 +700,7 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
         : moldObjParts();
     const result = toObj(parts, `${target}-${profileMode}`);
     if (result.ok) download(result.filename, result.bytes!);
-    else alert(`خطای خروجی OBJ: ${result.error}`);
+    else alert(`خطای خروجی OBJ: ${meshExportErrorMessage(result)}`);
   };
 
   const exportBom = () => {
@@ -911,7 +915,12 @@ export function App({ historySession }: { historySession?: HistorySession } = {}
         controller.signal,
       );
       if (controller.signal.aborted) setZipError('بسته‌بندی لغو شد؛ فایلی دانلود نشد.');
-      else if (!result.ok) setZipError(zipErrorMessage(result.error ?? 'خطای تولید ZIP'));
+      else if (!result.ok)
+        setZipError(
+          result.validation
+            ? meshExportErrorMessage(result)
+            : zipErrorMessage(result.error ?? 'خطای تولید ZIP'),
+        );
       else download(result.filename, result.bytes!);
     } catch (error) {
       setZipError(
