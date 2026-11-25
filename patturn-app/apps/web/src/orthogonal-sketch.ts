@@ -65,3 +65,49 @@ export function seedOrthogonalSketch(
     options,
   );
 }
+
+export type OrthogonalDraftEdit = 'replace' | 'insertAfter' | 'delete';
+/** Raw draft editing: temporary diagonals/odd counts are explicit; only closeOrthogonalSketch may commit. */
+export function editOrthogonalDraftPoint(
+  points: readonly CutterPoint[],
+  index: number,
+  operation: OrthogonalDraftEdit,
+  coordinate?: CutterPoint,
+): CutterPoint[] {
+  const inBounds = (p: readonly number[]) =>
+    p.length === 2 && p.every((n) => Number.isFinite(n) && n >= 0 && n <= 150);
+  if (
+    points.length > 64 ||
+    points.some((p) => !inBounds(p)) ||
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= points.length
+  )
+    throw Error('ORTHOGONAL_DRAFT_INDEX');
+  if (operation !== 'delete' && operation !== 'replace' && operation !== 'insertAfter')
+    throw Error('ORTHOGONAL_DRAFT_OPERATION');
+  if (operation === 'insertAfter' && points.length === 64) throw Error('ORTHOGONAL_DRAFT_LIMIT');
+  if (operation !== 'delete') {
+    if (!coordinate || !inBounds(coordinate)) throw Error('ORTHOGONAL_DRAFT_POINT');
+    if (
+      points.some(
+        (p, i) =>
+          (operation !== 'replace' || i !== index) &&
+          p[0] === coordinate[0] &&
+          p[1] === coordinate[1],
+      )
+    )
+      throw Error('ORTHOGONAL_DRAFT_DUPLICATE');
+  }
+  const result = points.map(([x, y]): CutterPoint => [x, y]);
+  if (operation === 'delete') result.splice(index, 1);
+  else {
+    const p: CutterPoint = [
+      coordinate![0] === 0 ? 0 : coordinate![0],
+      coordinate![1] === 0 ? 0 : coordinate![1],
+    ];
+    if (operation === 'replace') result[index] = p;
+    else result.splice(index + 1, 0, p);
+  }
+  return result;
+}

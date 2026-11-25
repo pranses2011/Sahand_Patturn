@@ -843,3 +843,34 @@ test('orthogonal SVG polygon boolean controls and invalid operand are accessible
     panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
   ).toBeEnabled();
 });
+
+test('orthogonal arbitrary point draft selection and temporary invalid shape are accessible at 320px', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  await panel
+    .getByRole('button', { name: 'ویرایش نسخهٔ کانتور فعلی در محیط رسم', exact: true })
+    .click();
+  await panel.getByLabel('انتخاب نقطهٔ دلخواه پیش‌نویس', { exact: true }).selectOption('1');
+  const remove = panel.getByRole('button', { name: 'حذف نقطهٔ انتخاب‌شدهٔ پیش‌نویس', exact: true });
+  await remove.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('status', { name: 'اعتبار بستن پیش‌نویس قائم‌الزاویه', exact: true }),
+  ).toContainText('قابل بستن نیست');
+  await audit(page, info, 'orthogonal-arbitrary-point-invalid-320');
+  await panel.getByRole('button', { name: 'برگرداندن تغییر نقاط پیش‌نویس', exact: true }).click();
+  await expect(
+    panel.getByRole('status', { name: 'اعتبار بستن پیش‌نویس قائم‌الزاویه', exact: true }),
+  ).toContainText('قابل بستن است');
+  await audit(page, info, 'orthogonal-arbitrary-point-restored-320');
+  await panel.getByRole('button', { name: 'لغو رسم و حفظ کانتور قبلی', exact: true }).click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+});

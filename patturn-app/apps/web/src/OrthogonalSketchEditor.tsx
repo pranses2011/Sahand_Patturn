@@ -1,10 +1,12 @@
-import { useId, useState, useReducer } from 'react';
+import { useId, useState, useReducer, useMemo } from 'react';
 import { initialSketchHistory, sketchHistory } from './sketch-history';
 import { historyShortcut } from './history-shortcut';
 import { preserveNativeUndo } from './native-undo';
 import type { ConvexCutterOptions, CutterPoint } from '@patturn/kernel';
 import {
   appendOrthogonalSketchPoint,
+  editOrthogonalDraftPoint,
+  type OrthogonalDraftEdit,
   closeOrthogonalSketch,
   orthogonalSketchPointer,
 } from './orthogonal-sketch';
@@ -24,12 +26,37 @@ export function OrthogonalSketchEditor({
   const [history, dispatch] = useReducer(sketchHistory, initialPoints, initialSketchHistory);
   const points = history.points;
   const setPoints = (next: CutterPoint[]) => dispatch({ type: 'edit', points: next });
-  const [x, setX] = useState('0'),
-    [y, setY] = useState('0'),
+  const [x, setX] = useState(String(initialPoints[0]?.[0] ?? 0)),
+    [y, setY] = useState(String(initialPoints[0]?.[1] ?? 0)),
     [error, setError] = useState('');
   const stepDraft = (direction: 'undo' | 'redo') => {
     dispatch({ type: direction });
     setError('');
+  };
+  const [selected, setSelected] = useState(0);
+  const selectedIndex = Math.min(selected, Math.max(0, points.length - 1));
+  const draftValid = useMemo(() => {
+    try {
+      closeOrthogonalSketch(points, options);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [points, options]);
+  const editPoint = (operation: OrthogonalDraftEdit) => {
+    try {
+      if (operation !== 'delete' && (!x.trim() || !y.trim())) throw Error('EMPTY');
+      const next = editOrthogonalDraftPoint(points, selectedIndex, operation, [
+        Number(x),
+        Number(y),
+      ]);
+      setPoints(next);
+      if (operation === 'insertAfter') setSelected(selectedIndex + 1);
+      else setSelected(Math.min(selectedIndex, Math.max(0, next.length - 1)));
+      setError('');
+    } catch {
+      setError(text.sketchEditPointError);
+    }
   };
   const help = useId();
   const addPoint = (px: number, py: number) => {
@@ -101,6 +128,59 @@ export function OrthogonalSketchEditor({
           />
         </label>
       ))}
+      <fieldset>
+        <legend>{text.sketchEditLegend}</legend>
+        <p className="hint">{text.sketchEditHelp}</p>
+        <label>
+          {text.sketchSelectPoint}
+          <select
+            aria-label={text.sketchSelectPoint}
+            disabled={!points.length}
+            value={selectedIndex}
+            onChange={(event) => {
+              const index = Number(event.currentTarget.value);
+              setSelected(index);
+              const p = points[index]!;
+              setX(String(p[0]));
+              setY(String(p[1]));
+              setError('');
+            }}
+          >
+            {points.map((p, i) => (
+              <option key={i} value={i}>
+                {formatNumber(i + 1)}: {formatNumber(p[0])}، {formatNumber(p[1])} mm
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="btn"
+          disabled={!points.length}
+          onClick={() => editPoint('replace')}
+        >
+          {text.sketchReplacePoint}
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={!points.length || points.length >= 64}
+          onClick={() => editPoint('insertAfter')}
+        >
+          {text.sketchInsertPoint}
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={!points.length}
+          onClick={() => editPoint('delete')}
+        >
+          {text.sketchRemovePoint}
+        </button>
+      </fieldset>
+      <p role="status" aria-label={text.sketchValidity}>
+        {draftValid ? text.sketchValid : text.sketchInvalid}
+      </p>
       <button
         className="btn"
         type="button"
@@ -225,7 +305,7 @@ export function OrthogonalSketchEditor({
           strokeWidth="0.8"
         />
         {points.map(([px, py], i) => (
-          <circle key={i} cx={px} cy={py} r="1.2" fill="currentColor" />
+          <circle key={i} cx={px} cy={py} r={i === selectedIndex ? 2 : 1.2} fill="currentColor" />
         ))}
       </svg>
       <p role="status" aria-label={text.sketchCursor}>
@@ -233,7 +313,7 @@ export function OrthogonalSketchEditor({
       </p>
       <ol aria-label={text.sketchPoints}>
         {points.map(([px, py], i) => (
-          <li key={i}>
+          <li key={i} aria-current={i === selectedIndex ? 'true' : undefined}>
             {formatNumber(px)}، {formatNumber(py)} mm
           </li>
         ))}

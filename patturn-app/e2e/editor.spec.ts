@@ -6526,3 +6526,88 @@ test('optional Persian message chunks stay out of the initial editor and load wi
     panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
   ).toBeEnabled();
 });
+
+test('orthogonal arbitrary draft point edits allow repair but never commit temporary diagonals or odd counts', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const stl = 'دانلود STL کاتر قائم‌الزاویه';
+  const download = async (name = stl) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return readFile((await (await pending).path())!);
+  };
+  const original = await download();
+  await panel
+    .getByRole('button', { name: 'ویرایش نسخهٔ کانتور فعلی در محیط رسم', exact: true })
+    .click();
+  const selection = panel.getByLabel('انتخاب نقطهٔ دلخواه پیش‌نویس', { exact: true }),
+    status = panel.getByRole('status', { name: 'اعتبار بستن پیش‌نویس قائم‌الزاویه', exact: true });
+  const coordinates = async (x: number, y: number) => {
+    await panel
+      .getByRole('spinbutton', { name: 'مختصات افقی نقطهٔ رسم (mm)', exact: true })
+      .fill(String(x));
+    await panel
+      .getByRole('spinbutton', { name: 'مختصات عمودی نقطهٔ رسم (mm)', exact: true })
+      .fill(String(y));
+  };
+  const replace = panel.getByRole('button', { name: 'جایگزینی مختصات نقطهٔ پیش‌نویس', exact: true }),
+    insert = panel.getByRole('button', { name: 'درج نقطه پس از انتخاب پیش‌نویس', exact: true }),
+    remove = panel.getByRole('button', { name: 'حذف نقطهٔ انتخاب‌شدهٔ پیش‌نویس', exact: true }),
+    undo = panel.getByRole('button', { name: 'برگرداندن تغییر نقاط پیش‌نویس', exact: true }),
+    apply = panel.getByRole('button', { name: 'بستن و اعمال کانتور قائم‌الزاویه', exact: true });
+  await selection.selectOption('1');
+  await coordinates(90, 0);
+  await replace.click();
+  await expect(status).toContainText('قابل بستن نیست');
+  await apply.click();
+  await expect(panel.getByRole('alert')).toContainText('کانتور بسته پذیرفته نشد');
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeDisabled();
+  await selection.selectOption('2');
+  await coordinates(90, 30);
+  await replace.click();
+  await expect(status).toContainText('قابل بستن است');
+  await undo.click();
+  await undo.click();
+  await expect(status).toContainText('قابل بستن است');
+  await selection.selectOption('1');
+  await coordinates(90, 0);
+  await insert.click();
+  await expect(selection.locator('option')).toHaveCount(7);
+  await expect(status).toContainText('قابل بستن نیست');
+  await coordinates(90, 30);
+  await insert.click();
+  await expect(selection.locator('option')).toHaveCount(8);
+  await selection.selectOption('1');
+  await remove.click();
+  await expect(selection.locator('option')).toHaveCount(7);
+  await selection.selectOption('3');
+  await remove.click();
+  await expect(selection.locator('option')).toHaveCount(6);
+  await expect(status).toContainText('قابل بستن است');
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeDisabled();
+  await apply.click();
+  const changed = await download();
+  expect(changed).not.toEqual(original);
+  expect(changed.readUInt32LE(80)).toBe(84);
+  const file = JSON.parse((await download('ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه')).toString());
+  expect(file.points).toHaveLength(6);
+  expect(
+    Math.max(...file.points.map((p: number[]) => p[0]!)) -
+      Math.min(...file.points.map((p: number[]) => p[0]!)),
+  ).toBe(90);
+  await panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download()).toEqual(original);
+  await expect(
+    panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await panel.getByRole('button', { name: 'بازانجام ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download()).toEqual(changed);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
