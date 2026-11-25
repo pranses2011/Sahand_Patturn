@@ -55,6 +55,11 @@ try {
   if ($setup.ExitCode -notin @(0, 3010)) { throw "NSIS_INSTALL_FAILED:$($setup.ExitCode)" }
   $executable = Join-Path $destination 'patturn-desktop.exe'
   if (-not (Test-Path $executable)) { throw 'INSTALLED_EXECUTABLE_MISSING' }
+  $expectedVersion = (Get-Content (Join-Path $PSScriptRoot '../package.json') -Raw | ConvertFrom-Json).version
+  $installedVersion = (Get-Item $executable).VersionInfo.ProductVersion
+  if ($installedVersion -ne $expectedVersion) { throw "INSTALLED_PRODUCT_VERSION_MISMATCH:$installedVersion" }
+  $report['sourceVersion'] = $expectedVersion
+  $report['installedProductVersion'] = $installedVersion
   $report.silentInstallPassed = $true
   $env:PATTURN_STARTUP_LOG = Join-Path $work 'startup.log'
   $application = Start-Process -FilePath $executable -PassThru
