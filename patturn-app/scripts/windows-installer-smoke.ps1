@@ -56,6 +56,7 @@ try {
   $executable = Join-Path $destination 'patturn-desktop.exe'
   if (-not (Test-Path $executable)) { throw 'INSTALLED_EXECUTABLE_MISSING' }
   $report.silentInstallPassed = $true
+  $env:PATTURN_STARTUP_LOG = Join-Path $work 'startup.log'
   $application = Start-Process -FilePath $executable -PassThru
   $deadline = [DateTime]::UtcNow.AddSeconds(45)
   while ([DateTime]::UtcNow -lt $deadline) {
@@ -85,6 +86,14 @@ try {
 } catch {
   # Error codes from this script contain no project contents or user paths.
   $report['failure'] = $_.Exception.Message
+  $startupLog = Join-Path $work 'startup.log'
+  if (Test-Path $startupLog) {
+    $startup = Get-Content $startupLog -Raw
+    $startup = $startup.Substring(0, [Math]::Min(4000, $startup.Length))
+    $report['startupDiagnostic'] = $startup
+    $safeStartup = $startup.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+    Write-Host "::error title=Patturn startup panic::$safeStartup"
+  }
   $annotation = $_.Exception.Message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
   Write-Host "::error title=Windows installer smoke::$annotation"
   throw
