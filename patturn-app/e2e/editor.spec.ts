@@ -2195,6 +2195,7 @@ test('update checking is opt-in and only offers trusted repository installer lin
   await page.getByText('به‌روزرسانی — بررسی آنلاین اختیاری', { exact: true }).click();
   expect(requests).toBe(0);
   const panel = page.locator('.update-panel');
+  await expect(panel.locator('bdi').first()).toHaveText(metadata.version);
   await panel.getByRole('button', { name: 'بررسی نسخهٔ جدید', exact: true }).click();
   await expect(panel.getByRole('status')).toContainText('نسخهٔ پایدار جدیدتر:');
   expect(requests).toBe(1);
