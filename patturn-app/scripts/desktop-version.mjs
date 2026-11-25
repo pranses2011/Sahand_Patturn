@@ -1,8 +1,9 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { appRoot, readAppVersion } from './version-source.mjs';
+import { appRoot, readAppVersion, validateAppVersion } from './version-source.mjs';
 export function cargoWorkspace(version) {
+  validateAppVersion(version);
   return `# Generated from package.json by scripts/desktop-version.mjs; DO NOT EDIT.\n[workspace]\nmembers = ["apps/desktop/src-tauri"]\nresolver = "2"\n\n[workspace.package]\nversion = "${version}"\n`;
 }
 /** Cargo cannot read JSON variables, so its inherited workspace version is a build artifact. */
