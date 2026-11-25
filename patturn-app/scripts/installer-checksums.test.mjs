@@ -34,3 +34,23 @@ test('no installer is an error, not an empty successful artifact', async () => {
     await rm(folder, { recursive: true, force: true });
   }
 });
+
+test('Windows distribution embeds the full offline runtime rather than a network bootstrapper', async () => {
+  const config = JSON.parse(
+    await readFile(new URL('../apps/desktop/src-tauri/tauri.conf.json', import.meta.url), 'utf8'),
+  );
+  assert.deepEqual(config.bundle.windows.webviewInstallMode, {
+    type: 'offlineInstaller',
+    silent: true,
+  });
+  assert.ok(config.bundle.targets.includes('nsis'));
+  const workflow = await readFile(
+    new URL('../../.github/workflows/quality.yml', import.meta.url),
+    'utf8',
+  );
+  assert.ok(
+    workflow.indexOf('run: ./scripts/windows-installer-smoke.ps1') <
+      workflow.indexOf('name: Generate checksums and test guide'),
+  );
+  assert.match(workflow, /windows-installer-smoke.json/);
+});
