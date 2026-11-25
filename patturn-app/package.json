@@ -22,6 +22,7 @@
     "desktop:installer": "npm run tauri -w @patturn/desktop -- build --ci --bundles nsis",
     "installer:checksums": "node scripts/installer-checksums.mjs",
     "test:e2e": "playwright test",
+    "performance:measure": "npm run build && playwright test --config playwright.performance.config.ts",
     "lint": "eslint . --max-warnings=0",
     "release:check": "node scripts/release-metadata.mjs",
     "format": "prettier --write .",
