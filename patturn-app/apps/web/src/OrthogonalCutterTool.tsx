@@ -52,6 +52,7 @@ export function OrthogonalCutterTool({
   const [dragging, setDragging] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const [editorRevision, setEditorRevision] = useState(0);
+  const [rectangleOutward, setRectangleOutward] = useState(false);
   const [history, dispatch] = useReducer(sketchHistory, samples.L, initialSketchHistory);
   const sourceMode = sourceContours !== undefined;
   const points =
@@ -288,6 +289,8 @@ export function OrthogonalCutterTool({
           </button>
           {!busy && !failed && notchMode && (
             <OrthogonalNotchEditor
+              outward={rectangleOutward}
+              onDirectionChange={setRectangleOutward}
               key={editorRevision}
               points={points}
               options={{ heightMm, wallMm, tipMm }}

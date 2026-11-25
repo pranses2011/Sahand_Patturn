@@ -5294,7 +5294,7 @@ test('orthogonal rectangular notch insertion and removal are validated, undoable
   };
   const original = await download(outputs[0]!);
   await panel
-    .getByRole('button', { name: 'حالت افزودن و حذف فرورفتگی مستطیلی', exact: true })
+    .getByRole('button', { name: 'حالت افزودن و حذف فرورفتگی یا بیرون‌زدگی مستطیلی', exact: true })
     .click();
   const selection = panel.getByLabel('انتخاب شروع ضلع یا فرورفتگی', { exact: true });
   const width = panel.getByRole('spinbutton', { name: 'عرض فرورفتگی روی ضلع (mm)', exact: true });
@@ -5339,7 +5339,7 @@ test('orthogonal rectangular notch insertion and removal are validated, undoable
   expect(await download(outputs[0]!)).toEqual(original);
   await width.fill('5');
   await panel
-    .getByRole('button', { name: 'حالت افزودن و حذف فرورفتگی مستطیلی', exact: true })
+    .getByRole('button', { name: 'حالت افزودن و حذف فرورفتگی یا بیرون‌زدگی مستطیلی', exact: true })
     .click();
   await expect(panel.getByRole('button', { name: outputs[0]!, exact: true })).toBeEnabled();
   await expect(panel.getByLabel('انتخاب گوشهٔ کاتر قائم‌الزاویه', { exact: true })).toBeVisible();
@@ -5579,4 +5579,86 @@ test('explicit pixel-boundary tracing feeds the live orthogonal cutter without d
   await panel.locator('summary').click();
   await expect(output).toBeEnabled();
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
+
+test('orthogonal outward tabs are validated, undoable and preserved in files', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const outputs = [
+    'دانلود STL کاتر قائم‌الزاویه',
+    'دانلود SVG مرز کاتر قائم‌الزاویه',
+    'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه',
+  ];
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return await readFile((await (await pending).path())!);
+  };
+  const original = await download(outputs[0]!);
+  await panel
+    .getByRole('button', { name: 'حالت افزودن و حذف فرورفتگی یا بیرون‌زدگی مستطیلی', exact: true })
+    .click();
+  await panel.getByLabel('جهت عملیات مستطیلی', { exact: true }).selectOption('outward');
+  const selection = panel.getByLabel('انتخاب شروع ضلع یا بیرون‌زدگی', { exact: true });
+  const width = panel.getByRole('spinbutton', { name: 'عرض بیرون‌زدگی روی ضلع (mm)', exact: true });
+  const add = panel.getByRole('button', { name: 'افزودن چهار گوشهٔ بیرون‌زدگی', exact: true });
+  const remove = panel.getByRole('button', { name: 'حذف چهار گوشهٔ بیرون‌زدگی', exact: true });
+  const cancel = panel.getByRole('button', { name: 'لغو پیش‌نویس بیرون‌زدگی', exact: true });
+  await add.click();
+  await expect(selection.locator('option')).toHaveCount(10);
+  const changed = await download(outputs[0]!);
+  expect(changed.readUInt32LE(80)).toBe(140);
+  expect(changed).not.toEqual(original);
+  const file = await download(outputs[2]!);
+  await panel.getByLabel('جهت عملیات مستطیلی', { exact: true }).selectOption('inward');
+  await panel.getByLabel('انتخاب شروع ضلع یا فرورفتگی', { exact: true }).selectOption('1');
+  await panel.getByRole('button', { name: 'حذف چهار گوشهٔ فرورفتگی', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('فرورفتگی پذیرفته نشد');
+  for (const name of outputs)
+    await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+  await panel.getByLabel('جهت عملیات مستطیلی', { exact: true }).selectOption('outward');
+  expect(await download(outputs[0]!)).toEqual(changed);
+  await selection.selectOption('1');
+  await remove.click();
+  await expect(selection.locator('option')).toHaveCount(6);
+  expect(await download(outputs[0]!)).toEqual(original);
+  await panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }).click();
+  await expect(selection.locator('option')).toHaveCount(10);
+  expect(await download(outputs[0]!)).toEqual(changed);
+  await panel.getByRole('button', { name: 'بازانجام ویرایش قائم‌الزاویه', exact: true }).click();
+  await expect(selection.locator('option')).toHaveCount(6);
+  await remove.click();
+  await expect(panel.getByRole('alert')).toContainText('بیرون‌زدگی پذیرفته نشد');
+  for (const name of outputs)
+    await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+  await cancel.click();
+  expect(await download(outputs[0]!)).toEqual(original);
+  await width.fill('6');
+  for (const name of outputs)
+    await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+  await add.click();
+  await expect(panel.getByRole('alert')).toContainText('بیرون‌زدگی پذیرفته نشد');
+  await expect(selection.locator('option')).toHaveCount(6);
+  await cancel.click();
+  await panel
+    .getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true })
+    .setInputFiles({ name: 'tabbed.orthogonal.json', mimeType: 'application/json', buffer: file });
+  await panel.getByLabel('جهت عملیات مستطیلی', { exact: true }).selectOption('outward');
+  await expect(selection.locator('option')).toHaveCount(10);
+  expect(await download(outputs[0]!)).toEqual(changed);
+  await selection.selectOption('1');
+  await remove.click();
+  expect(await download(outputs[0]!)).toEqual(original);
+  await width.fill('5');
+  await panel
+    .getByRole('button', { name: 'حالت افزودن و حذف فرورفتگی یا بیرون‌زدگی مستطیلی', exact: true })
+    .click();
+  await expect(panel.getByRole('button', { name: outputs[0]!, exact: true })).toBeEnabled();
+  await expect(panel.getByLabel('انتخاب گوشهٔ کاتر قائم‌الزاویه', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });

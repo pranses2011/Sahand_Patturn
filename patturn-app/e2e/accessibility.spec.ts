@@ -504,7 +504,7 @@ test('orthogonal notch controls and validation errors are accessible at 320px', 
   const panel = page.locator('.orthogonal-cutter-tool');
   await panel.locator('summary').click();
   const mode = panel.getByRole('button', {
-    name: 'حالت افزودن و حذف فرورفتگی مستطیلی',
+    name: 'حالت افزودن و حذف فرورفتگی یا بیرون‌زدگی مستطیلی',
     exact: true,
   });
   await mode.focus();
@@ -606,4 +606,38 @@ test('pixel-boundary trace and its live orthogonal cutter reflow and expose reje
     panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
   ).toBeDisabled();
   await audit(page, info, 'pixel-trace-orthogonal-hole-320');
+});
+
+test('orthogonal outward tab controls and validation errors are accessible at 320px', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const mode = panel.getByRole('button', {
+    name: 'حالت افزودن و حذف فرورفتگی یا بیرون‌زدگی مستطیلی',
+    exact: true,
+  });
+  await mode.focus();
+  await page.keyboard.press('Enter');
+  await expect(mode).toHaveAttribute('aria-pressed', 'true');
+  await panel.getByLabel('جهت عملیات مستطیلی', { exact: true }).selectOption('outward');
+  await panel.getByRole('button', { name: 'افزودن چهار گوشهٔ بیرون‌زدگی', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByLabel('انتخاب شروع ضلع یا بیرون‌زدگی', { exact: true }).locator('option'),
+  ).toHaveCount(10);
+  await audit(page, info, 'orthogonal-tab-added-320');
+  await panel.getByRole('button', { name: 'حذف چهار گوشهٔ بیرون‌زدگی', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('بیرون‌زدگی پذیرفته نشد');
+  await audit(page, info, 'orthogonal-tab-rejected-320');
+  await panel.getByRole('button', { name: 'لغو پیش‌نویس بیرون‌زدگی', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
