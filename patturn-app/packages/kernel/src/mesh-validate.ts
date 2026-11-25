@@ -1,6 +1,6 @@
 /**
  * Mesh validation — must pass before any STL export (iron rule #3).
- * Checks: open edges, inverted normals (signed volume), duplicate triangles,
+ * Checks: buffer structure/numbers, edge incidence and winding, signed volume, duplicate triangles,
  * degenerate triangles, Euler characteristic.
  */
 import type { Mesh } from './revolve.js';
@@ -9,6 +9,7 @@ import { signedVolume } from './revolve.js';
 export interface ValidationReport {
   ok: boolean;
   openEdges: number;
+  inconsistentEdges: number; // two incident faces traverse their shared edge in the same direction
   signedVolumeMm3: number;
   degenerateTris: number;
   duplicateTris: number;
@@ -21,13 +22,34 @@ export function validateMesh(m: Mesh): ValidationReport {
     idx = m.indices;
   const problems: string[] = [];
 
+  // Fail before indexing coordinates or allocating edge maps. Invalid numeric data must
+  // never become a passing report through NaN comparisons (NaN <= 0 is false).
+  if (!(p instanceof Float32Array) || !(idx instanceof Uint32Array))
+    problems.push('INVALID_BUFFERS');
+  else {
+    if (p.length % 3 !== 0 || idx.length % 3 !== 0) problems.push('INVALID_ARRAY_LENGTH');
+    if (!p.length || !idx.length) problems.push('EMPTY_MESH');
+    if (!p.every(Number.isFinite)) problems.push('NONFINITE_POSITION');
+    if (idx.some((index) => index >= p.length / 3)) problems.push('INDEX_OUT_OF_RANGE');
+  }
+  if (problems.length)
+    return {
+      ok: false,
+      openEdges: 0,
+      inconsistentEdges: 0,
+      signedVolumeMm3: 0,
+      degenerateTris: 0,
+      duplicateTris: 0,
+      euler: 0,
+      problems,
+    };
+
   // edge counts
-  const edges = new Map<string, number>();
+  const edges = new Map<string, { count: number; balance: number }>();
   const triKeys = new Set<string>();
   let duplicateTris = 0;
   let degenerateTris = 0;
 
-  const vCount = p.length / 3;
   const used = new Set<number>();
 
   for (let i = 0; i < idx.length; i += 3) {
@@ -74,15 +96,19 @@ export function validateMesh(m: Mesh): ValidationReport {
       [c, a],
     ] as const) {
       const ek = u < v ? `${u}-${v}` : `${v}-${u}`;
-      edges.set(ek, (edges.get(ek) ?? 0) + 1);
+      const edge = edges.get(ek) ?? { count: 0, balance: 0 };
+      edge.count++;
+      edge.balance += u < v ? 1 : -1;
+      edges.set(ek, edge);
     }
   }
 
-  let openEdges = 0;
-  for (const count of edges.values())
-    if (count !== 1 && count !== 2) openEdges += Math.abs(count - 2);
-  // count==1 means boundary (open) edge
-  for (const count of edges.values()) if (count === 1) openEdges += 1;
+  let openEdges = 0,
+    inconsistentEdges = 0;
+  for (const { count, balance } of edges.values()) {
+    if (count !== 2) openEdges += Math.abs(count - 2);
+    if (count === 2 && balance !== 0) inconsistentEdges++;
+  }
 
   const V = used.size;
   const E = edges.size;
@@ -91,13 +117,16 @@ export function validateMesh(m: Mesh): ValidationReport {
 
   const vol = signedVolume(m);
   if (openEdges > 0) problems.push(`OPEN_EDGES:${openEdges}`);
-  if (vol <= 0) problems.push('INVERTED_NORMALS');
+  if (!Number.isFinite(vol)) problems.push('NONFINITE_VOLUME');
+  else if (vol <= 0) problems.push('INVERTED_NORMALS');
+  if (inconsistentEdges) problems.push(`INCONSISTENT_WINDING:${inconsistentEdges}`);
   if (degenerateTris > 0) problems.push(`DEGENERATE:${degenerateTris}`);
   if (duplicateTris > 0) problems.push(`DUPLICATE:${duplicateTris}`);
 
   return {
     ok: problems.length === 0,
     openEdges,
+    inconsistentEdges,
     signedVolumeMm3: vol,
     degenerateTris,
     duplicateTris,
