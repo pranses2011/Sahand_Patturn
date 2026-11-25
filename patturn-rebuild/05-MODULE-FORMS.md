@@ -238,3 +238,14 @@ type FootRing = { enabled: boolean; width: number; depth: number; edge: 'square'
 ---
 
 ➡️ ادامه در [`06-MODULE-PATTERNS.md`](./06-MODULE-PATTERNS.md)
+
+
+---
+
+## اتصال فرم‌های فعلی به پنل و Wrap جدید
+
+نیازهای [SV-35…SV-39 و SV-50](16-SOLIDVENTS-SPEC.md) به فرم افزوده می‌شوند، نه جایگزین فرم سفالی. پیش‌نمایش UV موجود معادل بازکردن STEP دلخواه یا flatten کم‌اعوجاج نیست.
+
+پنل تخت پارامتریک با مرز دلخواه و ضخامت/offset ابتدا در canonical vector و سپس B-rep ساخته شود. گزینهٔ Shapes Only از Panel with Holes جدا باشد؛ دومی قابلیت مستقل ما با validity gate است چون در مرجع حذف شده است. برای wrapped pattern، normal direction و units و مختصات اصلی و seam حفظ شوند؛ برجستگی/فرورفتگی/cut با جزایر و حداقل ضخامت باقیمانده اعتبارسنجی شود.
+
+فرم revolve قبلی، shrinkage، ظرفیت و ضخامت رس همان معیارهای قبلی را دارند. آزمون تطبیق pattern روی cylinder/cone تحلیلی است؛ sphere/freeform باید heatmap و سقف اعوجاج داشته باشد. مدرک mesh watertight، جایگزین B-rep validity یا ساخت فیزیکی نیست.
