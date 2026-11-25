@@ -19,10 +19,60 @@ export interface RevolveOptions {
 
 const EPS = 1e-9;
 
+/** Hard allocation limits, independent of UI/schema validation. No silent simplification. */
+export const REVOLVE_LIMITS = Object.freeze({
+  segments: 4096,
+  profilePoints: 8192,
+  vertices: 250_000,
+  triangles: 500_000,
+});
+
 export function revolve(profile: Profile, opts: RevolveOptions = {}): Mesh {
   const seg = opts.segments ?? 96;
-  if (seg < 3) throw new Error('segments >= 3');
-  if (profile.length < 2) throw new Error('profile too short');
+  if (!Number.isSafeInteger(seg) || seg < 3 || seg > REVOLVE_LIMITS.segments)
+    throw new Error('REVOLVE_INVALID_SEGMENTS');
+  if (
+    !Array.isArray(profile) ||
+    profile.length < 2 ||
+    profile.length > REVOLVE_LIMITS.profilePoints
+  )
+    throw new Error('REVOLVE_INVALID_PROFILE_LENGTH');
+  if (
+    [opts.closeBottom, opts.closeTop].some(
+      (value) => value !== undefined && typeof value !== 'boolean',
+    )
+  )
+    throw new Error('REVOLVE_INVALID_CAP_OPTIONS');
+
+  // Preflight before allocating output buffers. Count apex fans and caps exactly.
+  let vertices = 0,
+    triangles = 0,
+    previousRing = false;
+  for (let i = 0; i < profile.length; i++) {
+    const point = profile[i];
+    if (
+      !point ||
+      !Number.isFinite(point.r) ||
+      point.r < 0 ||
+      !Number.isFinite(point.y) ||
+      !Number.isFinite(Math.fround(point.r)) ||
+      !Number.isFinite(Math.fround(point.y))
+    )
+      throw new Error('REVOLVE_INVALID_COORDINATE');
+    const ring = point.r >= EPS;
+    vertices += ring ? seg : 1;
+    if (i > 0) triangles += ring && previousRing ? 2 * seg : ring || previousRing ? seg : 0;
+    if (
+      (i === 0 && opts.closeBottom !== false && ring) ||
+      (i === profile.length - 1 && opts.closeTop && ring)
+    ) {
+      vertices++;
+      triangles += seg;
+    }
+    previousRing = ring;
+  }
+  if (vertices > REVOLVE_LIMITS.vertices || triangles > REVOLVE_LIMITS.triangles)
+    throw new Error('REVOLVE_MESH_LIMIT');
 
   const positions: number[] = [];
   const indices: number[] = [];
