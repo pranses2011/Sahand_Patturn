@@ -1,6 +1,10 @@
 import { useId, useState } from 'react';
 import type { ConvexCutterOptions, CutterPoint } from '@patturn/kernel';
-import { appendOrthogonalSketchPoint, closeOrthogonalSketch } from './orthogonal-sketch';
+import {
+  appendOrthogonalSketchPoint,
+  closeOrthogonalSketch,
+  orthogonalSketchPointer,
+} from './orthogonal-sketch';
 import { orthogonalCutter as text } from './messages/fa.json';
 import { formatNumber } from './number-format';
 export function OrthogonalSketchEditor({
@@ -17,6 +21,16 @@ export function OrthogonalSketchEditor({
     [y, setY] = useState('0'),
     [error, setError] = useState('');
   const help = useId();
+  const addPoint = (px: number, py: number) => {
+    try {
+      setPoints(appendOrthogonalSketchPoint(points, px, py));
+      setError('');
+    } catch {
+      setError(text.sketchPointError);
+    }
+  };
+  const cursorX = Math.max(0, Math.min(150, Number(x) || 0));
+  const cursorY = Math.max(0, Math.min(150, Number(y) || 0));
   return (
     <fieldset>
       <legend>{text.sketchLegend}</legend>
@@ -84,7 +98,73 @@ export function OrthogonalSketchEditor({
       <p role="status" aria-label={text.sketchCount}>
         {formatNumber(points.length)} / {formatNumber(64)}
       </p>
-      <svg role="img" aria-label={text.sketchPreview} viewBox="-5 -5 160 160">
+      <p className="hint" id={`${help}-pointer`}>
+        {text.sketchPointerHelp}
+      </p>
+      <svg
+        className="orthogonal-sketch-canvas"
+        role="group"
+        tabIndex={0}
+        aria-label={text.sketchPreview}
+        aria-describedby={`${help}-pointer`}
+        viewBox="-5 -5 160 160"
+        preserveAspectRatio="xMidYMid meet"
+        onClick={(event) => {
+          if (event.button !== 0 || event.detail === 0) return;
+          const box = event.currentTarget.getBoundingClientRect();
+          try {
+            const [px, py] = orthogonalSketchPointer(
+              event.clientX - box.left,
+              event.clientY - box.top,
+              box.width,
+              box.height,
+            );
+            setX(String(px));
+            setY(String(py));
+            addPoint(px, py);
+          } catch {
+            setError(text.sketchPointerError);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.ctrlKey || event.metaKey || event.altKey) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!x.trim() || !y.trim()) {
+              setError(text.sketchPointError);
+              return;
+            }
+            addPoint(Number(x), Number(y));
+            return;
+          }
+          const steps: Record<string, [number, number]> = {
+            ArrowLeft: [-1, 0],
+            ArrowRight: [1, 0],
+            ArrowUp: [0, -1],
+            ArrowDown: [0, 1],
+          };
+          const step = steps[event.key];
+          if (!step) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setX(String(Math.max(0, Math.min(150, cursorX + step[0]))));
+          setY(String(Math.max(0, Math.min(150, cursorY + step[1]))));
+          setError('');
+        }}
+      >
+        <defs>
+          <pattern id={`${help}-grid`} width="10" height="10" patternUnits="userSpaceOnUse">
+            <path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" strokeWidth="0.15" />
+          </pattern>
+        </defs>
+        <rect x="0" y="0" width="150" height="150" fill={`url(#${help}-grid)`} />
+        <path
+          d={`M${cursorX - 2} ${cursorY}h4 M${cursorX} ${cursorY - 2}v4`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="0.5"
+        />
         <rect
           x="0"
           y="0"
@@ -104,6 +184,9 @@ export function OrthogonalSketchEditor({
           <circle key={i} cx={px} cy={py} r="1.2" fill="currentColor" />
         ))}
       </svg>
+      <p role="status" aria-label={text.sketchCursor}>
+        {text.sketchCursor}: {formatNumber(cursorX)}، {formatNumber(cursorY)} mm
+      </p>
       <ol aria-label={text.sketchPoints}>
         {points.map(([px, py], i) => (
           <li key={i}>

@@ -547,3 +547,14 @@ h3.sec {
   outline: 3px solid var(--clay-dark);
   outline-offset: 3px;
 }
+
+.orthogonal-sketch-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  cursor: crosshair;
+}
+.orthogonal-sketch-canvas:focus-visible {
+  outline: 3px solid var(--accent, #176b78);
+  outline-offset: 3px;
+}

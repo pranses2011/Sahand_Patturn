@@ -5845,3 +5845,88 @@ test('orthogonal numerical drawing closes explicitly and commits one independent
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal sketch pointer and keyboard share millimetres without implicit elbows or stale exports', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const mode = panel.getByRole('button', {
+    name: 'حالت رسم عددی کانتور قائم‌الزاویه',
+    exact: true,
+  });
+  await mode.click();
+  const canvas = panel.getByRole('group', { name: 'پلان باز پیش‌نویس قائم‌الزاویه', exact: true });
+  const items = panel
+    .getByRole('list', { name: 'نقاط پیش‌نویس قائم‌الزاویه به ترتیب', exact: true })
+    .getByRole('listitem');
+  const click = async (x: number, y: number, button: 'left' | 'right' = 'left') => {
+    await canvas.scrollIntoViewIfNeeded();
+    const box = (await canvas.boundingBox())!;
+    const size = Math.min(box.width, box.height);
+    await page.mouse.click(
+      box.x + (box.width - size) / 2 + ((x + 5) * size) / 160,
+      box.y + (box.height - size) / 2 + ((y + 5) * size) / 160,
+      { button },
+    );
+  };
+  await click(10, 10);
+  await click(20, 20);
+  await expect(panel.getByRole('alert')).toContainText('نقطه افزوده نشد');
+  await expect(items).toHaveCount(1);
+  await click(-2, 50);
+  await expect(panel.getByRole('alert')).toContainText('کلیک در محدوده');
+  await expect(items).toHaveCount(1);
+  await click(90, 10);
+  await click(90, 30);
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await click(30, 30);
+  await click(30, 80);
+  await click(10, 80);
+  await expect(items).toHaveCount(6);
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await panel
+    .getByRole('button', { name: 'بستن و اعمال کانتور قائم‌الزاویه', exact: true })
+    .click();
+  const download = async () => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }).click();
+    return readFile((await (await pending).path())!);
+  };
+  const pointer = await download();
+  expect(pointer.readUInt32LE(80)).toBe(84);
+  await page.setViewportSize({ width: 320, height: 900 });
+  await mode.click();
+  await canvas.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(
+    panel.getByRole('spinbutton', { name: 'مختصات افقی نقطهٔ رسم (mm)', exact: true }),
+  ).toHaveValue('0');
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowDown');
+  }
+  await page.keyboard.press('Enter');
+  for (const [key, count] of [
+    ['ArrowRight', 80],
+    ['ArrowDown', 20],
+    ['ArrowLeft', 60],
+    ['ArrowDown', 50],
+    ['ArrowLeft', 20],
+  ] as const) {
+    for (let i = 0; i < count; i++) await page.keyboard.press(key);
+    await page.keyboard.press('Space');
+  }
+  await expect(items).toHaveCount(6);
+  await panel
+    .getByRole('button', { name: 'بستن و اعمال کانتور قائم‌الزاویه', exact: true })
+    .click();
+  expect(await download()).toEqual(pointer);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

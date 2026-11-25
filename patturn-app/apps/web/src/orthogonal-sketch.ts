@@ -33,3 +33,19 @@ export function closeOrthogonalSketch(
   orthogonalCutterProfile(checked, options);
   return checked;
 }
+
+/** SVG xMidYMid meet mapping with a 5mm margin; never clamp an outside click onto a boundary. */
+export function orthogonalSketchPointer(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): CutterPoint {
+  if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0)
+    throw Error('ORTHOGONAL_SKETCH_VIEWPORT');
+  const size = Math.min(width, height),
+    px = ((x - (width - size) / 2) * 160) / size - 5,
+    py = ((y - (height - size) / 2) * 160) / size - 5;
+  if (px < 0 || py < 0 || px > 150 || py > 150) throw Error('ORTHOGONAL_SKETCH_OUTSIDE');
+  return [Math.round(px) || 0, Math.round(py) || 0];
+}
