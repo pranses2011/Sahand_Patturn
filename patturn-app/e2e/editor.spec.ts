@@ -6397,3 +6397,99 @@ test('orthogonal boolean preview retains rejected rings and never commits or exp
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal polygon SVG booleans import exact operands, commit once and cancel late reads safely', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const stl = 'دانلود STL کاتر قائم‌الزاویه',
+    save = 'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه';
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return readFile((await (await pending).path())!);
+  };
+  const doc = JSON.parse((await download(save)).toString());
+  doc.points = [
+    [0, 0],
+    [100, 0],
+    [100, 100],
+    [0, 100],
+  ];
+  await panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true }).setInputFiles({
+    name: 'square.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(doc)),
+  });
+  const original = await download(stl);
+  await panel
+    .getByRole('button', { name: 'حالت عملیات بولی با SVG قائم‌الزاویه', exact: true })
+    .click();
+  const input = panel.getByLabel('ورود SVG عملوند بولی قائم‌الزاویه', { exact: true });
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40"><polygon points="0,0 40,0 40,20 20,20 20,40 0,40"/></svg>';
+  const upload = async (text: string, name = 'operand.svg') =>
+    input.setInputFiles({ name, mimeType: 'image/svg+xml', buffer: Buffer.from(text) });
+  await upload(svg);
+  const operation = panel.getByLabel('عملیات بولی چندضلعی کاتر', { exact: true });
+  await operation.selectOption('union');
+  const x = panel.getByRole('spinbutton', { name: 'جابه‌جایی افقی عملوند SVG (mm)', exact: true }),
+    y = panel.getByRole('spinbutton', { name: 'جابه‌جایی عمودی عملوند SVG (mm)', exact: true });
+  await x.fill('80');
+  await y.fill('20');
+  const preview = panel.getByRole('img', { name: 'پیش‌نمایش بولی با چندضلعی SVG', exact: true }),
+    candidate = preview.locator('[data-layer="candidate"]'),
+    apply = panel.getByRole('button', { name: 'اعمال بولی با چندضلعی SVG', exact: true }),
+    cancel = panel.getByRole('button', { name: 'لغو بولی SVG و حفظ کانتور قبلی', exact: true });
+  await expect(candidate).toHaveAttribute('data-valid', 'true');
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeDisabled();
+  await apply.click();
+  const changed = await download(stl);
+  expect(changed).not.toEqual(original);
+  const file = await download(save);
+  expect(JSON.parse(file.toString()).points.length).toBeGreaterThan(4);
+  await panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(stl)).toEqual(original);
+  await panel.getByRole('button', { name: 'بازانجام ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(stl)).toEqual(changed);
+  await upload(svg.replace('40,20', '39,20'));
+  await expect(panel.getByRole('alert')).toContainText('SVG عملوند پذیرفته نشد');
+  await expect(apply).toBeDisabled();
+  await expect(preview.locator('[data-layer="operand"]')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeDisabled();
+  await cancel.click();
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeEnabled();
+  await page.evaluate(() => {
+    const original = File.prototype.text;
+    File.prototype.text = function () {
+      if (this.name !== 'late.svg') return original.call(this);
+      return new Promise<string>((resolve) => {
+        (window as unknown as { releaseBooleanRead: () => Promise<void> }).releaseBooleanRead =
+          async () => resolve(await original.call(this));
+      });
+    };
+  });
+  await upload(svg, 'late.svg');
+  await expect(apply).toBeDisabled();
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeDisabled();
+  await cancel.click();
+  await page.evaluate(async () => {
+    await (window as unknown as { releaseBooleanRead: () => Promise<void> }).releaseBooleanRead();
+  });
+  await expect(apply).toBeDisabled();
+  await expect(preview.locator('[data-layer="operand"]')).toHaveCount(0);
+  expect(await download(stl)).toEqual(changed);
+  await upload(svg);
+  await x.fill('');
+  await expect(preview.locator('[data-layer="operand"]')).toHaveCount(0);
+  await apply.click();
+  await expect(panel.getByRole('alert')).toContainText('عملیات پذیرفته نشد');
+  await cancel.click();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

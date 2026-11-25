@@ -805,3 +805,41 @@ test('orthogonal boolean rectangle controls and rejected hole are accessible at 
     panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
   ).toBeEnabled();
 });
+
+test('orthogonal SVG polygon boolean controls and invalid operand are accessible at 320px', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const mode = panel.getByRole('button', {
+    name: 'حالت عملیات بولی با SVG قائم‌الزاویه',
+    exact: true,
+  });
+  await mode.focus();
+  await page.keyboard.press('Enter');
+  const input = panel.getByLabel('ورود SVG عملوند بولی قائم‌الزاویه', { exact: true });
+  await input.setInputFiles({
+    name: 'operand.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40"><polygon points="0,0 40,0 40,20 20,20 20,40 0,40"/></svg>',
+    ),
+  });
+  await panel.getByLabel('عملیات بولی چندضلعی کاتر', { exact: true }).selectOption('union');
+  await audit(page, info, 'orthogonal-svg-boolean-preview-320');
+  await input.setInputFiles({
+    name: 'bad.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg><script>alert(1)</script></svg>'),
+  });
+  await expect(panel.getByRole('alert')).toContainText('SVG عملوند پذیرفته نشد');
+  await audit(page, info, 'orthogonal-svg-boolean-error-320');
+  await panel.getByRole('button', { name: 'لغو بولی SVG و حفظ کانتور قبلی', exact: true }).click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+});

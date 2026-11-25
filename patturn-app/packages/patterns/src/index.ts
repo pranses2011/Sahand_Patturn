@@ -399,3 +399,5 @@ export {
   type BooleanRectangle,
   type RectangleBooleanOperation,
 } from './rectangle-boolean.js';
+
+export { booleanOrthogonalPolygons } from './rectangle-boolean.js';

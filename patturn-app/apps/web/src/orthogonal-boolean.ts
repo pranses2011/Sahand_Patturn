@@ -1,5 +1,6 @@
 import {
   booleanOrthogonalRectangle,
+  booleanOrthogonalPolygons,
   type BooleanRectangle,
   type RectangleBooleanOperation,
 } from '@patturn/patterns';
@@ -79,6 +80,70 @@ export function previewOrthogonalRectangle(
     maxY = extent.length ? Math.max(...extent.map((p) => p[1])) : 150;
   return {
     rectangle,
+    contours,
+    valid,
+    box: {
+      x: minX - 5,
+      y: minY - 5,
+      width: Math.max(10, maxX - minX + 10),
+      height: Math.max(10, maxY - minY + 10),
+    },
+  };
+}
+
+/** Translate one imported operand without rescaling or snapping; reject partial offsets. */
+export function translateBooleanOperand(
+  points: readonly CutterPoint[],
+  offsets: readonly string[],
+): CutterPoint[] {
+  if (
+    offsets.length !== 2 ||
+    offsets.some((v) => !v.trim() || !Number.isFinite(Number(v)) || Math.abs(Number(v)) > 1000)
+  )
+    throw Error('ORTHOGONAL_BOOLEAN_OFFSET');
+  return points.map(([x, y]) => [x + Number(offsets[0]), y + Number(offsets[1])]);
+}
+export function editOrthogonalPolygon(
+  points: readonly CutterPoint[],
+  operand: readonly CutterPoint[],
+  operation: RectangleBooleanOperation,
+  options: ConvexCutterOptions,
+): CutterPoint[] {
+  orthogonalCutterProfile(points, { heightMm: 20, wallMm: 0.8, tipMm: 0.4 });
+  const contours = booleanOrthogonalPolygons(points, operand, operation);
+  if (contours.length !== 1) throw Error('ORTHOGONAL_BOOLEAN_SINGLE_CONTOUR');
+  orthogonalCutterProfile(contours[0]!, options);
+  return contours[0]!;
+}
+export function previewOrthogonalPolygon(
+  points: readonly CutterPoint[],
+  operand: readonly CutterPoint[] | null,
+  offsets: readonly string[],
+  operation: RectangleBooleanOperation,
+  options: ConvexCutterOptions,
+) {
+  let translated: CutterPoint[] | null = null,
+    contours: [number, number][][] = [],
+    valid = false;
+  if (operand)
+    try {
+      translated = translateBooleanOperand(operand, offsets);
+      orthogonalCutterProfile(points, { heightMm: 20, wallMm: 0.8, tipMm: 0.4 });
+      contours = booleanOrthogonalPolygons(points, translated, operation);
+      if (contours.length === 1) {
+        orthogonalCutterProfile(contours[0]!, options);
+        valid = true;
+      }
+    } catch {
+      /* Retain every computed ring as a rejected preview. */
+    }
+  const extent = [...points, ...(translated ?? [])].filter((p) => p.every(Number.isFinite));
+  const minX = extent.length ? Math.min(...extent.map((p) => p[0])) : 0,
+    minY = extent.length ? Math.min(...extent.map((p) => p[1])) : 0,
+    maxX = extent.length ? Math.max(...extent.map((p) => p[0])) : 150,
+    maxY = extent.length ? Math.max(...extent.map((p) => p[1])) : 150;
+  return {
+    operand: translated,
     contours,
     valid,
     box: {

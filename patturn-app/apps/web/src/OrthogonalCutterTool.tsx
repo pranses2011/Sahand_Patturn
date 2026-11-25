@@ -1,3 +1,4 @@
+import { OrthogonalPolygonBooleanEditor } from './OrthogonalPolygonBooleanEditor';
 import { OrthogonalBooleanEditor } from './OrthogonalBooleanEditor';
 import { seedOrthogonalSketch } from './orthogonal-sketch';
 import { OrthogonalSketchEditor } from './OrthogonalSketchEditor';
@@ -59,9 +60,9 @@ export function OrthogonalCutterTool({
   initialFile?: OrthogonalCutterFile;
   onCopy?: (file: OrthogonalCutterFile) => void;
 }) {
-  const [editorMode, setEditorMode] = useState<'corner' | 'notch' | 'drag' | 'draw' | 'boolean'>(
-    'corner',
-  );
+  const [editorMode, setEditorMode] = useState<
+    'corner' | 'notch' | 'drag' | 'draw' | 'boolean' | 'polygonBoolean'
+  >('corner');
   const notchMode = editorMode === 'notch';
   const [dragging, setDragging] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
@@ -434,6 +435,41 @@ export function OrthogonalCutterTool({
           <button
             type="button"
             className="btn"
+            aria-pressed={editorMode === 'polygonBoolean'}
+            disabled={busy || failed || dragging}
+            onClick={() => {
+              setEditorMode((mode) => (mode === 'polygonBoolean' ? 'corner' : 'polygonBoolean'));
+              setDraftDirty(false);
+              setError('');
+              setEditorRevision((v) => v + 1);
+            }}
+          >
+            {text.polygonBooleanMode}
+          </button>
+          {!busy && !failed && editorMode === 'polygonBoolean' && (
+            <OrthogonalPolygonBooleanEditor
+              key={editorRevision}
+              points={points}
+              options={{ heightMm, wallMm, tipMm }}
+              onDirty={() => {
+                setDraftDirty(true);
+                setError('');
+              }}
+              onApply={(next) => {
+                dispatch({ type: 'edit', points: next });
+                setDraftDirty(false);
+                setError('');
+                setEditorRevision((v) => v + 1);
+              }}
+              onCancel={() => {
+                setDraftDirty(false);
+                setError('');
+              }}
+            />
+          )}
+          <button
+            type="button"
+            className="btn"
             aria-pressed={notchMode}
             disabled={busy || failed || dragging}
             onClick={() => {
@@ -555,7 +591,7 @@ export function OrthogonalCutterTool({
           : editorMode === 'draw' && !sourceMode
             ? text.sketchPending
             : draftDirty
-              ? editorMode === 'boolean'
+              ? editorMode === 'boolean' || editorMode === 'polygonBoolean'
                 ? text.booleanPending
                 : text.editPending
               : geometry
