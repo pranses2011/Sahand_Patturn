@@ -1,7 +1,10 @@
+import { initialSketchHistory, sketchHistory } from './sketch-history';
+import { historyShortcut } from './history-shortcut';
+import { preserveNativeUndo } from './native-undo';
 import { OrthogonalVertexEditor } from './OrthogonalVertexEditor';
 import { openOrthogonalContour } from './orthogonal-vertex';
 import { readOrthogonalCutterFile, writeOrthogonalCutterFile } from './orthogonal-cutter-file';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import {
   buildOrthogonalCutter,
   orthogonalCutterProfile,
@@ -41,7 +44,8 @@ export function OrthogonalCutterTool({
 }) {
   const [draftDirty, setDraftDirty] = useState(false);
   const [editorRevision, setEditorRevision] = useState(0);
-  const [points, setPoints] = useState<readonly CutterPoint[]>(samples.L);
+  const [history, dispatch] = useReducer(sketchHistory, samples.L, initialSketchHistory);
+  const points = history.points;
   const [heightMm, setHeight] = useState(20),
     [wallMm, setWall] = useState(1.6),
     [tipMm, setTip] = useState(0.6);
@@ -70,9 +74,52 @@ export function OrthogonalCutterTool({
       return null;
     }
   }, [points, heightMm, wallMm, tipMm, busy, failed, draftDirty]);
+  const stepHistory = (direction: 'undo' | 'redo') => {
+    if (busy || failed || !(direction === 'undo' ? history.past.length : history.future.length))
+      return;
+    setDraftDirty(false);
+    setError('');
+    setEditorRevision((value) => value + 1);
+    dispatch({ type: direction });
+  };
   return (
-    <>
+    <div
+      className="orthogonal-history-scope"
+      role="group"
+      aria-label={text.historyScope}
+      tabIndex={0}
+      onKeyDown={(event) => {
+        const target = event.target;
+        if (
+          target instanceof HTMLElement &&
+          preserveNativeUndo(target.tagName, target.getAttribute('type'), target.isContentEditable)
+        )
+          return;
+        const direction = historyShortcut(event.nativeEvent);
+        if (!direction) return;
+        event.preventDefault();
+        event.stopPropagation();
+        stepHistory(direction);
+      }}
+    >
       <p className="hint">{text.intro}</p>
+      <p className="hint">{text.historyHelp}</p>
+      <button
+        type="button"
+        className="btn"
+        disabled={busy || failed || !history.past.length}
+        onClick={() => stepHistory('undo')}
+      >
+        {text.historyUndo}
+      </button>
+      <button
+        type="button"
+        className="btn"
+        disabled={busy || failed || !history.future.length}
+        onClick={() => stepHistory('redo')}
+      >
+        {text.historyRedo}
+      </button>
       {(['L', 'U'] as const).map((name) => (
         <button
           key={name}
@@ -85,7 +132,7 @@ export function OrthogonalCutterTool({
             setError('');
             setDraftDirty(false);
             setEditorRevision((value) => value + 1);
-            setPoints(samples[name]);
+            dispatch({ type: 'edit', points: samples[name] });
           }}
         >
           {name === 'L' ? text.sampleL : text.sampleU}
@@ -112,7 +159,7 @@ export function OrthogonalCutterTool({
                 if (!alive.current || request.current !== id) return;
                 setDraftDirty(false);
                 setEditorRevision((value) => value + 1);
-                setPoints(openOrthogonalContour(doc.points));
+                dispatch({ type: 'reset', points: openOrthogonalContour(doc.points) });
                 setHeight(doc.heightMm);
                 setWall(doc.wallMm);
                 setTip(doc.tipMm);
@@ -152,7 +199,7 @@ export function OrthogonalCutterTool({
                 if (alive.current && request.current === id) {
                   setDraftDirty(false);
                   setEditorRevision((value) => value + 1);
-                  setPoints(openOrthogonalContour(contour));
+                  dispatch({ type: 'reset', points: openOrthogonalContour(contour) });
                 }
               } catch {
                 if (alive.current && request.current === id) {
@@ -199,7 +246,7 @@ export function OrthogonalCutterTool({
             setError('');
           }}
           onApply={(next) => {
-            setPoints(next);
+            dispatch({ type: 'edit', points: next });
             setDraftDirty(false);
             setError('');
           }}
@@ -303,6 +350,6 @@ export function OrthogonalCutterTool({
       </button>
       <p className="hint">{text.fileHelp}</p>
       {error && <p role="alert">{error}</p>}
-    </>
+    </div>
   );
 }

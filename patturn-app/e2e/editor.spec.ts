@@ -5155,3 +5155,120 @@ test('orthogonal corner edits slide neighbors, block drafts and round trip the c
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal local history restores contours under current dimensions, drops drafts and resets on file import', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  const projectWall = page.getByRole('spinbutton', { name: 'ضخامت شعاعی برای ظرفیت', exact: true });
+  await projectWall.fill('7');
+  await projectWall.press('Enter');
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeEnabled();
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const undo = panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true });
+  const redo = panel.getByRole('button', { name: 'بازانجام ویرایش قائم‌الزاویه', exact: true });
+  const scope = panel.getByRole('group', {
+    name: 'ناحیهٔ ویرایش و تاریخچهٔ کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  const input = panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true });
+  const doc = {
+    format: 'patturn-orthogonal-cutter',
+    version: 1,
+    units: 'mm',
+    heightMm: 20,
+    wallMm: 1.6,
+    tipMm: 0.6,
+    points: [
+      [0, 0],
+      [100, 0],
+      [100, 100],
+      [58, 100],
+      [58, 40],
+      [42, 40],
+      [42, 100],
+      [0, 100],
+    ],
+  };
+  const upload = async () => {
+    await input.setInputFiles({
+      name: 'notch.orthogonal.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(doc)),
+    });
+  };
+  await upload();
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+  await scope.focus();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeEnabled();
+  const selection = panel.getByLabel('انتخاب گوشهٔ کاتر قائم‌الزاویه', { exact: true });
+  const x = panel.getByRole('spinbutton', {
+    name: 'مختصات افقی گوشهٔ قائم‌الزاویه (mm)',
+    exact: true,
+  });
+  const apply = panel.getByRole('button', { name: 'اعمال گوشهٔ قائم‌الزاویه', exact: true });
+  await selection.selectOption('4');
+  await x.fill('64');
+  await apply.click();
+  await expect(undo).toBeEnabled();
+  const wall = panel.getByRole('spinbutton', {
+    name: 'ضخامت دیوارهٔ کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  await wall.fill('3');
+  await wall.press('Enter');
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true });
+  await expect(output).toBeEnabled();
+  const pending = page.waitForEvent('download');
+  await output.click();
+  const original = await readFile((await (await pending).path())!);
+  await x.fill('65');
+  await expect(selection).toBeDisabled();
+  await undo.click();
+  await expect(selection).toBeEnabled();
+  await expect(wall).toHaveValue('3');
+  for (const name of [
+    'دانلود STL کاتر قائم‌الزاویه',
+    'دانلود SVG مرز کاتر قائم‌الزاویه',
+    'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه',
+  ])
+    await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+  await scope.focus();
+  await page.keyboard.press('Control+Shift+z');
+  await expect(output).toBeEnabled();
+  await selection.selectOption('4');
+  await expect(x).toHaveValue('64');
+  const restored = page.waitForEvent('download');
+  await output.click();
+  expect(await readFile((await (await restored).path())!)).toEqual(original);
+  await scope.focus();
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+y');
+  await expect(output).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeEnabled();
+  // Sample changes are edits; input values alone and cancelled drafts are not.
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ L کاتر قائم‌الزاویه', exact: true })
+    .click();
+  await expect(panel).toContainText('۸۰ × ۸۰ mm');
+  await undo.click();
+  await expect(panel).toContainText('۱۰۰ × ۱۰۰ mm');
+  await expect(redo).toBeEnabled();
+  await selection.selectOption('4');
+  await x.fill('66');
+  await apply.click();
+  await expect(redo).toBeDisabled();
+  await upload();
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+  await expect(wall).toHaveValue('1.6');
+  await expect(output).toBeEnabled();
+  await page.getByRole('button', { name: '🏺 فرم', exact: true }).click();
+  await expect(projectWall).toHaveValue('7');
+});

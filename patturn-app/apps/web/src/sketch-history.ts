@@ -8,6 +8,7 @@ export type SketchHistoryAction =
   | { type: 'edit'; points: readonly CutterPoint[] }
   | { type: 'preview'; points: readonly CutterPoint[] }
   | { type: 'cancel'; points: readonly CutterPoint[] }
+  | { type: 'reset'; points: readonly CutterPoint[] }
   | { type: 'complete'; before: readonly CutterPoint[] }
   | { type: 'undo' | 'redo' };
 const copy = (points: readonly CutterPoint[]): CutterPoint[] => points.map((p) => [p[0], p[1]]);
@@ -18,6 +19,7 @@ export function initialSketchHistory(points: readonly CutterPoint[]): SketchHist
 }
 /** 50 local contour edits; a drag is a preview followed by one complete, or a cancel. */
 export function sketchHistory(state: SketchHistory, action: SketchHistoryAction): SketchHistory {
+  if (action.type === 'reset') return initialSketchHistory(action.points);
   if (action.type === 'preview' || action.type === 'cancel')
     return { ...state, points: copy(action.points) };
   if (action.type === 'edit' || action.type === 'complete') {

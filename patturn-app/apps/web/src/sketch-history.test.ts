@@ -67,3 +67,21 @@ it('caps the local edit history at 50 entries and bounds undo/redo at both ends'
   expect(state.past).toHaveLength(50);
   expect(state.future).toHaveLength(0);
 });
+
+it('a successful file replacement resets both branches with an independent seed', () => {
+  let state = sketchHistory(initialSketchHistory(square), { type: 'edit', points: [] });
+  state = sketchHistory(state, { type: 'undo' });
+  expect(state.future).toHaveLength(1);
+  const seed: CutterPoint[] = [
+    [10, 10],
+    [50, 10],
+    [50, 50],
+    [10, 50],
+  ];
+  const reset = sketchHistory(state, { type: 'reset', points: seed });
+  expect(reset.points).toEqual(seed);
+  expect(reset.points[0]).not.toBe(seed[0]);
+  expect(reset.past).toEqual([]);
+  expect(reset.future).toEqual([]);
+  expect(state.future).toHaveLength(1);
+});

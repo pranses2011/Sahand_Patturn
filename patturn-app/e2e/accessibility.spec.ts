@@ -413,6 +413,22 @@ test('orthogonal cutter accepted and rejected SVG remain accessible at 320px', a
     panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
   ).toBeEnabled();
   await audit(page, info, 'orthogonal-cutter-L-320');
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ U کاتر قائم‌الزاویه', exact: true })
+    .click();
+  await panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(panel).toContainText('۸۰ × ۸۰ mm');
+  await audit(page, info, 'orthogonal-cutter-history-undo-320');
+  const historyScope = panel.getByRole('group', {
+    name: 'ناحیهٔ ویرایش و تاریخچهٔ کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  await historyScope.focus();
+  await expect(historyScope).toHaveCSS('outline-width', '3px');
+  await page.keyboard.press('Control+Shift+z');
+  await expect(panel).toContainText('۱۰۰ × ۱۰۰ mm');
+
   const cornerX = panel.getByRole('spinbutton', {
     name: 'مختصات افقی گوشهٔ قائم‌الزاویه (mm)',
     exact: true,

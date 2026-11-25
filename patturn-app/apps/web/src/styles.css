@@ -537,3 +537,8 @@ h3.sec {
   outline: 3px solid var(--clay-dark);
   outline-offset: 2px;
 }
+
+.orthogonal-history-scope:focus-visible {
+  outline: 3px solid var(--clay-dark);
+  outline-offset: 3px;
+}
