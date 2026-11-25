@@ -6237,3 +6237,95 @@ test('orthogonal draft history scopes shortcuts, restores cleared points and com
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal rectangle booleans commit validated regions and never discard holes or disconnected pieces', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const names = [
+    'دانلود STL کاتر قائم‌الزاویه',
+    'دانلود SVG مرز کاتر قائم‌الزاویه',
+    'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه',
+  ];
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return readFile((await (await pending).path())!);
+  };
+  const doc = JSON.parse((await download(names[2]!)).toString());
+  doc.points = [
+    [0, 0],
+    [100, 0],
+    [100, 100],
+    [0, 100],
+  ];
+  await panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true }).setInputFiles({
+    name: 'square.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(doc)),
+  });
+  const original = await download(names[0]!);
+  await panel.getByRole('button', { name: 'حالت عملیات بولی مستطیلی کاتر', exact: true }).click();
+  const operation = panel.getByLabel('عملیات مستطیلی کاتر', { exact: true });
+  const rect = async (x: number, y: number, w: number, h: number) => {
+    for (const [name, value] of [
+      ['مبدأ افقی مستطیل بولی (mm)', x],
+      ['مبدأ عمودی مستطیل بولی (mm)', y],
+      ['عرض مستطیل بولی (mm)', w],
+      ['ارتفاع مستطیل بولی (mm)', h],
+    ] as const)
+      await panel.getByRole('spinbutton', { name, exact: true }).fill(String(value));
+  };
+  const apply = panel.getByRole('button', { name: 'اعمال عملیات بولی مستطیلی', exact: true }),
+    cancel = panel.getByRole('button', { name: 'لغو پیش‌نویس بولی مستطیلی', exact: true }),
+    undo = panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true });
+  await rect(20, -20, 24, 40);
+  for (const name of names)
+    await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+  await apply.click();
+  expect(JSON.parse((await download(names[2]!)).toString()).points).toHaveLength(8);
+  const cut = await download(names[0]!);
+  expect(cut).not.toEqual(original);
+  await undo.click();
+  expect(await download(names[0]!)).toEqual(original);
+  await panel.getByRole('button', { name: 'بازانجام ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(names[0]!)).toEqual(cut);
+  await undo.click();
+  await operation.selectOption('union');
+  await rect(20, -20, 20, 40);
+  await apply.click();
+  expect(JSON.parse((await download(names[2]!)).toString()).points).toHaveLength(8);
+  await undo.click();
+  for (const [op, x, y, w, h] of [
+    ['difference', 20, 20, 20, 20],
+    ['difference', 40, -10, 20, 120],
+    ['union', 120, 0, 20, 20],
+    ['intersection', 120, 0, 20, 20],
+  ] as const) {
+    await operation.selectOption(op);
+    await rect(x, y, w, h);
+    await apply.click();
+    await expect(panel.getByRole('alert')).toContainText('دقیقاً یک کانتور');
+    for (const name of names)
+      await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+    await cancel.click();
+    await expect(panel.getByRole('button', { name: names[0]!, exact: true })).toBeEnabled();
+  }
+  await operation.selectOption('intersection');
+  await rect(20, 0, 60, 100);
+  await apply.click();
+  const file = await download(names[2]!);
+  expect(JSON.parse(file.toString()).points).toHaveLength(4);
+  const clipped = await download(names[0]!);
+  await panel
+    .getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true })
+    .setInputFiles({ name: 'clipped.orthogonal.json', mimeType: 'application/json', buffer: file });
+  expect(await download(names[0]!)).toEqual(clipped);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

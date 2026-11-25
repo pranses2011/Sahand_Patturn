@@ -394,3 +394,8 @@ export * from './islands.js';
 export * from './bridge.js';
 export * from './rib.js';
 export * from './trace-pixel-boundary.js';
+export {
+  booleanOrthogonalRectangle,
+  type BooleanRectangle,
+  type RectangleBooleanOperation,
+} from './rectangle-boolean.js';

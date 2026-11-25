@@ -766,3 +766,39 @@ test('orthogonal seeded draft and rejected tail closure are accessible at 320px'
     panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
   ).toBeDisabled();
 });
+
+test('orthogonal boolean rectangle controls and rejected hole are accessible at 320px', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const mode = panel.getByRole('button', { name: 'حالت عملیات بولی مستطیلی کاتر', exact: true });
+  await mode.focus();
+  await page.keyboard.press('Enter');
+  await expect(mode).toHaveAttribute('aria-pressed', 'true');
+  await panel.getByRole('spinbutton', { name: 'ارتفاع مستطیل بولی (mm)', exact: true }).fill('34');
+  await panel.getByRole('button', { name: 'اعمال عملیات بولی مستطیلی', exact: true }).click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  await audit(page, info, 'orthogonal-boolean-applied-320');
+  await panel
+    .getByRole('spinbutton', { name: 'مبدأ افقی مستطیل بولی (mm)', exact: true })
+    .fill('5');
+  await panel
+    .getByRole('spinbutton', { name: 'مبدأ عمودی مستطیل بولی (mm)', exact: true })
+    .fill('40');
+  await panel.getByRole('spinbutton', { name: 'عرض مستطیل بولی (mm)', exact: true }).fill('10');
+  await panel.getByRole('spinbutton', { name: 'ارتفاع مستطیل بولی (mm)', exact: true }).fill('10');
+  await panel.getByRole('button', { name: 'اعمال عملیات بولی مستطیلی', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('دقیقاً یک کانتور');
+  await audit(page, info, 'orthogonal-boolean-hole-error-320');
+  await panel.getByRole('button', { name: 'لغو پیش‌نویس بولی مستطیلی', exact: true }).click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+});
