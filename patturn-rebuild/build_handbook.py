@@ -23,6 +23,7 @@ FILES = [
     ("13-GAP-ANALYSIS.md", "➕ شکاف‌ها"),
     ("14-CHECKLIST.md", "✅ چک‌لیست"),
     ("15-RULES.md", "⚖️ قوانین"),
+    ("16-SOLIDVENTS-SPEC.md", "🧩 الگو و Wrap"),
 ]
 
 CSS = """
