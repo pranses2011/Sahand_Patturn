@@ -1,3 +1,4 @@
+import { OrthogonalDragEditor } from './OrthogonalDragEditor';
 import { OrthogonalNotchEditor } from './OrthogonalNotchEditor';
 import { initialSketchHistory, sketchHistory } from './sketch-history';
 import { historyShortcut } from './history-shortcut';
@@ -43,7 +44,9 @@ export function OrthogonalCutterTool({
 }: {
   onExport: (name: string, bytes: Uint8Array) => void;
 }) {
-  const [notchMode, setNotchMode] = useState(false);
+  const [editorMode, setEditorMode] = useState<'corner' | 'notch' | 'drag'>('corner');
+  const notchMode = editorMode === 'notch';
+  const [dragging, setDragging] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const [editorRevision, setEditorRevision] = useState(0);
   const [history, dispatch] = useReducer(sketchHistory, samples.L, initialSketchHistory);
@@ -77,7 +80,12 @@ export function OrthogonalCutterTool({
     }
   }, [points, heightMm, wallMm, tipMm, busy, failed, draftDirty]);
   const stepHistory = (direction: 'undo' | 'redo') => {
-    if (busy || failed || !(direction === 'undo' ? history.past.length : history.future.length))
+    if (
+      busy ||
+      failed ||
+      dragging ||
+      !(direction === 'undo' ? history.past.length : history.future.length)
+    )
       return;
     setDraftDirty(false);
     setError('');
@@ -109,7 +117,7 @@ export function OrthogonalCutterTool({
       <button
         type="button"
         className="btn"
-        disabled={busy || failed || !history.past.length}
+        disabled={busy || failed || dragging || !history.past.length}
         onClick={() => stepHistory('undo')}
       >
         {text.historyUndo}
@@ -117,7 +125,7 @@ export function OrthogonalCutterTool({
       <button
         type="button"
         className="btn"
-        disabled={busy || failed || !history.future.length}
+        disabled={busy || failed || dragging || !history.future.length}
         onClick={() => stepHistory('redo')}
       >
         {text.historyRedo}
@@ -127,6 +135,7 @@ export function OrthogonalCutterTool({
           key={name}
           type="button"
           className="btn"
+          disabled={dragging}
           onClick={() => {
             request.current++;
             setBusy(false);
@@ -145,7 +154,7 @@ export function OrthogonalCutterTool({
         <input
           type="file"
           accept=".json,application/json"
-          disabled={busy}
+          disabled={busy || dragging}
           onChange={(event) => {
             const file = event.currentTarget.files?.[0];
             event.currentTarget.value = '';
@@ -182,7 +191,7 @@ export function OrthogonalCutterTool({
         <input
           type="file"
           accept=".svg,image/svg+xml"
-          disabled={busy}
+          disabled={busy || dragging}
           aria-describedby={help}
           onChange={(event) => {
             const file = event.currentTarget.files?.[0];
@@ -223,28 +232,33 @@ export function OrthogonalCutterTool({
         { label: text.wall, value: wallMm, set: setWall, min: 0.8, max: 3, step: 0.1 },
         { label: text.tip, value: tipMm, set: setTip, min: 0.4, max: 1.2, step: 0.1 },
       ].map((control) => (
-        <NumericControl
+        <fieldset
           key={control.label}
-          label={control.label}
-          value={control.value}
-          min={control.min}
-          max={control.max}
-          step={control.step}
-          onChange={(value) => {
-            control.set(value);
-            setError('');
-          }}
-          onBeginEdit={() => {}}
-          onEndEdit={() => {}}
-        />
+          disabled={dragging}
+          style={{ border: 0, padding: 0, margin: 0 }}
+        >
+          <NumericControl
+            label={control.label}
+            value={control.value}
+            min={control.min}
+            max={control.max}
+            step={control.step}
+            onChange={(value) => {
+              control.set(value);
+              setError('');
+            }}
+            onBeginEdit={() => {}}
+            onEndEdit={() => {}}
+          />
+        </fieldset>
       ))}
       <button
         type="button"
         className="btn"
         aria-pressed={notchMode}
-        disabled={busy || failed}
+        disabled={busy || failed || dragging}
         onClick={() => {
-          setNotchMode((value) => !value);
+          setEditorMode((mode) => (mode === 'notch' ? 'corner' : 'notch'));
           setDraftDirty(false);
           setError('');
           setEditorRevision((value) => value + 1);
@@ -273,7 +287,42 @@ export function OrthogonalCutterTool({
           }}
         />
       )}
-      {!busy && !failed && !notchMode && (
+      <button
+        type="button"
+        className="btn"
+        aria-pressed={editorMode === 'drag'}
+        disabled={busy || failed || dragging}
+        onClick={() => {
+          setEditorMode((mode) => (mode === 'drag' ? 'corner' : 'drag'));
+          setDraftDirty(false);
+          setError('');
+          setEditorRevision((value) => value + 1);
+        }}
+      >
+        {text.dragMode}
+      </button>
+      {!busy && !failed && editorMode === 'drag' && (
+        <OrthogonalDragEditor
+          key={editorRevision}
+          points={points}
+          options={{ heightMm, wallMm, tipMm }}
+          onDirty={() => {
+            setDraftDirty(true);
+            setError('');
+          }}
+          onActiveChange={setDragging}
+          onApply={(next) => {
+            dispatch({ type: 'edit', points: next });
+            setDraftDirty(false);
+            setEditorRevision((value) => value + 1);
+          }}
+          onCancel={() => {
+            setDraftDirty(false);
+            setError('');
+          }}
+        />
+      )}
+      {!busy && !failed && editorMode === 'corner' && (
         <OrthogonalVertexEditor
           key={editorRevision}
           points={points}

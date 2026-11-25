@@ -526,3 +526,34 @@ test('orthogonal notch controls and validation errors are accessible at 320px', 
   ).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal drag mode has an accessible numeric alternative and explicit cancellation', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const mode = panel.getByRole('button', { name: 'حالت کشیدن گوشهٔ قائم‌الزاویه', exact: true });
+  await mode.focus();
+  await page.keyboard.press('Enter');
+  await expect(mode).toHaveAttribute('aria-pressed', 'true');
+  const canvas = panel.getByRole('img', {
+    name: 'صفحهٔ کشیدن گوشه‌های کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  await canvas.focus();
+  await expect(canvas).toHaveCSS('outline-width', '3px');
+  await expect(canvas).toHaveAccessibleDescription(/ویرایش عددی/);
+  await audit(page, info, 'orthogonal-drag-mode-320');
+  await panel.getByRole('button', { name: 'لغو حرکت گوشهٔ قائم‌الزاویه', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  await mode.focus();
+  await page.keyboard.press('Enter');
+  await expect(panel.getByLabel('انتخاب گوشهٔ کاتر قائم‌الزاویه', { exact: true })).toBeVisible();
+});

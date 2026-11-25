@@ -5346,3 +5346,120 @@ test('orthogonal rectangular notch insertion and removal are validated, undoable
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal corner dragging validates release, groups history and cancels captured gestures', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const mode = panel.getByRole('button', { name: 'حالت کشیدن گوشهٔ قائم‌الزاویه', exact: true });
+  await mode.click();
+  const canvas = panel.getByRole('img', {
+    name: 'صفحهٔ کشیدن گوشه‌های کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true });
+  const undo = panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true });
+  const redo = panel.getByRole('button', { name: 'بازانجام ویرایش قائم‌الزاویه', exact: true });
+  const download = async () => {
+    const pending = page.waitForEvent('download');
+    await output.click();
+    return await readFile((await (await pending).path())!);
+  };
+  const original = await download();
+  const move = async (x: number, y: number) => {
+    await canvas.scrollIntoViewIfNeeded();
+    const box = (await canvas.boundingBox())!;
+    await page.mouse.move(
+      box.x + ((x + 20.3) / 120) * box.width,
+      box.y + ((y + 20.3) / 120) * box.height,
+    );
+  };
+  await move(65, 65);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(output).toBeEnabled();
+  await expect(undo).toBeDisabled();
+  await move(30, 30);
+  await page.mouse.down();
+  await expect(output).toBeDisabled();
+  await expect(mode).toBeDisabled();
+  await expect(
+    panel.getByRole('spinbutton', { name: 'ارتفاع کاتر قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await expect(panel.getByLabel('ورود SVG کاتر قائم‌الزاویه', { exact: true })).toBeDisabled();
+  for (const p of [32, 35, 40]) await move(p, p);
+  await page.mouse.up();
+  await expect(output).toBeEnabled();
+  const edited = await download();
+  expect(edited).not.toEqual(original);
+  await undo.click();
+  expect(await download()).toEqual(original);
+  await expect(undo).toBeDisabled();
+  await redo.click();
+  expect(await download()).toEqual(edited);
+  await undo.click();
+  // Invalid release is not a partial commit of the last valid preview.
+  await move(30, 30);
+  await page.mouse.down();
+  await move(40, 40);
+  await move(75, 75);
+  await page.mouse.up();
+  await expect(panel.getByRole('alert')).toContainText('محل رهاکردن معتبر نبود');
+  await expect(output).toBeDisabled();
+  await expect(undo).toBeDisabled();
+  await panel.getByRole('button', { name: 'لغو حرکت گوشهٔ قائم‌الزاویه', exact: true }).click();
+  expect(await download()).toEqual(original);
+  await expect(redo).toBeEnabled();
+  await move(30, 30);
+  await page.mouse.down();
+  await move(40, 40);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  expect(await download()).toEqual(original);
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeEnabled();
+  // A newer pointer-up position must override the last valid move preview.
+  await move(30, 30);
+  await page.mouse.down();
+  await move(40, 40);
+  const releaseBox = (await canvas.boundingBox())!;
+  await canvas.dispatchEvent('pointerup', {
+    pointerId: 1,
+    isPrimary: true,
+    pointerType: 'mouse',
+    clientX: releaseBox.x + (95 / 120) * releaseBox.width,
+    clientY: releaseBox.y + (95 / 120) * releaseBox.height,
+  });
+  await page.mouse.up();
+  await expect(output).toBeDisabled();
+  await expect(undo).toBeDisabled();
+  await panel.getByRole('button', { name: 'لغو حرکت گوشهٔ قائم‌الزاویه', exact: true }).click();
+  // Releasing outside the frame still reaches the captured SVG and cannot bypass validation.
+  await move(30, 30);
+  await page.mouse.down();
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + box.width + 40, box.y + box.height + 40);
+  await page.mouse.up();
+  await expect(output).toBeDisabled();
+  await panel.getByRole('button', { name: 'لغو حرکت گوشهٔ قائم‌الزاویه', exact: true }).click();
+  await expect(output).toBeEnabled();
+  await move(30, 30);
+  await page.mouse.down();
+  await move(40, 40);
+  await canvas.dispatchEvent('pointercancel', {
+    pointerId: 1,
+    isPrimary: true,
+    pointerType: 'mouse',
+  });
+  await page.mouse.up();
+  expect(await download()).toEqual(original);
+  await expect(undo).toBeDisabled();
+  await expect(mode).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
