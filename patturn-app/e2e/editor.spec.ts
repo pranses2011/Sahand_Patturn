@@ -5463,3 +5463,120 @@ test('orthogonal corner dragging validates release, groups history and cancels c
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('explicit pixel-boundary tracing feeds the live orthogonal cutter without dropping holes or repairing default chamfers', async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on('request', (req) => {
+    if (req.url().includes('OrthogonalCutterTool-')) requests.push(req.url());
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ردیابی تصویر — Otsu و کانتور', { exact: true }).click();
+  const trace = page.locator('.image-trace-tool');
+  const pixel = trace.getByRole('checkbox', {
+    name: 'ردیابی مرز پیکسلی قائم‌الزاویه',
+    exact: true,
+  });
+  await pixel.check();
+  await expect(
+    trace.getByRole('spinbutton', { name: 'خطای ساده‌سازی ردیابی', exact: true }),
+  ).toHaveCount(0);
+  const picture = async (kind: 'L' | 'hole' | 'diagonal') =>
+    await page.evaluate((kind) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 96;
+      canvas.height = 96;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, 96, 96);
+      ctx.fillStyle = 'black';
+      if (kind === 'diagonal') {
+        ctx.fillRect(16, 16, 1, 1);
+        ctx.fillRect(17, 17, 1, 1);
+      } else {
+        ctx.fillRect(16, 16, 64, 24);
+        ctx.fillRect(16, 16, 24, 64);
+        if (kind === 'hole') {
+          ctx.fillStyle = 'white';
+          ctx.fillRect(22, 22, 10, 10);
+        }
+      }
+      return canvas.toDataURL('image/png').split(',')[1]!;
+    }, kind);
+  const upload = async (kind: 'L' | 'hole' | 'diagonal') =>
+    await trace.getByLabel('تصویر ردیابی', { exact: true }).setInputFiles({
+      name: `${kind}.png`,
+      mimeType: 'image/png',
+      buffer: Buffer.from(await picture(kind), 'base64'),
+    });
+  await upload('L');
+  await expect(trace.getByRole('status').filter({ hasText: 'کانتور؛' })).toContainText('۱ کانتور');
+  expect(requests).toHaveLength(0);
+  const panel = trace.locator('.traced-orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const output = panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true });
+  await expect(output).toBeEnabled();
+  expect(requests).toHaveLength(1);
+  await expect(
+    panel.getByRole('button', { name: 'بازیابی نمونهٔ L کاتر قائم‌الزاویه', exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true }),
+  ).toHaveCount(0);
+  await expect(panel.getByLabel('انتخاب گوشهٔ کاتر قائم‌الزاویه', { exact: true })).toHaveCount(0);
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return await readFile((await (await pending).path())!);
+  };
+  const maxX = (bytes: Buffer) => {
+    let x = 0;
+    for (let i = 0; i < bytes.readUInt32LE(80); i++)
+      for (let j = 0; j < 3; j++)
+        x = Math.max(x, Math.abs(bytes.readFloatLE(84 + i * 50 + 12 + j * 12)));
+    return x;
+  };
+  const initial = await download('دانلود STL کاتر قائم‌الزاویه');
+  expect(initial.readUInt32LE(80)).toBe(84);
+  expect(maxX(initial)).toBeCloseTo(100 / 3 + 4.6, 3);
+  const saved = JSON.parse((await download('ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه')).toString());
+  expect(saved.format).toBe('patturn-orthogonal-cutter');
+  expect(saved.points).toHaveLength(6);
+  const width = trace.getByRole('spinbutton', { name: 'عرض مرجع تصویر', exact: true });
+  await width.fill('80');
+  await width.press('Enter');
+  expect(maxX(await download('دانلود STL کاتر قائم‌الزاویه'))).toBeCloseTo(80 / 3 + 4.6, 3);
+  await width.fill('20');
+  await width.press('Enter');
+  await expect(output).toBeDisabled();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود SVG مرز کاتر قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await width.fill('100');
+  await width.press('Enter');
+  await expect(output).toBeEnabled();
+  await pixel.uncheck();
+  await expect(output).toBeDisabled();
+  await expect(
+    trace.getByRole('spinbutton', { name: 'خطای ساده‌سازی ردیابی', exact: true }),
+  ).toBeVisible();
+  await pixel.check();
+  await expect(output).toBeEnabled();
+  await upload('hole');
+  await expect(trace.getByRole('status').filter({ hasText: 'کانتور؛' })).toContainText('۲ کانتور');
+  await panel.locator('summary').click();
+  await expect(output).toBeDisabled();
+  await expect(
+    panel.getByRole('status', { name: 'اعتبار هندسهٔ کاتر قائم‌الزاویه', exact: true }),
+  ).toContainText('دقیقاً یک کانتور');
+  await upload('diagonal');
+  await expect(trace.getByRole('alert').filter({ hasText: 'تماس قطری مبهم' })).toBeVisible();
+  await expect(panel).toHaveCount(0);
+  await upload('L');
+  await expect(trace.getByRole('status').filter({ hasText: 'کانتور؛' })).toContainText('۱ کانتور');
+  await panel.locator('summary').click();
+  await expect(output).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});

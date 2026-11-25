@@ -1,11 +1,17 @@
 import { DeferredTool } from './DeferredTool';
-import { cookieCutter as cutterText } from './messages/fa.json';
+import {
+  cookieCutter as cutterText,
+  orthogonalCutter as orthoText,
+  pixelTrace as pixelText,
+} from './messages/fa.json';
 const loadTracedCutter = () =>
   import('./CookieCutterTool').then((module) => ({ default: module.CookieCutterTool }));
+const loadTracedOrthogonalCutter = () =>
+  import('./OrthogonalCutterTool').then((module) => ({ default: module.OrthogonalCutterTool }));
 import { dxfErrorMessage } from './export-error';
 import { StampTool } from './StampTool';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { traceImage, detectIslands, bridgeIsland } from '@patturn/patterns';
+import { traceImage, tracePixelBoundary, detectIslands, bridgeIsland } from '@patturn/patterns';
 import { exportName, toSvg, toDxf } from '@patturn/exporters';
 import { NumericControl } from './NumericControl';
 type Raster = { width: number; height: number; pixels: Uint8Array };
@@ -14,6 +20,7 @@ export function ImageTraceTool({
 }: {
   onExport: (name: string, bytes: Uint8Array) => void;
 }) {
+  const [pixelBoundary, setPixelBoundary] = useState(false);
   const [raster, setRaster] = useState<Raster | null>(null),
     [reference, setReference] = useState(100),
     [tolerance, setTolerance] = useState(0.2),
@@ -29,11 +36,13 @@ export function ImageTraceTool({
   const sourceDrawing = useMemo(() => {
     if (!raster) return null;
     try {
-      return traceImage({ ...raster, referenceWidthMm: reference, toleranceMm: tolerance });
+      return pixelBoundary
+        ? tracePixelBoundary({ ...raster, referenceWidthMm: reference })
+        : traceImage({ ...raster, referenceWidthMm: reference, toleranceMm: tolerance });
     } catch {
       return null;
     }
-  }, [raster, reference, tolerance]);
+  }, [raster, reference, tolerance, pixelBoundary]);
   const [bridged, setBridged] = useState<{
     base: typeof sourceDrawing;
     result: NonNullable<typeof sourceDrawing>;
@@ -104,7 +113,12 @@ export function ImageTraceTool({
       return;
     }
     onExport(
-      exportName('trace', 'contours', `W${reference}-E${tolerance}mm`, format),
+      exportName(
+        'trace',
+        'contours',
+        `W${reference}-${pixelBoundary ? 'pixel-boundary' : `E${tolerance}`}mm`,
+        format,
+      ),
       output.bytes,
     );
   }
@@ -136,21 +150,34 @@ export function ImageTraceTool({
         onBeginEdit={() => {}}
         onEndEdit={() => {}}
       />
-      <NumericControl
-        label="خطای ساده‌سازی ردیابی"
-        value={tolerance}
-        onChange={setTolerance}
-        min={0}
-        max={2}
-        step={0.05}
-        onBeginEdit={() => {}}
-        onEndEdit={() => {}}
-      />
+      <label>
+        <input
+          type="checkbox"
+          checked={pixelBoundary}
+          onChange={(event) => setPixelBoundary(event.currentTarget.checked)}
+        />
+        {pixelText.mode}
+      </label>
+      {pixelBoundary && <p className="hint">{pixelText.help}</p>}
+      {!pixelBoundary && (
+        <NumericControl
+          label="خطای ساده‌سازی ردیابی"
+          value={tolerance}
+          onChange={setTolerance}
+          min={0}
+          max={2}
+          step={0.05}
+          onBeginEdit={() => {}}
+          onEndEdit={() => {}}
+        />
+      )}
       {busy && <p role="status">در حال خواندن تصویر…</p>}
       {error && <p role="alert">{error}</p>}
       {raster && !drawing && (
         <p role="alert">
-          کانتور بیش‌ازحد پیچیده است؛ تصویر ساده‌تر انتخاب کنید (حداکثر ۵۱۲ کانتور).
+          {pixelBoundary
+            ? pixelText.error
+            : 'کانتور بیش‌ازحد پیچیده است؛ تصویر ساده‌تر انتخاب کنید (حداکثر ۵۱۲ کانتور).'}
         </p>
       )}
       {drawing && (
@@ -287,12 +314,23 @@ export function ImageTraceTool({
           toolProps={{ sourceContours: drawing.contours, onExport }}
         />
       )}
-      <p className="hint">
-        لبهٔ ناحیهٔ تیره با marching squares و ساده‌سازی RDP؛ پیکسل‌های قطری جدا در نظر گرفته می‌شوند.
-        مرز داخلی سوراخ‌ها نیز صادر می‌شود؛ تشخیص جزیره فقط برای کانتورهای ساده و جداست. پرشدگی، پل،
-        kerf و عدم تقاطع کانتورهای ساده‌شده تضمین نمی‌شوند. پیش از ساخت در CAD بررسی کنید. داده و
-        نتیجه موقت و خارج از پروژه/ZIP هستند.
-      </p>
+      {drawing && (
+        <DeferredTool
+          label={orthoText.traceTitle}
+          className="traced-orthogonal-cutter-tool"
+          load={loadTracedOrthogonalCutter}
+          toolProps={{ sourceContours: drawing.contours, onExport }}
+        />
+      )}
+      {pixelBoundary && <p className="hint">{pixelText.footer}</p>}
+      {!pixelBoundary && (
+        <p className="hint">
+          لبهٔ ناحیهٔ تیره با marching squares و ساده‌سازی RDP؛ پیکسل‌های قطری جدا در نظر گرفته
+          می‌شوند. مرز داخلی سوراخ‌ها نیز صادر می‌شود؛ تشخیص جزیره فقط برای کانتورهای ساده و جداست.
+          پرشدگی، پل، kerf و عدم تقاطع کانتورهای ساده‌شده تضمین نمی‌شوند. پیش از ساخت در CAD بررسی
+          کنید. داده و نتیجه موقت و خارج از پروژه/ZIP هستند.
+        </p>
+      )}
     </>
   );
 }

@@ -557,3 +557,53 @@ test('orthogonal drag mode has an accessible numeric alternative and explicit ca
   await page.keyboard.press('Enter');
   await expect(panel.getByLabel('انتخاب گوشهٔ کاتر قائم‌الزاویه', { exact: true })).toBeVisible();
 });
+
+test('pixel-boundary trace and its live orthogonal cutter reflow and expose rejected multi-contours', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ردیابی تصویر — Otsu و کانتور', { exact: true }).click();
+  const trace = page.locator('.image-trace-tool');
+  await trace
+    .getByRole('checkbox', { name: 'ردیابی مرز پیکسلی قائم‌الزاویه', exact: true })
+    .check();
+  const picture = async (hole: boolean) =>
+    await page.evaluate((hole) => {
+      const c = document.createElement('canvas');
+      c.width = 96;
+      c.height = 96;
+      const ctx = c.getContext('2d')!;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, 96, 96);
+      ctx.fillStyle = 'black';
+      ctx.fillRect(16, 16, 64, 24);
+      ctx.fillRect(16, 16, 24, 64);
+      if (hole) {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(22, 22, 10, 10);
+      }
+      return c.toDataURL('image/png').split(',')[1]!;
+    }, hole);
+  const upload = async (hole: boolean) =>
+    await trace.getByLabel('تصویر ردیابی', { exact: true }).setInputFiles({
+      name: 'L.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(await picture(hole), 'base64'),
+    });
+  await upload(false);
+  const panel = trace.locator('.traced-orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  await audit(page, info, 'pixel-trace-orthogonal-live-320');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+  await upload(true);
+  await panel.locator('summary').click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await audit(page, info, 'pixel-trace-orthogonal-hole-320');
+});
