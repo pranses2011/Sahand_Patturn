@@ -14,7 +14,6 @@
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",
-    "updater:default",
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-stat",
