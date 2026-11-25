@@ -1,0 +1,3 @@
+# Keep build artifacts in the existing CI/cache location even with a generated root workspace.
+[build]
+target-dir = "apps/desktop/src-tauri/target"
