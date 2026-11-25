@@ -5662,3 +5662,86 @@ test('orthogonal outward tabs are validated, undoable and preserved in files', a
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal exact rotations and reflections preserve files, local history and output guards', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return readFile((await (await pending).path())!);
+  };
+  const stl = 'دانلود STL کاتر قائم‌الزاویه',
+    file = 'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه';
+  const initial = JSON.parse((await download(file)).toString());
+  initial.points = [
+    [10.125, 20.25],
+    [90.125, 20.25],
+    [90.125, 50.25],
+    [40.125, 50.25],
+    [40.125, 80.25],
+    [10.125, 80.25],
+  ];
+  await panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true }).setInputFiles({
+    name: 'fractional.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(initial)),
+  });
+  const basePoints = JSON.parse((await download(file)).toString()).points as number[][];
+  const before = await download(stl);
+  const right = panel.getByRole('button', { name: 'چرخش کاتر ۹۰ درجه به راست', exact: true }),
+    left = panel.getByRole('button', { name: 'چرخش کاتر ۹۰ درجه به چپ', exact: true }),
+    mirror = panel.getByRole('button', { name: 'قرینهٔ افقی کاتر قائم‌الزاویه', exact: true });
+  await right.click();
+  const rotated = await download(stl);
+  expect(rotated).not.toEqual(before);
+  expect(rotated.readUInt32LE(80)).toBe(before.readUInt32LE(80));
+  const rotatedFile = await download(file);
+  expect(JSON.parse(rotatedFile.toString()).points).toEqual(
+    basePoints.map(([x, y]: number[]) => [-y! || 0, x!]),
+  );
+  await panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(stl)).toEqual(before);
+  await panel.getByRole('button', { name: 'بازانجام ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(stl)).toEqual(rotated);
+  await left.click();
+  await mirror.click();
+  expect(JSON.parse((await download(file)).toString()).points).toEqual(
+    basePoints.map(([x, y]: number[]) => [-x! || 0, y!]).reverse(),
+  );
+  await mirror.click();
+  await panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true }).setInputFiles({
+    name: 'rotated.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: rotatedFile,
+  });
+  await expect(
+    panel.getByRole('spinbutton', { name: 'مختصات افقی گوشهٔ قائم‌الزاویه (mm)', exact: true }),
+  ).toHaveValue('30');
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeEnabled();
+  expect(await download(stl)).toEqual(rotated);
+  await panel
+    .getByRole('spinbutton', { name: 'مختصات افقی گوشهٔ قائم‌الزاویه (mm)', exact: true })
+    .fill('15');
+  await expect(right).toBeDisabled();
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeDisabled();
+  await panel.getByRole('button', { name: 'لغو ویرایش گوشهٔ قائم‌الزاویه', exact: true }).click();
+  await expect(right).toBeEnabled();
+  expect(await download(stl)).toEqual(rotated);
+  await panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true }).setInputFiles({
+    name: 'bad.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{}'),
+  });
+  await expect(right).toBeDisabled();
+  await expect(mirror).toBeDisabled();
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

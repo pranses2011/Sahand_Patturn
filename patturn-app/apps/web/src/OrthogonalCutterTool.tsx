@@ -1,3 +1,4 @@
+import { transformOrthogonalContour, type OrthogonalTransform } from './orthogonal-transform';
 import { tracedOrthogonalCutterGeometry } from './traced-cutter';
 import { OrthogonalDragEditor } from './OrthogonalDragEditor';
 import { OrthogonalNotchEditor } from './OrthogonalNotchEditor';
@@ -147,6 +148,38 @@ export function OrthogonalCutterTool({
           >
             {text.historyRedo}
           </button>
+          <fieldset disabled={busy || failed || dragging || draftDirty || !geometry}>
+            <legend>{text.transformLegend}</legend>
+            <p className="hint">{text.transformHelp}</p>
+            {(['clockwise', 'counterclockwise', 'mirrorX', 'mirrorY'] as const).map(
+              (operation: OrthogonalTransform) => (
+                <button
+                  key={operation}
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    if (busy || failed || dragging || draftDirty || !geometry) return;
+                    try {
+                      const next = transformOrthogonalContour(points, operation, {
+                        heightMm,
+                        wallMm,
+                        tipMm,
+                      });
+                      dispatch({ type: 'edit', points: next });
+                      setError('');
+                      setDraftDirty(false);
+                      setEditorRevision((value) => value + 1);
+                    } catch {
+                      setDraftDirty(true);
+                      setError(text.transformError);
+                    }
+                  }}
+                >
+                  {text[operation]}
+                </button>
+              ),
+            )}
+          </fieldset>
           {(['L', 'U'] as const).map((name) => (
             <button
               key={name}

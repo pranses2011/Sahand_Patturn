@@ -641,3 +641,27 @@ test('orthogonal outward tab controls and validation errors are accessible at 32
   ).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal rotation and reflection controls support keyboard and narrow reflow', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const rotate = panel.getByRole('button', { name: 'چرخش کاتر ۹۰ درجه به راست', exact: true });
+  await rotate.focus();
+  await page.keyboard.press('Enter');
+  await expect(rotate).toBeFocused();
+  await expect(
+    panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  const mirror = panel.getByRole('button', { name: 'قرینهٔ عمودی کاتر قائم‌الزاویه', exact: true });
+  await mirror.focus();
+  await page.keyboard.press('Enter');
+  await expect(mirror).toBeFocused();
+  await audit(page, info, 'orthogonal-transform-320');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
