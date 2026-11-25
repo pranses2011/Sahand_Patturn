@@ -330,3 +330,77 @@ describe('Build ZIP', () => {
     expect(unzipSync(result.bytes!)['COM10.txt']).toEqual(new Uint8Array([1]));
   });
 });
+
+describe('generated orthogonal cutter DXF bundle boundaries', () => {
+  const boundary = () => ({
+    path: 'boundaries/cutter.dxf',
+    points: [
+      [0, 0],
+      [80, 0],
+      [80, 30],
+      [30, 30],
+      [30, 80],
+      [0, 80],
+    ] as [number, number][],
+    options: { heightMm: 20, wallMm: 1.6, tipMm: 0.6 },
+  });
+  it('generates explicit mm DXF and accounts for it in the manifest', async () => {
+    const result = await toBuildZip({ ...input(), orthogonalCutterBoundaries: [boundary()] });
+    expect(result.ok, result.error).toBe(true);
+    const files = unzipSync(result.bytes!),
+      dxf = files['boundaries/cutter.dxf']!;
+    expect(new DxfParser().parseSync(strFromU8(dxf))!.header['$INSUNITS']).toBe(4);
+    expect(JSON.parse(strFromU8(files['manifest.json']!)).files).toContainEqual({
+      path: 'boundaries/cutter.dxf',
+      bytes: dxf.byteLength,
+    });
+  });
+  it.each([
+    {
+      name: 'traversal',
+      entry: { ...boundary(), path: '../cutter.dxf' },
+      error: 'BUNDLE_UNSAFE_PATH',
+    },
+    {
+      name: 'extension',
+      entry: { ...boundary(), path: 'cutter.exe' },
+      error: 'BUNDLE_DXF_EXTENSION',
+    },
+    {
+      name: 'geometry',
+      entry: { ...boundary(), options: { heightMm: 20, wallMm: 12, tipMm: 0.6 } },
+      error: 'ORTHOGONAL_CUTTER_DXF_INVALID_GEOMETRY',
+    },
+  ])('rejects $name atomically', async ({ entry, error }) => {
+    const result = await toBuildZip({ ...input(), orthogonalCutterBoundaries: [entry] });
+    expect(result.ok).toBe(false);
+    expect(result.bytes).toBeUndefined();
+    expect(result.error).toContain(error);
+  });
+  it('applies duplicate and total file limits to generated boundaries', async () => {
+    for (const [entries, error] of [
+      [[boundary(), boundary()], 'BUNDLE_DUPLICATE_PATH'],
+      [
+        Array.from({ length: BUNDLE_LIMITS.files }, (_, i) => ({
+          ...boundary(),
+          path: `${i}.dxf`,
+        })),
+        'BUNDLE_TOO_MANY_FILES',
+      ],
+    ] as const) {
+      const result = await toBuildZip({ ...input(), orthogonalCutterBoundaries: [...entries] });
+      expect(result.ok).toBe(false);
+      expect(result.bytes).toBeUndefined();
+      expect(result.error).toContain(error);
+    }
+  });
+  it('still rejects raw DXF sidecars rather than bypassing generated geometry validation', async () => {
+    const result = await toBuildZip({
+      ...input(),
+      files: [{ path: 'raw.dxf', bytes: new TextEncoder().encode('not validated') }],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.bytes).toBeUndefined();
+    expect(result.error).toContain('BUNDLE_EXTRA_EXTENSION');
+  });
+});

@@ -40,6 +40,9 @@ for (const name of optionalTools) {
   const key = keys.find((key) => key.endsWith(`/${name}.tsx`));
   if (!key || editor.has(key)) throw Error(`OPTIONAL_TOOL_NOT_LAZY: ${name}`);
 }
+const cutterBundle = keys.find((key) => key.endsWith('/orthogonal-cutter-bundle.ts'));
+if (!cutterBundle || !manifest[cutterBundle].isDynamicEntry || editor.has(cutterBundle))
+  throw Error('CUTTER_BUNDLE_NOT_LAZY');
 const sqliteHistory = keys.find((key) => key.endsWith('/sqlite-history.ts'));
 if (!sqliteHistory || editor.has(sqliteHistory)) throw Error('SQLITE_HISTORY_NOT_LAZY');
 const moldEngine = keys.find((key) => manifest[key].name === 'csg');
@@ -62,6 +65,7 @@ console.log(
       note: 'Viewport is requested on first render. PDF, WASM, workers and optional imports excluded. Not an LCP measurement.',
       pdfAndFontLazy: true,
       toolPdfExportersLazy: true,
+      cutterBundleLazy: true,
       sqliteHistoryLazy: true,
       moldEngineLazy: true,
       optionalToolsLazy: optionalTools,

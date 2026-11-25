@@ -130,8 +130,8 @@ export function OrthogonalCutterTool({
     sourceContours,
     editorMode,
   ]);
-  const pdfSource = useRef(geometry);
-  pdfSource.current = geometry;
+  const exportSource = useRef(geometry);
+  exportSource.current = geometry;
   const [pdfBusy, setPdfBusy] = useState(false);
   const pdfRequest = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -153,7 +153,7 @@ export function OrthogonalCutterTool({
         { heightMm, wallMm, tipMm },
         controller.signal,
       );
-      if (pdfRequest.current !== controller || pdfSource.current !== geometry) return;
+      if (pdfRequest.current !== controller || exportSource.current !== geometry) return;
       if (controller.signal.aborted) setError(text.pdfCancelled);
       else if (!result.ok || !result.bytes) setError(text.pdfError);
       else onExport(result.filename, result.bytes);
@@ -163,6 +163,49 @@ export function OrthogonalCutterTool({
       if (pdfRequest.current === controller) {
         pdfRequest.current = null;
         setPdfBusy(false);
+      }
+    }
+  }
+  const [zipBusy, setZipBusy] = useState(false);
+  const zipRequest = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setZipBusy(false);
+    return () => {
+      zipRequest.current?.abort();
+      zipRequest.current = null;
+    };
+  }, [geometry]);
+  async function downloadZip() {
+    if (!geometry || zipRequest.current) return;
+    const controller = new AbortController();
+    zipRequest.current = controller;
+    setZipBusy(true);
+    setError('');
+    try {
+      // Snapshot before even importing the optional archive implementation.
+      const file = writeOrthogonalCutterFile({
+        format: 'patturn-orthogonal-cutter',
+        version: 1,
+        units: 'mm',
+        heightMm,
+        wallMm,
+        tipMm,
+        points: geometry.profile.points,
+      });
+      const { toOrthogonalCutterBundle } = await import('./orthogonal-cutter-bundle');
+      if (zipRequest.current !== controller || exportSource.current !== geometry) return;
+      const result = await toOrthogonalCutterBundle(file, text.zipInstructions, controller.signal);
+      if (zipRequest.current !== controller || exportSource.current !== geometry) return;
+      if (controller.signal.aborted) setError(text.zipCancelled);
+      else if (!result.ok || !result.bytes) setError(text.zipError);
+      else onExport(result.filename, result.bytes);
+    } catch {
+      if (zipRequest.current === controller && exportSource.current === geometry)
+        setError(text.zipError);
+    } finally {
+      if (zipRequest.current === controller) {
+        zipRequest.current = null;
+        setZipBusy(false);
       }
     }
   }
@@ -741,6 +784,20 @@ export function OrthogonalCutterTool({
       {pdfBusy && (
         <button type="button" className="btn" onClick={() => pdfRequest.current?.abort()}>
           {text.pdfCancel}
+        </button>
+      )}
+      <p className="hint">{text.zipHelp}</p>
+      <button
+        type="button"
+        className="btn"
+        disabled={!geometry || zipBusy}
+        onClick={() => void downloadZip()}
+      >
+        {zipBusy ? text.zipBusy : text.zipDownload}
+      </button>
+      {zipBusy && (
+        <button type="button" className="btn" onClick={() => zipRequest.current?.abort()}>
+          {text.zipCancel}
         </button>
       )}
       <p className="hint">{sourceMode ? text.traceFileHelp : text.fileHelp}</p>

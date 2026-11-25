@@ -1,6 +1,6 @@
 import DxfParser from 'dxf-parser';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { gunzipSync, strFromU8 } from 'fflate';
+import { gunzipSync, unzipSync, strFromU8 } from 'fflate';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
@@ -6786,4 +6786,133 @@ test('orthogonal cutter DXF downloads an exact closed mm boundary and obeys geom
   await expect(dxf).toBeDisabled();
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
+
+test('orthogonal independent ZIP is lazy and cancellable, contains a consistent restorable tool snapshot', async ({
+  page,
+}) => {
+  let release!: () => void, seen!: () => void;
+  const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+    requested = new Promise<void>((resolve) => {
+      seen = resolve;
+    });
+  let first = true;
+  await page.route('**/orthogonal-cutter-bundle-*.js', async (route) => {
+    if (first) {
+      first = false;
+      seen();
+      await gate;
+    }
+    await route.continue();
+  });
+  const requests: string[] = [],
+    downloads: string[] = [];
+  page.on('request', (req) => {
+    if (req.url().includes('orthogonal-cutter-bundle-')) requests.push(req.url());
+  });
+  page.on('download', (file) => downloads.push(file.suggestedFilename()));
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  expect(requests).toEqual([]);
+  const zip = panel.getByRole('button', {
+    name: 'دانلود ZIP مستقل کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  const undo = panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true });
+  await zip.click();
+  await requested;
+  await panel.getByRole('button', { name: 'لغو ZIP کاتر قائم‌الزاویه', exact: true }).click();
+  release();
+  await expect(panel.getByRole('alert')).toContainText('ساخت ZIP کاتر لغو شد');
+  expect(downloads).toEqual([]);
+  await expect(zip).toBeEnabled();
+  const pending = page.waitForEvent('download');
+  await zip.click();
+  const file = await pending;
+  expect(file.suggestedFilename()).toBe('orthogonal-cutter_build_mm.zip');
+  const entries = unzipSync(await readFile((await file.path())!));
+  expect(Object.keys(entries).sort()).toEqual([
+    'README.txt',
+    'boundaries/inner.dxf',
+    'boundaries/inner.svg',
+    'cutter.orthogonal.json',
+    'manifest.json',
+    'parts/cutter.stl',
+  ]);
+  const saved = JSON.parse(strFromU8(entries['cutter.orthogonal.json']!));
+  expect(saved.heightMm).toBe(20);
+  expect(saved.wallMm).toBe(1.6);
+  expect(strFromU8(entries['README.txt']!)).toContain('تماس غذایی');
+  expect(
+    new DxfParser().parseSync(strFromU8(entries['boundaries/inner.dxf']!))!.header['$INSUNITS'],
+  ).toBe(4);
+  expect(entries['parts/cutter.stl']!.length).toBe(84 + 84 * 50);
+  await expect(undo).toBeDisabled();
+  await panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true }).setInputFiles({
+    name: 'restored.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(entries['cutter.orthogonal.json']!),
+  });
+  await expect(zip).toBeEnabled();
+  await panel
+    .getByRole('spinbutton', { name: 'مختصات افقی گوشهٔ قائم‌الزاویه (mm)', exact: true })
+    .fill('24');
+  await expect(zip).toBeDisabled();
+  await panel.getByRole('button', { name: 'لغو ویرایش گوشهٔ قائم‌الزاویه', exact: true }).click();
+  await expect(zip).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
+
+test('orthogonal ZIP suppresses an old snapshot after geometry changes during module loading', async ({
+  page,
+}) => {
+  let release!: () => void, seen!: () => void;
+  const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+    requested = new Promise<void>((resolve) => {
+      seen = resolve;
+    });
+  await page.route('**/orthogonal-cutter-bundle-*.js', async (route) => {
+    seen();
+    await gate;
+    await route.continue();
+  });
+  const downloads: string[] = [];
+  page.on('download', (file) => downloads.push(file.suggestedFilename()));
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const zip = panel.getByRole('button', {
+    name: 'دانلود ZIP مستقل کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  await zip.click();
+  await requested;
+  const height = panel
+    .locator('.ctl')
+    .filter({ hasText: 'ارتفاع کاتر قائم‌الزاویه' })
+    .locator('input.num');
+  await height.fill('25');
+  await height.press('Tab');
+  await expect(zip).toBeEnabled();
+  release();
+  const pending = page.waitForEvent('download');
+  await zip.click();
+  const file = await pending;
+  const entries = unzipSync(await readFile((await file.path())!));
+  expect(JSON.parse(strFromU8(entries['cutter.orthogonal.json']!)).heightMm).toBe(25);
+  expect(downloads).toEqual([file.suggestedFilename()]);
+  await panel
+    .getByRole('button', { name: 'حالت رسم عددی کانتور قائم‌الزاویه', exact: true })
+    .click();
+  await expect(zip).toBeDisabled();
 });

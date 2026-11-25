@@ -2,7 +2,8 @@ import { BUNDLE_LIMITS, createBundleBudget } from './bundle-budget.js';
 export { BUNDLE_LIMITS } from './bundle-budget.js';
 import { toDxf } from './dxf.js';
 import { zip, strToU8, type Zippable } from 'fflate';
-import type { Mesh } from '@patturn/kernel';
+import type { Mesh, CutterPoint, ConvexCutterOptions } from '@patturn/kernel';
+import { toOrthogonalCutterDxf } from './orthogonal-cutter-dxf.js';
 import { toObj, type ObjPart } from './obj.js';
 import { toBinaryStl, exportName, type ExportResult } from './index.js';
 
@@ -16,6 +17,12 @@ export interface BuildBundle {
     paths: { d: string; fill?: boolean }[];
     bounds: { width: number; height: number };
     bezierToleranceMm?: number;
+  }[];
+  /** Generated/validated DXF only; raw DXF sidecars remain forbidden. */
+  orthogonalCutterBoundaries?: {
+    path: string;
+    points: readonly CutterPoint[];
+    options: ConvexCutterOptions;
   }[];
   assemblies?: { path: string; parts: ObjPart[] }[];
 }
@@ -68,10 +75,17 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
       input.meshes.length +
       (input.assemblies?.length ?? 0) +
       (input.dxfPatterns?.length ?? 0) +
+      (input.orthogonalCutterBoundaries?.length ?? 0) +
       (input.files?.length ?? 0) +
       2;
     if (fileCount > BUNDLE_LIMITS.files) throw new Error('BUNDLE_TOO_MANY_FILES');
-    for (const group of [input.meshes, input.assemblies, input.dxfPatterns, input.files]) {
+    for (const group of [
+      input.meshes,
+      input.assemblies,
+      input.dxfPatterns,
+      input.orthogonalCutterBoundaries,
+      input.files,
+    ]) {
       for (const item of group ?? []) reservePath(item.path);
     }
     // Reject already-known excess before generating geometry output or copying buffers.
@@ -94,6 +108,12 @@ export async function toBuildZip(input: BuildBundle, signal?: AbortSignal): Prom
       const output = toDxf(item.paths, item.bounds, { bezierToleranceMm: item.bezierToleranceMm });
       if (!output.ok) throw new Error(`${item.path}:${output.error}`);
       add(item.path, output.bytes!);
+    }
+    for (const item of input.orthogonalCutterBoundaries ?? []) {
+      if (!item.path.toLowerCase().endsWith('.dxf')) throw new Error('BUNDLE_DXF_EXTENSION');
+      const output = toOrthogonalCutterDxf(item.points, item.options);
+      if (!output.ok || !output.bytes) throw new Error(output.error ?? 'ORTHOGONAL_BUNDLE_INVALID');
+      add(item.path, output.bytes);
     }
     for (const item of input.files ?? []) {
       // Extra files must not bypass STL validation or introduce arbitrary archives.
