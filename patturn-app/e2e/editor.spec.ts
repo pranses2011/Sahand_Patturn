@@ -1,3 +1,4 @@
+import DxfParser from 'dxf-parser';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { gunzipSync, strFromU8 } from 'fflate';
 import { test, expect } from '@playwright/test';
@@ -6714,4 +6715,75 @@ test('orthogonal cutter PDF suppresses an old snapshot when settings change duri
   await expect(pdf).toBeDisabled();
   await panel.getByRole('button', { name: 'لغو رسم و حفظ کانتور قبلی', exact: true }).click();
   await expect(pdf).toBeEnabled();
+});
+
+test('orthogonal cutter DXF downloads an exact closed mm boundary and obeys geometry guards', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const dxf = panel.getByRole('button', { name: 'دانلود DXF مرز کاتر قائم‌الزاویه', exact: true });
+  const undo = panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true });
+  await expect(undo).toBeDisabled();
+  const pending = page.waitForEvent('download');
+  await dxf.click();
+  const file = await pending;
+  expect(file.suggestedFilename()).toBe('orthogonal-cutter_inner-boundary_W80-D80mm.dxf');
+  const doc = new DxfParser().parseSync(await readFile((await file.path())!, 'utf8'))!;
+  expect(doc.header['$INSUNITS']).toBe(4);
+  expect(doc.entities).toHaveLength(1);
+  const entity = doc.entities[0] as unknown as {
+    shape: boolean;
+    vertices: { x: number; y: number }[];
+  };
+  expect(entity.shape).toBe(true);
+  expect(entity.vertices.map((p) => [p.x, p.y])).toEqual([
+    [0, 0],
+    [80, 0],
+    [80, 30],
+    [30, 30],
+    [30, 80],
+    [0, 80],
+  ]);
+  await expect(undo).toBeDisabled();
+  await panel
+    .getByRole('spinbutton', { name: 'مختصات افقی گوشهٔ قائم‌الزاویه (mm)', exact: true })
+    .fill('24');
+  await expect(dxf).toBeDisabled();
+  await panel.getByRole('button', { name: 'لغو ویرایش گوشهٔ قائم‌الزاویه', exact: true }).click();
+  await expect(dxf).toBeEnabled();
+  const tip = panel
+    .locator('.ctl')
+    .filter({ hasText: 'ضخامت لبهٔ کاتر قائم‌الزاویه' })
+    .locator('input.num');
+  const wall = panel
+    .locator('.ctl')
+    .filter({ hasText: 'ضخامت دیوارهٔ کاتر قائم‌الزاویه' })
+    .locator('input.num');
+  await wall.fill('0.8');
+  await wall.press('Tab');
+  await tip.fill('1.2');
+  await tip.press('Tab');
+  await expect(dxf).toBeDisabled();
+  await tip.fill('0.6');
+  await tip.press('Tab');
+  await expect(dxf).toBeEnabled();
+  await panel
+    .getByRole('button', { name: 'حالت رسم عددی کانتور قائم‌الزاویه', exact: true })
+    .click();
+  await expect(dxf).toBeDisabled();
+  await panel.getByRole('button', { name: 'لغو رسم و حفظ کانتور قبلی', exact: true }).click();
+  await expect(dxf).toBeEnabled();
+  await panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true }).setInputFiles({
+    name: 'bad.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{}'),
+  });
+  await expect(dxf).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });

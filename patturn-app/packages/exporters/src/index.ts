@@ -139,3 +139,5 @@ export {
   toLazyOrthogonalCutterPdf as toOrthogonalCutterPdf,
   toLazyRibPdf as toRibPdf,
 } from './lazy-tool-pdf.js';
+
+export { toOrthogonalCutterDxf } from './orthogonal-cutter-dxf.js';

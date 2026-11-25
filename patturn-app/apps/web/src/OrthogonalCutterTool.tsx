@@ -26,6 +26,7 @@ import {
 import {
   toBinaryStl,
   toOrthogonalCutterSvg,
+  toOrthogonalCutterDxf,
   toLazyOrthogonalCutterPdf as toOrthogonalCutterPdf,
   exportName,
 } from '@patturn/exporters';
@@ -705,6 +706,28 @@ export function OrthogonalCutterTool({
         }}
       >
         {text.fileSave}
+      </button>
+      <p className="hint">{text.dxfHelp}</p>
+      <button
+        type="button"
+        className="btn"
+        disabled={!geometry}
+        onClick={() => {
+          if (!geometry) return;
+          const result = toOrthogonalCutterDxf(geometry.profile.points, {
+            heightMm,
+            wallMm,
+            tipMm,
+          });
+          if (!result.ok || !result.bytes) {
+            setError(text.dxfError);
+            return;
+          }
+          setError('');
+          onExport(result.filename, result.bytes);
+        }}
+      >
+        {text.dxfSave}
       </button>
       <p className="hint">{text.pdfHelp}</p>
       <button
