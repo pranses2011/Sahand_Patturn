@@ -9,7 +9,7 @@
     "apps/*"
   ],
   "scripts": {
-    "test": "vitest run && node --test scripts/installer-checksums.test.mjs scripts/bundle-graph.test.mjs scripts/lint-config.test.mjs scripts/release-metadata.test.mjs scripts/release-gate.test.mjs",
+    "test": "vitest run && node --test scripts/installer-checksums.test.mjs scripts/bundle-graph.test.mjs scripts/bundle-metrics.test.mjs scripts/lint-config.test.mjs scripts/release-metadata.test.mjs scripts/release-gate.test.mjs",
     "test:watch": "vitest",
     "typecheck": "node scripts/typecheck.mjs",
     "build": "npm run build -w @patturn/web",
@@ -18,6 +18,7 @@
     "desktop:build": "npm run tauri build -w @patturn/desktop",
     "desktop:check": "npm run tauri -w @patturn/desktop -- build --no-bundle",
     "bundle:report": "node scripts/bundle-report.mjs",
+    "bundle:check": "node scripts/bundle-report.mjs --enforce-budget",
     "desktop:installer": "npm run tauri -w @patturn/desktop -- build --ci --bundles nsis",
     "installer:checksums": "node scripts/installer-checksums.mjs",
     "test:e2e": "playwright test",

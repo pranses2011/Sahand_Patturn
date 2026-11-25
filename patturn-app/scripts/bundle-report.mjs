@@ -1,26 +1,19 @@
-import { staticGraph, graphFiles } from './bundle-graph.mjs';
+import { staticGraph } from './bundle-graph.mjs';
+import { measureGraph, budgetResult, incrementalGraph } from './bundle-metrics.mjs';
 // Build artifact report, not a browser LCP or network performance measurement.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { gzipSync } from 'node:zlib';
+const enforcing = process.argv.includes('--enforce-budget');
+if (process.argv.slice(2).some((arg) => arg !== '--enforce-budget'))
+  throw Error('UNKNOWN_BUNDLE_REPORT_ARGUMENT');
 const folder = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
 const manifest = JSON.parse(readFileSync(path.join(folder, '.vite/manifest.json'), 'utf8'));
 const keys = Object.keys(manifest);
 const entry = keys.find((key) => manifest[key].isEntry);
 if (!entry) throw new Error('BUILD_ENTRY_MISSING');
 function summary(graph) {
-  const files = graphFiles(manifest, graph);
-  return files.reduce(
-    (result, file) => {
-      const bytes = readFileSync(path.join(folder, file));
-      return {
-        rawBytes: result.rawBytes + bytes.length,
-        gzipBytes: result.gzipBytes + gzipSync(bytes).length,
-      };
-    },
-    { rawBytes: 0, gzipBytes: 0 },
-  );
+  return measureGraph(manifest, graph, (file) => readFileSync(path.join(folder, file)));
 }
 const core = staticGraph(manifest, entry);
 const viewport = keys.find((key) => key.endsWith('/Viewport.tsx'));
@@ -64,13 +57,8 @@ console.log(
       schemaVersion: 1,
       entryStaticJs: summary(core),
       editorIncludingLazyViewportJs: editorSummary,
-      roadmapBudget: {
-        limitRawBytes: 600_000,
-        actualRawBytes: editorSummary.rawBytes,
-        met: editorSummary.rawBytes < 600_000,
-        scope: 'editorIncludingLazyViewportJs',
-        enforcing: false,
-      },
+      viewportAdditionalJs: summary(incrementalGraph(manifest, viewerGraph, core)),
+      roadmapBudget: budgetResult(editorSummary.rawBytes, 600_000, enforcing),
       note: 'Viewport is requested on first render. PDF, WASM, workers and optional imports excluded. Not an LCP measurement.',
       pdfAndFontLazy: true,
       toolPdfExportersLazy: true,
@@ -82,3 +70,8 @@ console.log(
     2,
   ),
 );
+
+if (enforcing && !budgetResult(editorSummary.rawBytes).met) {
+  console.error('EDITOR_BUNDLE_BUDGET_EXCEEDED');
+  process.exitCode = 1;
+}
