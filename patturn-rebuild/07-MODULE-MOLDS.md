@@ -344,3 +344,14 @@ vase_project/
 ---
 
 ➡️ ادامه در [`08-MODULE-TOOLS.md`](./08-MODULE-TOOLS.md)
+
+
+---
+
+## هم‌زیستی قالب‌سازی با STEP و relief/Wrap
+
+طبق [SV-32…SV-39](16-SOLIDVENTS-SPEC.md)، draft و fillet و depth جدید باید به ابزار قالب کمک کنند، اما «STEP export موفق» به معنی رهاسازی قطعه یا ایمنی قالب نیست. offset هر پروفایل برای self-intersection، خروج حلقهٔ داخلی و collapse بررسی و موضع خطا highlight شود.
+
+سطوح raised/recessed/through و پروفایل Square/Peak/V/Rounded/Dome/Smooth ممکن است undercut یا کمبود ضخامت بسازند؛ پس draft، جهت خروج، ضخامت باقیمانده، جزایر و مرزهای چندوجهی وارد گزارش ساخت شوند. mother mold و کلید/راهگاه/تقسیم و محاسبات گچ قبلی حفظ شوند. تغییر واحد STEP و tolerance نباید ابعاد mm یا shrinkage را دوباره اعمال کند.
+
+گیت تکمیل: topology check + بررسی CAD + آزمون فیزیکی مناسب ماده/فرآیند. بند 6.6 مادرقالب تا اثبات فیزیکی باز می‌ماند؛ برچسب beta Wrap مجوز حذف این گیت نیست.
