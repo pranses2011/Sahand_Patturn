@@ -284,3 +284,20 @@ function tilePattern(paths: PathSpec[], tile: Tile, canvas: {w:number;h:number})
 ---
 
 ➡️ ادامه در [`07-MODULE-MOLDS.md`](./07-MODULE-MOLDS.md)
+
+
+---
+
+## توسعهٔ الزامی SolidVents: layout، کنترلر و شکل مستقل
+
+قرارداد کامل و پذیرش هر قابلیت در [SV-01…SV-31](16-SOLIDVENTS-SPEC.md) است. کتابخانهٔ pattern آمادهٔ فعلی معادل موتور layout/controller نیست و با افزودن یک preset نمی‌توان ID را بست.
+
+- ۹ layout: scatter، grid/hex و cross-row spin، path، spiral، concentric، Fibonacci، cross-hatch، Voronoi stone و flow lines. AI Custom یک حالت دهم مستقل با DSL محدود است.
+- واحد: circle/rectangle/polygon/star/custom؛ path/shape/boundary و controller را از هم جدا نگه دار. تغییر layout recipe مشترک را پاک نکند.
+- ۴ کانال: size/spacing/angle/shape با point/line/curve/polyline/closed، target/range، sync هندسه، unify value/range و advancedهای سازگار.
+- تصویر محلی با opacity/scale/position؛ luminance/invert/contrast برای چهار کانال و خروجی vector واقعی. sampling، alpha و خارج کادر قرارداد صریح دارند.
+- Flow: width/density/bend، direction تک‌کنترلر و fillet و caps و invert gaps؛ گزینهٔ hard-edge یا single-side ناسازگار در spacing/bend غیرفعال. Voronoi فقط کانال‌های معنی‌دار را فعال کند.
+- Custom editor: primitive dimensions، pen/select/direct select، layers و boolean، pivot/locks، editable fillet، mirror ۲–۱۲، snap، base/target topology و rigid rotation morph.
+- خروجی و preview از canonical geometry؛ boundary complete-area و clip براساس تمام منحنی؛ overlap union قبل DXF/STEP. JSON/SVG recipe roundtrip بدون اجرای کد.
+
+گیت‌های کلیدی: deterministic seed، فاصلهٔ طول‌قوس، controller distance oracle، دوران 180° بدون collapse، fixed+target، donut و cross-face، cancel/stale و local-only audit. CSV/تصویر تزئینی جای بردار/CAD واقعی نیست.
