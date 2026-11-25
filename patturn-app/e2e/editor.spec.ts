@@ -2166,6 +2166,9 @@ test('a retained bridge changes traced output geometry and resets on scale chang
 test('update checking is opt-in and only offers trusted repository installer links', async ({
   page,
 }) => {
+  const metadata = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const futureVersion = `${Number(metadata.version.split('.')[0]) + 1}.0.0`;
+  const installer = `Patturn_${futureVersion}_x64.exe`;
   let requests = 0;
   await page.route(
     'https://api.github.com/repos/pranses2011/Sahand_Patturn/releases/latest',
@@ -2173,12 +2176,12 @@ test('update checking is opt-in and only offers trusted repository installer lin
       requests++;
       await route.fulfill({
         json: {
-          tag_name: 'v0.2.0',
+          tag_name: `v${futureVersion}`,
           draft: false,
           prerelease: false,
           assets: [
             {
-              name: 'Patturn_0.2.0_x64.exe',
+              name: installer,
               size: 2048,
               browser_download_url: 'https://evil.invalid/bad.exe',
             },
@@ -2197,11 +2200,14 @@ test('update checking is opt-in and only offers trusted repository installer lin
   expect(requests).toBe(1);
   await expect(panel.getByRole('link', { name: /دریافت نصب‌کننده:/ })).toHaveAttribute(
     'href',
-    'https://github.com/pranses2011/Sahand_Patturn/releases/download/v0.2.0/Patturn_0.2.0_x64.exe',
+    `https://github.com/pranses2011/Sahand_Patturn/releases/download/v${futureVersion}/${installer}`,
   );
   await expect(
     panel.getByRole('link', { name: 'یادداشت‌های انتشار جدید', exact: true }),
-  ).toHaveAttribute('href', 'https://github.com/pranses2011/Sahand_Patturn/releases/tag/v0.2.0');
+  ).toHaveAttribute(
+    'href',
+    `https://github.com/pranses2011/Sahand_Patturn/releases/tag/v${futureVersion}`,
+  );
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
 });
 

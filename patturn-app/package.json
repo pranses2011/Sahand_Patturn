@@ -1,15 +1,15 @@
 {
   "name": "patturn-app",
   "private": true,
-  "version": "0.1.0",
-  "description": "Patturn-style parametric pottery design tool \u2014 desktop (Windows, offline) first",
+  "version": "0.2.0",
+  "description": "Patturn-style parametric pottery design tool — desktop (Windows, offline) first",
   "type": "module",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
-    "test": "vitest run && node --test scripts/installer-checksums.test.mjs scripts/bundle-graph.test.mjs scripts/bundle-metrics.test.mjs scripts/lint-config.test.mjs scripts/release-metadata.test.mjs scripts/release-gate.test.mjs",
+    "test": "vitest run && node --test scripts/installer-checksums.test.mjs scripts/bundle-graph.test.mjs scripts/bundle-metrics.test.mjs scripts/version-bump.test.mjs scripts/package-web.test.mjs scripts/lint-config.test.mjs scripts/release-metadata.test.mjs scripts/release-gate.test.mjs",
     "test:watch": "vitest",
     "typecheck": "node scripts/typecheck.mjs",
     "build": "npm run build -w @patturn/web",
@@ -24,6 +24,8 @@
     "test:e2e": "playwright test",
     "performance:measure": "npm run build && playwright test --config playwright.performance.config.ts",
     "lint": "eslint . --max-warnings=0",
+    "version:bump": "node scripts/version-bump.mjs",
+    "release:web": "npm run build && node scripts/package-web.mjs",
     "release:check": "node scripts/release-metadata.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

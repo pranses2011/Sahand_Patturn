@@ -1,13 +1,13 @@
 {
   "name": "@patturn/storage",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "dependencies": {
-    "@patturn/config": "^0.1.0",
-    "@patturn/schema": "^0.1.0",
+    "@patturn/config": "^0.2.0",
+    "@patturn/schema": "^0.2.0",
     "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-fs": "^2.7.1",

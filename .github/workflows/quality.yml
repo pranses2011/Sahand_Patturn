@@ -3,10 +3,12 @@ on:
   push:
     paths:
       - 'patturn-app/**'
+      - 'patturn-rebuild/**'
       - '.github/workflows/quality.yml'
   pull_request:
     paths:
       - 'patturn-app/**'
+      - 'patturn-rebuild/**'
       - '.github/workflows/quality.yml'
   workflow_dispatch:
 permissions:
@@ -24,6 +26,8 @@ jobs:
         working-directory: patturn-app
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -31,6 +35,15 @@ jobs:
           cache-dependency-path: patturn-app/package-lock.json
       - run: npm ci
       - run: npm run release:check
+      - name: Require a new version for each completed push
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        env:
+          BASE_COMMIT: ${{ github.event.before }}
+        run: |
+          git fetch --no-tags origin "$BASE_COMMIT"
+          git show "$BASE_COMMIT:patturn-app/package.json" > .cache-base-package.json
+          node --input-type=module -e "import fs from 'node:fs'; import semver from 'semver'; const a=JSON.parse(fs.readFileSync('package.json')).version,b=JSON.parse(fs.readFileSync('.cache-base-package.json')).version; if(!semver.gt(a,b)) throw Error('RELEASE_VERSION_NOT_INCREASED');"
+          rm .cache-base-package.json
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
@@ -50,6 +63,25 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser smoke tests (disabled and software WebGL)
         run: npm run test:e2e
+      - name: Summarize browser failures as annotations
+        if: failure()
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const file='.cache/browser-results.json';
+          if(fs.existsSync(file)) {
+            const visit=suites=>suites.forEach(s=>{for(const spec of s.specs??[])for(const test of spec.tests??[])if(test.status==='unexpected')console.log('::error::'+(spec.title+' '+JSON.stringify(test.results.map(r=>r.errors))).replaceAll('%','%25').replaceAll('\n','%0A').replaceAll('\r','%0D'));visit(s.suites??[]);});
+            visit(JSON.parse(fs.readFileSync(file)).suites??[]);
+          }
+          JS
+      - name: Package web installation and manual-update files
+        run: node scripts/package-web.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-release
+          path: patturn-app/.cache/release/*
+          if-no-files-found: error
+          retention-days: 14
       - name: Keep local-only browser network audits (not installed Windows evidence)
         uses: actions/upload-artifact@v4
         if: always()
@@ -126,3 +158,43 @@ jobs:
             patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
             patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/README-WINDOWS-TEST.txt
             patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/build-info.json
+
+  publish-preview:
+    name: Publish downloadable experimental web and Windows files
+    needs: [web, windows]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/7ee0bed5-sahand-patturn'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-release
+          path: release-files
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-nsis-test
+          path: release-files
+      - name: Publish immutable versioned prerelease after both build jobs pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./patturn-app/package.json').version")
+          TAG="v$VERSION"
+          test -n "$(find release-files -maxdepth 1 -name '*.exe' -print -quit)"
+          test -f "release-files/patturn-web-$VERSION.zip"
+          rm -f release-files/SHA256SUMS.txt
+          (cd release-files && sha256sum *) > release-checksums.txt
+          mv release-checksums.txt release-files/SHA256SUMS.txt
+          cat > release-notes.txt <<EOF
+          نسخهٔ آزمایشی $VERSION — بدون امضای ناشر
+
+          فایل ZIP وب برای نصب روی سرور استاتیک و ارتقای دستی وب است. فایل EXE نصب‌کننده، برای نصب یا ارتقای دستی ویندوز همان نسخه است؛ پیش از ارتقا از پروژه‌ها پشتیبان بگیرید.
+          README-WEB.txt داخل ZIP و README-WINDOWS-TEST.txt را بخوانید و SHA256SUMS.txt را بررسی کنید.
+          این انتشار آپدیت خودکار امضاشده نیست. نصب/حذف عملی ویندوز، اجرای آفلاین نسخهٔ نصب‌شده، CAD/اسلایسر و ساخت فیزیکی تأیید نشده‌اند. نصب WebView2 ممکن است اینترنت بخواهد.
+          دو job آزمون وب و ساخت NSIS برای همین commit موفق‌اند؛ این به معنی عبور Release Gate نهایی یا تأیید نصب نیست.
+          Source: $GITHUB_SHA
+          CI: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          EOF
+          gh release create "$TAG" release-files/* --target "$GITHUB_SHA" --title "Patturn $VERSION — آزمایشی و بدون امضا" --notes-file release-notes.txt --prerelease --latest=false

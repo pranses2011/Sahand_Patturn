@@ -12,6 +12,7 @@ const alias = Object.fromEntries(
 );
 
 export default defineConfig({
+  base: './',
   plugins: [optionalMessages(), react()],
   resolve: {
     alias: {
