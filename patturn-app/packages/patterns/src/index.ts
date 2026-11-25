@@ -401,3 +401,6 @@ export {
 } from './rectangle-boolean.js';
 
 export { booleanOrthogonalPolygons } from './rectangle-boolean.js';
+
+export { createImageField, IMAGE_FIELD_ALGORITHM, IMAGE_FIELD_LIMITS } from './image-field';
+export type { ImageField, ImageFieldInput, ImageFieldPlacement } from './image-field';
