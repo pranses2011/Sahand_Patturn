@@ -1,7 +1,7 @@
 import { seedOrthogonalSketch } from './orthogonal-sketch';
 import { OrthogonalSketchEditor } from './OrthogonalSketchEditor';
 import { transformOrthogonalContour, type OrthogonalTransform } from './orthogonal-transform';
-import { tracedOrthogonalCutterGeometry } from './traced-cutter';
+import { tracedOrthogonalCutterGeometry, snapshotTracedOrthogonalCutter } from './traced-cutter';
 import { OrthogonalDragEditor } from './OrthogonalDragEditor';
 import { OrthogonalNotchEditor } from './OrthogonalNotchEditor';
 import { initialSketchHistory, sketchHistory } from './sketch-history';
@@ -9,7 +9,11 @@ import { historyShortcut } from './history-shortcut';
 import { preserveNativeUndo } from './native-undo';
 import { OrthogonalVertexEditor } from './OrthogonalVertexEditor';
 import { openOrthogonalContour } from './orthogonal-vertex';
-import { readOrthogonalCutterFile, writeOrthogonalCutterFile } from './orthogonal-cutter-file';
+import {
+  readOrthogonalCutterFile,
+  writeOrthogonalCutterFile,
+  type OrthogonalCutterFile,
+} from './orthogonal-cutter-file';
 import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import {
   buildOrthogonalCutter,
@@ -46,9 +50,13 @@ const samples: Record<'L' | 'U', readonly CutterPoint[]> = {
 export function OrthogonalCutterTool({
   onExport,
   sourceContours,
+  initialFile,
+  onCopy,
 }: {
   onExport: (name: string, bytes: Uint8Array) => void;
   sourceContours?: readonly (readonly CutterPoint[])[];
+  initialFile?: OrthogonalCutterFile;
+  onCopy?: (file: OrthogonalCutterFile) => void;
 }) {
   const [editorMode, setEditorMode] = useState<'corner' | 'notch' | 'drag' | 'draw'>('corner');
   const notchMode = editorMode === 'notch';
@@ -57,7 +65,11 @@ export function OrthogonalCutterTool({
   const [editorRevision, setEditorRevision] = useState(0);
   const [rectangleOutward, setRectangleOutward] = useState(false);
   const [sketchSeed, setSketchSeed] = useState<CutterPoint[]>([]);
-  const [history, dispatch] = useReducer(sketchHistory, samples.L, initialSketchHistory);
+  const [history, dispatch] = useReducer(
+    sketchHistory,
+    initialFile?.points ?? samples.L,
+    initialSketchHistory,
+  );
   const sourceMode = sourceContours !== undefined;
   const points =
     sourceContours === undefined
@@ -65,9 +77,9 @@ export function OrthogonalCutterTool({
       : sourceContours.length === 1
         ? sourceContours[0]!
         : [];
-  const [heightMm, setHeight] = useState(20),
-    [wallMm, setWall] = useState(1.6),
-    [tipMm, setTip] = useState(0.6);
+  const [heightMm, setHeight] = useState(initialFile?.heightMm ?? 20),
+    [wallMm, setWall] = useState(initialFile?.wallMm ?? 1.6),
+    [tipMm, setTip] = useState(initialFile?.tipMm ?? 0.6);
   const [busy, setBusy] = useState(false),
     [failed, setFailed] = useState(false),
     [error, setError] = useState('');
@@ -578,7 +590,65 @@ export function OrthogonalCutterTool({
         {text.fileSave}
       </button>
       <p className="hint">{sourceMode ? text.traceFileHelp : text.fileHelp}</p>
+      {sourceMode && onCopy && (
+        <button
+          type="button"
+          className="btn"
+          disabled={!geometry}
+          onClick={() => {
+            if (!geometry || sourceContours === undefined) return;
+            try {
+              onCopy(snapshotTracedOrthogonalCutter(sourceContours, { heightMm, wallMm, tipMm }));
+              setError('');
+            } catch {
+              setError(text.traceCopyError);
+            }
+          }}
+        >
+          {text.traceCopy}
+        </button>
+      )}
+
       {error && <p role="alert">{error}</p>}
     </div>
+  );
+}
+
+/** Copies are explicit and detached; changing source identity synchronously hides the old copy. */
+export function TracedOrthogonalCutterTool({
+  sourceContours,
+  onExport,
+}: {
+  sourceContours: readonly (readonly CutterPoint[])[];
+  onExport: (name: string, bytes: Uint8Array) => void;
+}) {
+  const [copy, setCopy] = useState<{
+    source: typeof sourceContours;
+    file: OrthogonalCutterFile;
+    id: number;
+  } | null>(null);
+  const serial = useRef(0);
+  useEffect(() => {
+    // Also release the snapshot so restoring an older source object cannot resurrect it.
+    setCopy((current) => (current?.source === sourceContours ? current : null));
+  }, [sourceContours]);
+  return (
+    <>
+      <OrthogonalCutterTool
+        sourceContours={sourceContours}
+        onExport={onExport}
+        onCopy={(file) => setCopy({ source: sourceContours, file, id: ++serial.current })}
+      />
+      {copy?.source === sourceContours && (
+        <section className="orthogonal-trace-copy" aria-label={text.traceCopyScope}>
+          <h3>{text.traceCopyScope}</h3>
+          <p className="hint">{text.traceCopyHelp}</p>
+          <button type="button" className="btn" onClick={() => setCopy(null)}>
+            {text.traceCopyDiscard}
+          </button>
+          <OrthogonalCutterTool key={copy.id} initialFile={copy.file} onExport={onExport} />
+        </section>
+      )}
+    </>
   );
 }

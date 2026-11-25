@@ -599,6 +599,13 @@ test('pixel-boundary trace and its live orthogonal cutter reflow and expose reje
     panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
   ).toBeEnabled();
   await audit(page, info, 'pixel-trace-orthogonal-live-320');
+  await panel
+    .getByRole('button', { name: 'ساخت نسخهٔ مستقل قابل‌ویرایش از کاتر تصویر', exact: true })
+    .click();
+  await expect(
+    panel.getByRole('region', { name: 'نسخهٔ مستقل قابل‌ویرایش کاتر تصویر', exact: true }),
+  ).toBeVisible();
+  await audit(page, info, 'pixel-trace-orthogonal-editable-copy-320');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
   await upload(true);
   await panel.locator('summary').click();

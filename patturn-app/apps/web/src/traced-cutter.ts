@@ -1,3 +1,4 @@
+import { validateOrthogonalCutterFile } from './orthogonal-cutter-file';
 import {
   buildConvexCutter,
   buildOrthogonalCutter,
@@ -27,4 +28,20 @@ export function tracedOrthogonalCutterGeometry(
   const profile = orthogonalCutterProfile(contours[0]!, options);
   const mesh = buildOrthogonalCutter(contours[0]!, options);
   return { profile, mesh, report: validateMesh(mesh) };
+}
+
+/** Detached settings snapshot, preserving every source coordinate and the current dimensions. */
+export function snapshotTracedOrthogonalCutter(
+  contours: readonly (readonly CutterPoint[])[],
+  options: ConvexCutterOptions,
+) {
+  const result = tracedOrthogonalCutterGeometry(contours, options);
+  if (!result.report.ok) throw Error('CUTTER_TRACE_INVALID_MESH');
+  return validateOrthogonalCutterFile({
+    format: 'patturn-orthogonal-cutter',
+    version: 1,
+    units: 'mm',
+    ...options,
+    points: contours[0],
+  });
 }

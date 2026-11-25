@@ -6032,3 +6032,107 @@ test('orthogonal existing contour copies to a translated editable draft without 
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('live orthogonal trace snapshots become editable independent copies and expire on source changes', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.getByText('ردیابی تصویر — Otsu و کانتور', { exact: true }).click();
+  const trace = page.locator('.image-trace-tool');
+  const pixel = trace.getByRole('checkbox', {
+    name: 'ردیابی مرز پیکسلی قائم‌الزاویه',
+    exact: true,
+  });
+  await pixel.check();
+  const upload = async (hole = false) => {
+    const image = await page.evaluate((hole) => {
+      const c = document.createElement('canvas');
+      c.width = 96;
+      c.height = 96;
+      const ctx = c.getContext('2d')!;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, 96, 96);
+      ctx.fillStyle = 'black';
+      ctx.fillRect(16, 16, 64, 24);
+      ctx.fillRect(16, 16, 24, 64);
+      if (hole) {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(22, 22, 10, 10);
+      }
+      return c.toDataURL('image/png').split(',')[1]!;
+    }, hole);
+    await trace.getByLabel('تصویر ردیابی', { exact: true }).setInputFiles({
+      name: 'trace.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(image, 'base64'),
+    });
+  };
+  await upload();
+  const panel = trace.locator('.traced-orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const live = panel.locator('.orthogonal-history-scope').first();
+  const copy = panel.getByRole('region', {
+    name: 'نسخهٔ مستقل قابل‌ویرایش کاتر تصویر',
+    exact: true,
+  });
+  const copyButton = live.getByRole('button', {
+    name: 'ساخت نسخهٔ مستقل قابل‌ویرایش از کاتر تصویر',
+    exact: true,
+  });
+  const stl = 'دانلود STL کاتر قائم‌الزاویه';
+  const download = async (target: typeof live, name: string) => {
+    const pending = page.waitForEvent('download');
+    await target.getByRole('button', { name, exact: true }).click();
+    return readFile((await (await pending).path())!);
+  };
+  const height = live.getByRole('spinbutton', { name: 'ارتفاع کاتر قائم‌الزاویه', exact: true });
+  await height.fill('24');
+  await height.press('Enter');
+  const original = await download(live, stl);
+  await copyButton.click();
+  await expect(copy).toBeVisible();
+  await expect(
+    copy.getByRole('spinbutton', { name: 'ارتفاع کاتر قائم‌الزاویه', exact: true }),
+  ).toHaveValue('24');
+  expect(await download(copy, stl)).toEqual(original);
+  await copy.getByRole('button', { name: 'چرخش کاتر ۹۰ درجه به راست', exact: true }).click();
+  const changed = await download(copy, stl);
+  expect(changed).not.toEqual(original);
+  expect(await download(live, stl)).toEqual(original);
+  await copy.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(copy, stl)).toEqual(original);
+  await height.fill('25');
+  await height.press('Enter');
+  await expect(
+    copy.getByRole('spinbutton', { name: 'ارتفاع کاتر قائم‌الزاویه', exact: true }),
+  ).toHaveValue('24');
+  await copyButton.click();
+  await expect(
+    copy.getByRole('spinbutton', { name: 'ارتفاع کاتر قائم‌الزاویه', exact: true }),
+  ).toHaveValue('25');
+  await expect(
+    copy.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  const width = trace.getByRole('spinbutton', { name: 'عرض مرجع تصویر', exact: true });
+  await width.fill('80');
+  await width.press('Enter');
+  await expect(copy).toHaveCount(0);
+  await copyButton.click();
+  await expect(copy).toBeVisible();
+  await pixel.uncheck();
+  await expect(copy).toHaveCount(0);
+  await expect(copyButton).toBeDisabled();
+  await pixel.check();
+  await copyButton.click();
+  await copy.getByRole('button', { name: 'کنارگذاشتن نسخهٔ مستقل کاتر تصویر', exact: true }).click();
+  await expect(copy).toHaveCount(0);
+  await copyButton.click();
+  await upload(true);
+  await expect(copy).toHaveCount(0);
+  await panel.locator('summary').click();
+  await expect(copyButton).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

@@ -7,7 +7,9 @@ import {
 const loadTracedCutter = () =>
   import('./CookieCutterTool').then((module) => ({ default: module.CookieCutterTool }));
 const loadTracedOrthogonalCutter = () =>
-  import('./OrthogonalCutterTool').then((module) => ({ default: module.OrthogonalCutterTool }));
+  import('./OrthogonalCutterTool').then((module) => ({
+    default: module.TracedOrthogonalCutterTool,
+  }));
 import { dxfErrorMessage } from './export-error';
 import { StampTool } from './StampTool';
 import { useEffect, useMemo, useRef, useState } from 'react';
