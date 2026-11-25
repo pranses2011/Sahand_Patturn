@@ -8,3 +8,7 @@ apps/desktop/src-tauri/gen/schemas/
 .cache/
 test-results/
 playwright-report/
+
+# Generated Cargo workspace version (authoritative version is package.json)
+/Cargo.toml
+/Cargo.lock
