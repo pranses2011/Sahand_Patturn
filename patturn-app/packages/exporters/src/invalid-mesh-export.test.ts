@@ -7,6 +7,17 @@ const tetra = (): Mesh => ({
 });
 const cases = [
   {
+    name: 'closed shells pinched at a shared indexed vertex',
+    break: (mesh: Mesh) => {
+      mesh.positions = new Float32Array([
+        0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 10, -10, 0, 0, 0, -10, 0, 0, 0, -10,
+      ]);
+      mesh.indices = new Uint32Array([
+        0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3, 0, 4, 5, 0, 6, 4, 0, 5, 6, 4, 6, 5,
+      ]);
+    },
+  },
+  {
     name: 'NaN coordinate',
     break: (mesh: Mesh) => {
       mesh.positions[0] = NaN;
