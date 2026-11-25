@@ -1,6 +1,6 @@
 [package]
 name = "patturn-desktop"
-version = "0.3.1"
+version.workspace = true
 description = "Patturn — parametric pottery design studio (offline, Windows first)"
 authors = ["سعید نجفی — سهند سرویس"]
 edition = "2021"
