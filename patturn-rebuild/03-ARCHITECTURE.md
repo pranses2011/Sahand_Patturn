@@ -289,3 +289,21 @@ type Mesh = {
 ---
 
 ➡️ ادامه در [`04-DATA-MODEL.md`](./04-DATA-MODEL.md)
+
+
+---
+
+## معماری افزودهٔ الگوی پیشرفته و CAD/Wrap
+
+مرجع نیازها: [SV-01…SV-50](16-SOLIDVENTS-SPEC.md). این بخش طرح معماری است؛ پکیج‌های پیشنهادی هنوز الزاماً ساخته نشده‌اند.
+
+- `schema`: recipe discriminated union برای layout/shape/controller/layer/morph و algorithmVersion؛ هندسهٔ محاسبه‌شده cache است نه منبع حقیقت.
+- `patterns`: layout samples + per-channel field evaluation و deterministic seed؛ pure functionها مستقل از React و شبکه.
+- `vector` پیشنهادی: segment/Bezier/arc، flatten tolerance، winding/boolean/clip و canonical snapshot. parser امن SVG/DXF shared با کاتر و tooling.
+- `cad` پیشنهادی: adapter B-rep برای STEP، face IDs و واحد، draft و split؛ lazy Worker/WASM با سنجش مجوز و حجم، نه ورود eager به bundle اصلی.
+- `wrap` پیشنهادی: trim-aware face mapping، seam/pole، Jacobian/distortion و inverse، سپس geometry build؛ mesh preview از خروجی همان kernel.
+- `storage`: content-addressed image/STEP assets، revision و conflict policy و migration؛ local/disk/cloud adapterها یک قرارداد، cloud اختیاری.
+- Worker protocol: jobId + recipeHash + algorithmVersion + progress + cancel؛ فقط آخرین job مجاز به commit است. بودجهٔ memory/instructions/points قبل محاسبه.
+- API/MCP همان توابع schema/engine/export را فراخوانی کند؛ tenant/rate/scope و temporary object cleanup خارج core. DSL برای AI Custom بدون eval/I/O.
+
+ADRهای باز: انتخاب CAD kernel و مجوز، vector boolean و exact predicates، tolerance policy، سطح distortion و topology naming. هیچ سرویس آنلاین اجباری برای صادرات محلی پذیرفته نیست.
