@@ -514,3 +514,23 @@ Boolean قالب مش غیر‌manifold می‌دهد در ۲۰٪ فرم‌ها.
 ---
 
 ➡️ ادامه در [`13-GAP-ANALYSIS.md`](./13-GAP-ANALYSIS.md)
+
+
+---
+
+## قالب اجرایی فازهای S0…S11 (افزودهٔ SolidVents)
+
+مرجع جزئیات/نفرهفته/وابستگی‌ها: [سند ۱۶ بخش۵](16-SOLIDVENTS-SPEC.md). برای هر فاز از قالب زیر استفاده کن:
+
+> فاز Sx و شناسه‌های SV مرتبط را از سند۱۶ انتخاب کن. ابتدا status/pull، قوانین، کد موجود و چک‌لیست را بخوان. پیش‌نیاز ناتمام را اعلام کن؛ API محدود را با قابلیت end-to-end یکسان نگیر. یک برش سازگار با recipe/validation/UI/undo/export/tests تعریف کن. منابع مستقل و fixture خودمان، بدون کپی preset/code/asset. بعد از تغییر هر فایل همان فایل با توضیح کامل فارسی کامیت و بلافاصله پوش؛ میانی skip-ci و بدون انتشار. پس از تکمیل مجموعه، نسخهٔ متناسب و metadata هماهنگ، تست‌های کامل، build وب/ویندوز و Release دانلودی همان HEAD؛ تا مدرک نصب/امضا فقط prerelease. چک‌لیست را با مسیر کد/تست و محدودیت به‌روز کن.
+
+- S0: ADR kernel/license/memory/STEP و fixture مستقل؛ قبل آن وعدهٔ CAD نده.
+- S1: vector schema/parser/clip/union و migration؛ همزمان نیازهای قدیمی vector/cutter.
+- S2–S3: layoutها سپس کانال/کنترلر/تصویر؛ switch non-destructive و فیلتر گزینه‌های نامربوط.
+- S4–S5: editor/layer/mirror/morph و UX/performance/canonical exports/area؛ رگرسیون180° و fixed و cap.
+- S6: B-rep STEP با surface/solid/draft/split و دو CAD؛ پسوند STEP روی mesh ممنوع.
+- S7–S8: face/flatten/Wrap و سپس freeform/heatmap/profile/depth؛ original coordinates و notch/island.
+- S9–S10: repository/cloud/marketplace و سپس API/MCP/DSL؛ offline core مستقل، scope/revoke/TTL و no-eval.
+- S11: آموزش/حقوق/حریم خصوصی و شواهد دستی/Windows/physical؛ موارد بدون امکان آزمون باز بمانند.
+
+گزارش هر برش: چه ID و چه بخشی انجام شد، چه چیزی هنوز باقی است، تعداد/فرمان تست واقعاً اجراشده، commitها، نسخه و URL واقعی Release یا مانع انتشار. درخواست «متوقف نشو» مجوز جعل نتیجه یا عبور از وابستگی‌ها نیست.
