@@ -54,3 +54,19 @@ test('Windows distribution embeds the full offline runtime rather than a network
   );
   assert.match(workflow, /windows-installer-smoke.json/);
 });
+
+test('unsigned builds do not register an unconfigured signed updater at startup', async () => {
+  const main = await readFile(
+    new URL('../apps/desktop/src-tauri/src/main.rs', import.meta.url),
+    'utf8',
+  );
+  const capabilities = JSON.parse(
+    await readFile(
+      new URL('../apps/desktop/src-tauri/capabilities/default.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  assert.doesNotMatch(main, /\.plugin\(tauri_plugin_updater/);
+  assert.ok(!capabilities.permissions.includes('updater:default'));
+  assert.match(main, /PATTURN_STARTUP_LOG/);
+});
