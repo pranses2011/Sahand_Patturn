@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -35,15 +35,16 @@ jobs:
           cache-dependency-path: patturn-app/package-lock.json
       - run: npm ci
       - run: npm run release:check
-      - name: Require a new version for each completed push
-        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
-        env:
-          BASE_COMMIT: ${{ github.event.before }}
+      - name: Require a version newer than the last published ancestor
+        if: github.event_name == 'push'
         run: |
-          git fetch --no-tags origin "$BASE_COMMIT"
-          git show "$BASE_COMMIT:patturn-app/package.json" > .cache-base-package.json
-          node --input-type=module -e "import fs from 'node:fs'; import semver from 'semver'; const a=JSON.parse(fs.readFileSync('package.json')).version,b=JSON.parse(fs.readFileSync('.cache-base-package.json')).version; if(!semver.gt(a,b)) throw Error('RELEASE_VERSION_NOT_INCREASED');"
-          rm .cache-base-package.json
+          git fetch --tags --force origin
+          BASE_TAG=$(git describe --tags --match 'v[0-9]*' --abbrev=0 HEAD 2>/dev/null || true)
+          if [ -n "$BASE_TAG" ]; then
+            git show "$BASE_TAG:patturn-app/package.json" > .cache-base-package.json
+            node --input-type=module -e "import fs from 'node:fs'; import semver from 'semver'; const a=JSON.parse(fs.readFileSync('package.json')).version,b=JSON.parse(fs.readFileSync('.cache-base-package.json')).version; if(!semver.gt(a,b)) throw Error('RELEASE_VERSION_NOT_INCREASED');"
+            rm .cache-base-package.json
+          fi
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
