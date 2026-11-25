@@ -319,3 +319,24 @@ graph LR
 ---
 
 ⬅️ بازگشت به [`README.md`](./README.md)
+
+
+---
+
+## شکاف‌های جدید پس از مطالعهٔ SolidVents
+
+جدول‌های قدیمی این سند دربارهٔ مرجع قبلی‌اند؛ نماد «غایب» در آن‌ها را به SolidVents تعمیم ندهید. [سند۱۶](16-SOLIDVENTS-SPEC.md) منبع تازه و مبتنی بر مدرک است. **مستندبودن قابلیت در مرجع با وجود آن در Patturn متفاوت است.**
+
+| شکاف Patturn | اقدام و معیار | IDs |
+|---|---|---|
+| pattern preset به‌جای موتور layout/controller | جداسازی boundary/style/layout/channel، switch بدون ازبین‌رفتن recipe | 01–11,19–23 |
+| نبود vector editor جامع | parser امن/لایه/boolean/fillet/mirror/snap و morph topology-aware | 12–18,24–25 |
+| نبود B-rep CAD | spike مستقل، STEP واقعی و draft/split و دو CAD، نه triangulation با نام STEP | 32–34 |
+| UV محدود به‌جای Wrap | انتخاب face و flatten seam-aware و distortion budget و profile/depth | 35–39 |
+| ذخیره/پیشنهاد محلی به‌جای سرویس جامعه | پوشه/ZIP/disk/conflict، cloud اختیاری و marketplace moderated | 40–43 |
+| AI بدون قرارداد امن | MCP/REST همان engine و DSL bounded، revoke/TTL و no prompt logging | 44–46 |
+| آمار تزئینی/مجموع مساحت | union clipped و error bound، حداقل ligament/edge/process warnings | 49–50 |
+
+افزوده‌هایی فراتر از رفتار مرجع: هندسهٔ قابل‌ردگیری و snapshot hash، آفلاین بدون fingerprint/سهمیهٔ سرور، گزارش distortion با حد خطا، حداقل ضخامت/ligament و فرایند ساخت، تحلیل امنیت فایل/DSL، export reproducibility و accessible workflow. این موارد نیاز مهندسی‌اند؛ ادعای نبود آن‌ها در مرجع بدون مدرک نشود.
+
+ابهام‌ها: فرمول ترکیب کنترلرها، همهٔ گزینه‌های UI/حد منابع، کیفیت عملی CAD و freeform و فروشگاه/پرداخت تعاملی تأیید نشده. تناقض Fixed/morph با آخرین changelog حل قراردادی شده؛ در نخستین تست قابل‌دسترسی بازبینی لازم است.
