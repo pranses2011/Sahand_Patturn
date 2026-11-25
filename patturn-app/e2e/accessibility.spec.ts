@@ -427,5 +427,38 @@ test('orthogonal cutter accepted and rejected SVG remain accessible at 320px', a
   await expect(
     panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
   ).toBeEnabled();
+  const fileInput = panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true });
+  const doc = {
+    format: 'patturn-orthogonal-cutter',
+    version: 1,
+    units: 'mm',
+    heightMm: 25,
+    wallMm: 2,
+    tipMm: 0.8,
+    points: [
+      [0, 0],
+      [80, 0],
+      [80, 30],
+      [30, 30],
+      [30, 80],
+      [0, 80],
+    ],
+  };
+  await fileInput.setInputFiles({
+    name: 'saved.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(doc)),
+  });
+  await expect(
+    panel.getByRole('button', { name: 'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  await audit(page, info, 'orthogonal-cutter-file-restored-320');
+  await fileInput.setInputFiles({
+    name: 'future.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ ...doc, version: 2 })),
+  });
+  await expect(panel.getByRole('alert')).toContainText('فایل مستقل قائم‌الزاویه نامعتبر');
+  await audit(page, info, 'orthogonal-cutter-file-rejected-320');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });

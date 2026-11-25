@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { buildOrthogonalCutter, validateMesh, type CutterPoint } from '@patturn/kernel';
-import { toBinaryStl } from './index.js';
+import { toBinaryStl, toOrthogonalCutterSvg } from './index.js';
 it('exports the experimental L-shaped cutter as validated mm STL without capping its opening', () => {
   const points: CutterPoint[] = [
     [0, 0],
@@ -29,4 +29,54 @@ it('exports the experimental L-shaped cutter as validated mm STL without capping
   expect(minY).toBe(0);
   expect(maxY).toBe(20);
   expect(validateMesh(mesh).signedVolumeMm3).toBeGreaterThan(0);
+});
+
+it('exports re-importable orthogonal SVG with physical mm and no convexification or rounding', () => {
+  const points: CutterPoint[] = [
+    [10.25, 20.5],
+    [90.25, 20.5],
+    [90.25, 50.5],
+    [40.25, 50.5],
+    [40.25, 100.5],
+    [10.25, 100.5],
+  ];
+  const before = JSON.stringify(points);
+  const result = toOrthogonalCutterSvg(points);
+  expect(result.ok).toBe(true);
+  expect(result.filename).toBe('orthogonal-cutter_contour_W80-D80mm.svg');
+  expect(new TextDecoder().decode(result.bytes)).toBe(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="80mm" viewBox="0 0 80 80"><polygon points="0,0 80,0 80,30 30,30 30,80 0,80"/></svg>\n',
+  );
+  expect(toOrthogonalCutterSvg(points)).toEqual(result);
+  expect(JSON.stringify(points)).toBe(before);
+});
+it('uses minimum supported width for contour-only SVG and rejects unsafe or diagonal contours', () => {
+  const notch: CutterPoint[] = [
+    [0, 0],
+    [100, 0],
+    [100, 100],
+    [56, 100],
+    [56, 40],
+    [44, 40],
+    [44, 100],
+    [0, 100],
+  ];
+  expect(toOrthogonalCutterSvg(notch).ok).toBe(true);
+  expect(
+    toOrthogonalCutterSvg([
+      [0, 0],
+      [80, 0],
+      [80, 80],
+      [30, 30],
+      [0, 80],
+    ]).ok,
+  ).toBe(false);
+  expect(
+    toOrthogonalCutterSvg([
+      [0, 0],
+      [Infinity, 0],
+      [80, 80],
+      [0, 80],
+    ]).bytes,
+  ).toBeUndefined();
 });

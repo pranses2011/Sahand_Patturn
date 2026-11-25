@@ -1,3 +1,4 @@
+import { readOrthogonalCutterFile, writeOrthogonalCutterFile } from './orthogonal-cutter-file';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   buildOrthogonalCutter,
@@ -5,7 +6,7 @@ import {
   validateMesh,
   type CutterPoint,
 } from '@patturn/kernel';
-import { toBinaryStl, exportName } from '@patturn/exporters';
+import { toBinaryStl, toOrthogonalCutterSvg, exportName } from '@patturn/exporters';
 import { cutterSvgPoints } from './cutter-svg';
 import { NumericControl } from './NumericControl';
 import { formatNumber } from './number-format';
@@ -84,6 +85,41 @@ export function OrthogonalCutterTool({
           {name === 'L' ? text.sampleL : text.sampleU}
         </button>
       ))}
+      <label>
+        {text.fileInput}
+        <input
+          type="file"
+          accept=".json,application/json"
+          disabled={busy}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (!file) return;
+            const id = ++request.current;
+            setBusy(true);
+            setFailed(false);
+            setError('');
+            void (async () => {
+              try {
+                if (file.size > 65536) throw Error('ORTHOGONAL_FILE_TOO_LARGE');
+                const doc = readOrthogonalCutterFile(await file.text());
+                if (!alive.current || request.current !== id) return;
+                setPoints(doc.points);
+                setHeight(doc.heightMm);
+                setWall(doc.wallMm);
+                setTip(doc.tipMm);
+              } catch {
+                if (alive.current && request.current === id) {
+                  setFailed(true);
+                  setError(text.fileError);
+                }
+              } finally {
+                if (alive.current && request.current === id) setBusy(false);
+              }
+            })();
+          }}
+        />
+      </label>
       <label>
         {text.input}
         <input
@@ -193,6 +229,47 @@ export function OrthogonalCutterTool({
       >
         {text.download}
       </button>
+      <button
+        type="button"
+        className="btn"
+        disabled={!geometry}
+        onClick={() => {
+          if (!geometry) return;
+          const result = toOrthogonalCutterSvg(geometry.profile.points);
+          if (!result.ok || !result.bytes) {
+            setError(text.exportError);
+            return;
+          }
+          onExport(result.filename, result.bytes);
+        }}
+      >
+        {text.svgSave}
+      </button>
+      <button
+        type="button"
+        className="btn"
+        disabled={!geometry}
+        onClick={() => {
+          if (!geometry) return;
+          try {
+            const bytes = writeOrthogonalCutterFile({
+              format: 'patturn-orthogonal-cutter',
+              version: 1,
+              units: 'mm',
+              heightMm,
+              wallMm,
+              tipMm,
+              points: geometry.profile.points,
+            });
+            onExport('patturn-orthogonal-cutter.orthogonal.json', bytes);
+          } catch {
+            setError(text.fileError);
+          }
+        }}
+      >
+        {text.fileSave}
+      </button>
+      <p className="hint">{text.fileHelp}</p>
       {error && <p role="alert">{error}</p>}
     </>
   );

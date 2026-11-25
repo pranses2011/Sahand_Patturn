@@ -4930,3 +4930,137 @@ test('orthogonal cutter sample recovery cancels delayed SVG reads without revivi
   await expect(output).toBeEnabled();
   await expect(panel.getByRole('alert')).toHaveCount(0);
 });
+
+test('orthogonal cutter files and SVG round trip geometry and settings without broadening convex files', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const stl = panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true });
+  const fileSave = panel.getByRole('button', {
+    name: 'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  const svgSave = panel.getByRole('button', {
+    name: 'دانلود SVG مرز کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  const fileInput = panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true });
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    const file = await pending;
+    return { bytes: await readFile((await file.path())!), name: file.suggestedFilename() };
+  };
+  const height = panel.getByRole('spinbutton', { name: 'ارتفاع کاتر قائم‌الزاویه', exact: true });
+  const wall = panel.getByRole('spinbutton', {
+    name: 'ضخامت دیوارهٔ کاتر قائم‌الزاویه',
+    exact: true,
+  });
+  const tip = panel.getByRole('spinbutton', { name: 'ضخامت لبهٔ کاتر قائم‌الزاویه', exact: true });
+  await height.fill('25');
+  await height.press('Enter');
+  await wall.fill('2');
+  await wall.press('Enter');
+  await tip.fill('0.8');
+  await tip.press('Enter');
+  const before = await download('دانلود STL کاتر قائم‌الزاویه');
+  const file = await download('ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه');
+  expect(file.name).toBe('patturn-orthogonal-cutter.orthogonal.json');
+  const svg = await download('دانلود SVG مرز کاتر قائم‌الزاویه');
+  expect(svg.name).toMatch(/\.svg$/);
+  expect(svg.bytes.toString()).toContain('width="80mm"');
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ U کاتر قائم‌الزاویه', exact: true })
+    .click();
+  await height.fill('30');
+  await height.press('Enter');
+  await fileInput.setInputFiles({
+    name: file.name,
+    mimeType: 'application/json',
+    buffer: file.bytes,
+  });
+  await expect(height).toHaveValue('25');
+  await expect(wall).toHaveValue('2');
+  await expect(tip).toHaveValue('0.8');
+  await expect(stl).toBeEnabled();
+  expect((await download('دانلود STL کاتر قائم‌الزاویه')).bytes).toEqual(before.bytes);
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ U کاتر قائم‌الزاویه', exact: true })
+    .click();
+  await panel
+    .getByLabel('ورود SVG کاتر قائم‌الزاویه', { exact: true })
+    .setInputFiles({ name: svg.name, mimeType: 'image/svg+xml', buffer: svg.bytes });
+  await expect(stl).toBeEnabled();
+  expect((await download('دانلود STL کاتر قائم‌الزاویه')).bytes).toEqual(before.bytes);
+  const doc = JSON.parse(file.bytes.toString());
+  for (const bad of [
+    { ...doc, version: 2 },
+    { ...doc, unknown: true },
+    { ...doc, format: 'patturn-cutter' },
+    { ...doc, units: 'cm' },
+  ]) {
+    await fileInput.setInputFiles({
+      name: 'bad.orthogonal.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(bad)),
+    });
+    await expect(panel.getByRole('alert')).toContainText('فایل مستقل قائم‌الزاویه نامعتبر');
+    await expect(stl).toBeDisabled();
+    await expect(fileSave).toBeDisabled();
+    await expect(svgSave).toBeDisabled();
+    await expect(height).toHaveValue('25');
+  }
+  await fileInput.setInputFiles({
+    name: file.name,
+    mimeType: 'application/json',
+    buffer: file.bytes,
+  });
+  await expect(stl).toBeEnabled();
+  await page.evaluate(() => {
+    const original = File.prototype.text;
+    File.prototype.text = function () {
+      if (this.name !== 'delayed-ortho.json') return original.call(this);
+      const file = this;
+      return new Promise<string>((resolve) => {
+        (window as unknown as { releaseOrthoFile: () => Promise<void> }).releaseOrthoFile =
+          async () => resolve(await original.call(file));
+      });
+    };
+  });
+  await fileInput.setInputFiles({
+    name: 'delayed-ortho.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ ...doc, heightMm: 39 })),
+  });
+  await expect(stl).toBeDisabled();
+  await expect(fileSave).toBeDisabled();
+  await expect(svgSave).toBeDisabled();
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ U کاتر قائم‌الزاویه', exact: true })
+    .click();
+  await page.evaluate(async () => {
+    await (window as unknown as { releaseOrthoFile: () => Promise<void> }).releaseOrthoFile();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+  await expect(height).toHaveValue('25');
+  await expect(panel).toContainText('۱۰۰ × ۱۰۰ mm');
+  await expect(stl).toBeEnabled();
+  // The original convex file input must reject this separate contract, without touching the child tool.
+  await page
+    .locator('.cookie-cutter-tool')
+    .getByLabel('بازکردن فایل مستقل کاتر', { exact: true })
+    .setInputFiles({ name: file.name, mimeType: 'application/json', buffer: file.bytes });
+  await expect(
+    page.locator('.cookie-cutter-tool').getByRole('alert').filter({ hasText: 'فایل کاتر نامعتبر' }),
+  ).toBeVisible();
+  await expect(stl).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
