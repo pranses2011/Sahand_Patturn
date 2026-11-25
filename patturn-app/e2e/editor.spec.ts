@@ -6916,3 +6916,101 @@ test('orthogonal ZIP suppresses an old snapshot after geometry changes during mo
     .click();
   await expect(zip).toBeDisabled();
 });
+
+for (const action of ['cancel', 'change geometry'] as const) {
+  test(`orthogonal ZIP optional PDF is atomic and suppresses stale output on ${action}`, async ({
+    page,
+  }) => {
+    let release!: () => void, seen!: () => void;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+      requested = new Promise<void>((resolve) => {
+        seen = resolve;
+      });
+    let first = true;
+    await page.route('**/*vazirmatn*.js', async (route) => {
+      if (first) {
+        first = false;
+        seen();
+        await gate;
+      }
+      await route.continue();
+    });
+    const pdfRequests: string[] = [],
+      downloads: string[] = [];
+    page.on('request', (req) => {
+      if (/jspdf|vazirmatn|orthogonal-cutter-pdf-/.test(req.url())) pdfRequests.push(req.url());
+    });
+    page.on('download', (file) => downloads.push(file.suggestedFilename()));
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto('/');
+    await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+    await page.locator('.cookie-cutter-tool > summary').click();
+    const panel = page.locator('.orthogonal-cutter-tool');
+    await panel.locator('summary').click();
+    const checkbox = panel.getByRole('checkbox', {
+      name: 'افزودن PDF مقیاس واقعی به ZIP کاتر',
+      exact: true,
+    });
+    const zip = panel.getByRole('button', {
+      name: 'دانلود ZIP مستقل کاتر قائم‌الزاویه',
+      exact: true,
+    });
+    await expect(checkbox).not.toBeChecked();
+    if (action === 'cancel') {
+      const pending = page.waitForEvent('download');
+      await zip.click();
+      const plain = await pending;
+      const files = unzipSync(await readFile((await plain.path())!));
+      expect(Object.keys(files)).toHaveLength(6);
+      expect(strFromU8(files['README.txt']!)).toContain('PDF در این بسته انتخاب نشده');
+      expect(pdfRequests).toEqual([]);
+      downloads.length = 0;
+    }
+    await checkbox.check();
+    expect(pdfRequests).toEqual([]);
+    await zip.click();
+    await requested;
+    await expect(checkbox).toBeDisabled();
+    if (action === 'cancel') {
+      await panel.getByRole('button', { name: 'لغو ZIP کاتر قائم‌الزاویه', exact: true }).click();
+      release();
+      await expect(panel.getByRole('alert')).toContainText('ساخت ZIP کاتر لغو شد');
+      expect(downloads).toEqual([]);
+    } else {
+      const height = panel
+        .locator('.ctl')
+        .filter({ hasText: 'ارتفاع کاتر قائم‌الزاویه' })
+        .locator('input.num');
+      await height.fill('25');
+      await height.press('Tab');
+      release();
+    }
+    await expect(zip).toBeEnabled();
+    await expect(checkbox).toBeEnabled();
+    const pending = page.waitForEvent('download');
+    await zip.click();
+    const file = await pending;
+    const entries = unzipSync(await readFile((await file.path())!));
+    expect(Object.keys(entries)).toHaveLength(7);
+    const pdf = entries['boundaries/inner-A4-1to1.pdf']!;
+    expect(pdf).toBeDefined();
+    expect(strFromU8(pdf)).toContain('/MediaBox [0 0 595.28 841.89]');
+    expect(strFromU8(pdf)).toContain('/FontFile2');
+    const saved = JSON.parse(strFromU8(entries['cutter.orthogonal.json']!));
+    expect(saved.heightMm).toBe(action === 'cancel' ? 20 : 25);
+    expect(JSON.parse(strFromU8(entries['manifest.json']!)).files).toContainEqual({
+      path: 'boundaries/inner-A4-1to1.pdf',
+      bytes: pdf.byteLength,
+    });
+    expect(strFromU8(entries['README.txt']!)).toContain('خط‌کش کنترل ۱۰۰');
+    expect(downloads).toEqual([file.suggestedFilename()]);
+    await expect(
+      panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+    ).toBeDisabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      321,
+    );
+  });
+}

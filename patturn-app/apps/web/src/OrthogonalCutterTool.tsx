@@ -166,6 +166,7 @@ export function OrthogonalCutterTool({
       }
     }
   }
+  const [zipIncludePdf, setZipIncludePdf] = useState(false);
   const [zipBusy, setZipBusy] = useState(false);
   const zipRequest = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -194,7 +195,12 @@ export function OrthogonalCutterTool({
       });
       const { toOrthogonalCutterBundle } = await import('./orthogonal-cutter-bundle');
       if (zipRequest.current !== controller || exportSource.current !== geometry) return;
-      const result = await toOrthogonalCutterBundle(file, text.zipInstructions, controller.signal);
+      const result = await toOrthogonalCutterBundle(
+        file,
+        text.zipInstructions + '\n' + (zipIncludePdf ? text.zipPdfIncluded : text.zipPdfExcluded),
+        controller.signal,
+        { includePdf: zipIncludePdf },
+      );
       if (zipRequest.current !== controller || exportSource.current !== geometry) return;
       if (controller.signal.aborted) setError(text.zipCancelled);
       else if (!result.ok || !result.bytes) setError(text.zipError);
@@ -787,6 +793,15 @@ export function OrthogonalCutterTool({
         </button>
       )}
       <p className="hint">{text.zipHelp}</p>
+      <label>
+        <input
+          type="checkbox"
+          checked={zipIncludePdf}
+          disabled={zipBusy}
+          onChange={(event) => setZipIncludePdf(event.target.checked)}
+        />
+        {text.zipIncludePdf}
+      </label>
       <button
         type="button"
         className="btn"

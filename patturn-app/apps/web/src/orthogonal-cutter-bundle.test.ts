@@ -1,7 +1,12 @@
 import { expect, it } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
 import { buildOrthogonalCutter } from '@patturn/kernel';
-import { toBinaryStl, toOrthogonalCutterSvg, toOrthogonalCutterDxf } from '@patturn/exporters';
+import {
+  toBinaryStl,
+  toOrthogonalCutterSvg,
+  toOrthogonalCutterDxf,
+  toOrthogonalCutterPdf,
+} from '@patturn/exporters';
 import { toOrthogonalCutterBundle } from './orthogonal-cutter-bundle';
 import {
   readOrthogonalCutterFile,
@@ -94,4 +99,66 @@ it.each([
   expect(result.ok).toBe(false);
   expect(result.filename).toBe('');
   expect(result.bytes).toBeUndefined();
+});
+
+it('optionally includes the exact standalone PDF from the same restored settings', async () => {
+  const guideWithPdf = guide + '\n' + messages.orthogonalCutter.zipPdfIncluded;
+  const result = await toOrthogonalCutterBundle(
+    writeOrthogonalCutterFile(doc),
+    guideWithPdf,
+    undefined,
+    { includePdf: true },
+  );
+  expect(result.ok, result.error).toBe(true);
+  const entries = unzipSync(result.bytes!);
+  expect(Object.keys(entries)).toHaveLength(7);
+  expect(entries['boundaries/inner-A4-1to1.pdf']).toEqual(
+    (await toOrthogonalCutterPdf(doc.points, doc)).bytes,
+  );
+  const pdf = strFromU8(entries['boundaries/inner-A4-1to1.pdf']!);
+  expect(pdf).toContain('/MediaBox [0 0 595.28 841.89]');
+  expect(pdf).toContain('/FontFile2');
+  expect(strFromU8(entries['README.txt']!)).toContain('۱۰۰٪');
+  const manifest = JSON.parse(strFromU8(entries['manifest.json']!));
+  expect(manifest.files).toContainEqual({
+    path: 'boundaries/inner-A4-1to1.pdf',
+    bytes: entries['boundaries/inner-A4-1to1.pdf']!.byteLength,
+  });
+  expect(
+    (
+      await toOrthogonalCutterBundle(writeOrthogonalCutterFile(doc), guideWithPdf, undefined, {
+        includePdf: true,
+      })
+    ).bytes,
+  ).toEqual(result.bytes);
+});
+it('snapshots file and inclusion settings before optional PDF imports', async () => {
+  const bytes = writeOrthogonalCutterFile(doc),
+    settings = { includePdf: true };
+  const pending = toOrthogonalCutterBundle(bytes, guide, undefined, settings);
+  bytes.fill(0);
+  settings.includePdf = false;
+  const result = await pending;
+  expect(result.ok, result.error).toBe(true);
+  expect(result.bytes).toEqual(
+    (
+      await toOrthogonalCutterBundle(writeOrthogonalCutterFile(doc), guide, undefined, {
+        includePdf: true,
+      })
+    ).bytes,
+  );
+});
+it('returns no archive when cancelled while awaiting the optional PDF', async () => {
+  const controller = new AbortController();
+  const pending = toOrthogonalCutterBundle(
+    writeOrthogonalCutterFile(doc),
+    guide,
+    controller.signal,
+    { includePdf: true },
+  );
+  controller.abort();
+  const result = await pending;
+  expect(result.ok).toBe(false);
+  expect(result.bytes).toBeUndefined();
+  expect(result.error).toContain('EXPORT_CANCELLED');
 });
