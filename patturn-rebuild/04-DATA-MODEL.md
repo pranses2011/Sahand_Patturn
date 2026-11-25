@@ -332,3 +332,21 @@ type ExportJob = {
 ---
 
 ➡️ ادامه در [`05-MODULE-FORMS.md`](./05-MODULE-FORMS.md)
+
+
+---
+
+## قرارداد دادهٔ پیشنهادی برای SV-01 و SV-10…SV-46
+
+مرجع جزئیات: [سند ۱۶](16-SOLIDVENTS-SPEC.md). این قرارداد طراحی آینده است و به معنی پشتیبانی فعلی ProjectDoc نیست؛ افزودن آن به کد نیاز migration و تست restore دارد.
+
+- `PatternRecipe`: schemaVersion، algorithmVersion، units=`mm`، seed، canvas، boundaryRef، layout discriminant + params، shapeRef، controllerChannels و assetRefs.
+- `VectorShape`: paths با stable anchor/segment IDs، closed/fillRule، layerId/booleanRole، gradientResponse=`group|independent|fixed`، pivot، locks و editableFillets؛ mirror metadata تا Apply حفظ شود.
+- `ControllerGeometry`: id، kind=`point|line|curve|polyline|closed` و پارامتر هندسی؛ `ChannelBinding`: geometryId، channel، target/range/falloff/side/extension/steps. Sync هندسه به معنی اشتراک target نیست.
+- `MorphTarget`: correspondence anchor IDs و transform decomposition؛ topology edit هدف را با هشدار invalidate کند؛ Fixed از size/spacing/angle معاف است ولی با target morph می‌شود.
+- `ImageAsset`: hash، MIME، bytes/pixel bounds، alpha/color policy؛ placement transform و sampling/outside behavior و invert/contrast در binding؛ URL خارجی و دادهٔ اجرایی ممنوع.
+- `WrapRecipe`: originalStepAssetHash، unitScale، body/face references، placement، seam، flatten method/tolerance، depth/profile، original coordinates و geometryCheck result. در عدم تطابق topology باید reselect شود، نه انتخاب وجه حدسی.
+- `RepositoryManifest`: folder IDs و order، design revision، local/disk/cloud state، content hashes و tombstones؛ ZIP مسیر مطلق/.. و symlink نپذیرد.
+- `GeometrySnapshot`: recipeHash، units، tolerance، bounds، canonical paths/solid refs، warnings، open-area method/error bound و digest؛ دادهٔ مشتق‌شده و قابل‌بازتولید.
+
+مهاجرت: قدیمی‌ها با defaultهای ثابت بدون تغییر اندازه باز شوند؛ نسخهٔ آینده رد غیرمخرب و export backup؛ malformed/sparse/nonfinite/oversized و asset مفقود با خطای فارسی. token/password/cloud session در recipe/ZIP ذخیره نشود.
