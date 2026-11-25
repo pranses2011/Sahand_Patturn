@@ -28,20 +28,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "nsis",
-      "msi"
-    ],
-    "icon": [
-      "icons/icon.ico"
-    ],
+    "targets": ["nsis", "msi"],
+    "icon": ["icons/icon.ico"],
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": [
-          "Farsi",
-          "English"
-        ]
+        "languages": ["Farsi", "English"]
       },
       "webviewInstallMode": {
         "type": "offlineInstaller",
