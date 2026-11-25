@@ -359,3 +359,24 @@ graph LR
 ```
 
 ➡️ ادامه در [`02-MASTER-PROMPT.md`](./02-MASTER-PROMPT.md)
+
+
+---
+
+## بازخط‌مبنا برای پوشش SolidVents و حفظ کارهای قبلی
+
+**افق ۲۴هفته‌ای بالای سند برنامهٔ اولیه است، نه تعهد کل دامنهٔ جدید.** برنامهٔ مرجع افزوده با تمام IDs، پیش‌نیازها، نفرهفتهٔ نقش‌ها و معیار پذیرش در [سند ۱۶، بخش ۵](16-SOLIDVENTS-SPEC.md) است. هیچ فاز قدیمی یا شواهد نصب/ساخت با این الحاق حذف نمی‌شود.
+
+1. S0: تثبیت baseline و spike CAD/مجوز/بودجه؛ خروجی ADR و fixture مستقل.
+2. S1: مدل نسخه‌دار، parser امن SVG/DXF، canonical geometry و clip/union؛ با کارهای 4.9/5.5/8.4 مشترک.
+3. S2: تکمیل ۹ layout و primitiveها؛ بدون reset کنترلرها هنگام switch.
+4. S3: چهار کانال گرادیان، کنترلرهای هندسی/تصویر، advanced و Flow Direction.
+5. S4: editor، لایه‌ها، fillet قابل‌ویرایش، mirror و morph با regression دوران/Fixed.
+6. S5: preview/export مشترک، PNG، restore و آمار واقعی و performance.
+7. S6: STEP واقعی surface/solid، draft و split ZIP/assembly با دو CAD مستقل.
+8. S7: STEP face و flatten developable و project roundtrip؛ سپس S8 freeform/heatmap/profile/depth.
+9. S9: پوشه و disk/cloud و marketplace و entitlement؛ آفلاین از cloud مستقل.
+10. S10: API/MCP و DSL محدود AI Custom؛ بدون eval یا ارسال مخفیانهٔ طرح.
+11. S11: آموزش مستقل، حریم خصوصی، WCAG دستی و Windows نصب/آفلاین/آپدیت و CAD/سلیسر/ساخت فیزیکی.
+
+مسیر بحرانی: S0→S1→S2→S3→S4→S6→S7→S8→S11. کار قدیمی دسته، کاتر arbitrary، extruder، jigger، slab و مادرقالب در صف قبلی با همان معیار ساخت باقی است. به جای تیک‌زدن فاز با API تنها، هر ID باید UI، recipe/migration، export، تست و محدودیت مستند داشته باشد. هر تحویل سازگار نسخهٔ جدید و دانلود وب/ویندوز دارد؛ هر فایل کامیت/پوش مستقل، کامیت میانی بدون انتشار.
