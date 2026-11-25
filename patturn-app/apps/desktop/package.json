@@ -1,12 +1,11 @@
 {
   "name": "@patturn/desktop",
-  "version": "0.3.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "tauri": "tauri",
-    "dev": "tauri dev",
-    "build": "tauri build"
+    "tauri": "node ../../scripts/desktop-version.mjs && tauri",
+    "dev": "node ../../scripts/desktop-version.mjs && tauri dev",
+    "build": "node ../../scripts/desktop-version.mjs && tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",
