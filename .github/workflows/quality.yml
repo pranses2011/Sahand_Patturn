@@ -106,7 +106,7 @@ jobs:
           path: patturn-app/test-results/
           retention-days: 7
   windows:
-    name: Windows compile and NSIS package (not installation test)
+    name: Windows offline installer and installed-process smoke
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -147,6 +147,17 @@ jobs:
             patturn-app/apps/desktop/src-tauri/Cargo.lock
       - name: Build unsigned NSIS test installer
         run: npm run desktop:installer
+      - name: Verify offline runtime, install, launch and uninstall
+        shell: pwsh
+        run: ./scripts/windows-installer-smoke.ps1
+      - name: Keep scoped installed-process smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-smoke
+          path: patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/windows-installer-smoke.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Generate checksums and test guide
         run: npm run installer:checksums
       - uses: actions/upload-artifact@v4
@@ -159,6 +170,7 @@ jobs:
             patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
             patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/README-WINDOWS-TEST.txt
             patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/build-info.json
+            patturn-app/apps/desktop/src-tauri/target/release/bundle/nsis/windows-installer-smoke.json
 
   publish-preview:
     name: Publish downloadable experimental web and Windows files
@@ -193,8 +205,8 @@ jobs:
 
           فایل ZIP وب برای نصب روی سرور استاتیک و ارتقای دستی وب است. فایل EXE نصب‌کننده، برای نصب یا ارتقای دستی ویندوز همان نسخه است؛ پیش از ارتقا از پروژه‌ها پشتیبان بگیرید.
           README-WEB.txt داخل ZIP و README-WINDOWS-TEST.txt را بخوانید و SHA256SUMS.txt را بررسی کنید.
-          این انتشار آپدیت خودکار امضاشده نیست. نصب/حذف عملی ویندوز، اجرای آفلاین نسخهٔ نصب‌شده، CAD/اسلایسر و ساخت فیزیکی تأیید نشده‌اند. نصب WebView2 ممکن است اینترنت بخواهد.
-          دو job آزمون وب و ساخت NSIS برای همین commit موفق‌اند؛ این به معنی عبور Release Gate نهایی یا تأیید نصب نیست.
+          این انتشار آپدیت خودکار امضاشده نیست. آزمون محدود نصب/بازشدن پنجره/حذف روی runner ویندوز انجام شده و گزارش windows-installer-smoke.json همراه فایل‌هاست. پیش‌نیاز کامل WebView2 داخل EXE است و payload/امضای Microsoft در CI بررسی می‌شود. نصب روی ویندوز پاک، اجرای آفلاین سیستم‌عامل، آزمون کامل رابط و CAD/اسلایسر و ساخت فیزیکی هنوز تأیید نشده‌اند.
+          دو job آزمون وب و ساخت NSIS برای همین commit موفق‌اند؛ این به معنی عبور Release Gate نهایی یا تأیید نصب روی همهٔ دستگاه‌ها نیست.
           Source: $GITHUB_SHA
           CI: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           EOF
