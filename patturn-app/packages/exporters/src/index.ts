@@ -132,3 +132,4 @@ export * from './obj.js';
 export * from './rib-pdf.js';
 export * from './extruder.js';
 export { toCutterSvg, toOrthogonalCutterSvg } from './cutter-svg.js';
+export * from './orthogonal-cutter-pdf.js';

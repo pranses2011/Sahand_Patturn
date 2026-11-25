@@ -6611,3 +6611,106 @@ test('orthogonal arbitrary draft point edits allow repair but never commit tempo
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal cutter PDF is lazy, cancellable and prints one actual-size inner boundary', async ({
+  page,
+}) => {
+  let release!: () => void, seen!: () => void;
+  const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+    requested = new Promise<void>((resolve) => {
+      seen = resolve;
+    });
+  let first = true;
+  await page.route('**/*vazirmatn*.js', async (route) => {
+    if (first) {
+      first = false;
+      seen();
+      await gate;
+    }
+    await route.continue();
+  });
+  const downloads: string[] = [];
+  page.on('download', (file) => downloads.push(file.suggestedFilename()));
+  const pdfRequests: string[] = [];
+  page.on('request', (req) => {
+    if (/jspdf|vazirmatn/.test(req.url())) pdfRequests.push(req.url());
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  expect(pdfRequests).toEqual([]);
+  const pdf = panel.getByRole('button', { name: 'دانلود PDF مرز کاتر قائم‌الزاویه', exact: true });
+  await pdf.click();
+  await requested;
+  await panel.getByRole('button', { name: 'لغو PDF کاتر قائم‌الزاویه', exact: true }).click();
+  release();
+  await expect(panel.getByRole('alert')).toContainText('ساخت PDF کاتر لغو شد');
+  expect(downloads).toEqual([]);
+  await expect(pdf).toBeEnabled();
+  const pending = page.waitForEvent('download');
+  await pdf.click();
+  const file = await pending;
+  expect(file.suggestedFilename()).toBe('orthogonal-cutter_inner-boundary_A4-1to1.pdf');
+  const source = await readFile((await file.path())!, 'latin1');
+  expect(source.startsWith('%PDF-')).toBe(true);
+  expect(source).toContain('/FontFile2');
+  expect(source.match(/\/Type \/Page\b/g)).toHaveLength(1);
+  expect(source).toContain('/MediaBox [0 0 595.28 841.89]');
+  await expect(
+    panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await panel
+    .getByRole('spinbutton', { name: 'مختصات افقی گوشهٔ قائم‌الزاویه (mm)', exact: true })
+    .fill('10');
+  await expect(pdf).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
+
+test('orthogonal cutter PDF suppresses an old snapshot when settings change during imports', async ({
+  page,
+}) => {
+  let release!: () => void, seen!: () => void;
+  const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+    requested = new Promise<void>((resolve) => {
+      seen = resolve;
+    });
+  await page.route('**/*vazirmatn*.js', async (route) => {
+    seen();
+    await gate;
+    await route.continue();
+  });
+  const downloads: string[] = [];
+  page.on('download', (file) => downloads.push(file.suggestedFilename()));
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const pdf = panel.getByRole('button', { name: 'دانلود PDF مرز کاتر قائم‌الزاویه', exact: true });
+  await pdf.click();
+  await requested;
+  const height = panel.getByRole('spinbutton', { name: 'ارتفاع کاتر قائم‌الزاویه', exact: true });
+  await height.fill('25');
+  await height.press('Enter');
+  await expect(pdf).toBeEnabled();
+  release();
+  const pending = page.waitForEvent('download');
+  await pdf.click();
+  const file = await pending;
+  await expect(pdf).toBeEnabled();
+  expect(downloads).toEqual([file.suggestedFilename()]);
+  await panel
+    .getByRole('button', { name: 'حالت رسم عددی کانتور قائم‌الزاویه', exact: true })
+    .click();
+  await expect(pdf).toBeDisabled();
+  await panel.getByRole('button', { name: 'لغو رسم و حفظ کانتور قبلی', exact: true }).click();
+  await expect(pdf).toBeEnabled();
+});

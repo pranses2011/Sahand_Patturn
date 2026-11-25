@@ -23,7 +23,12 @@ import {
   validateMesh,
   type CutterPoint,
 } from '@patturn/kernel';
-import { toBinaryStl, toOrthogonalCutterSvg, exportName } from '@patturn/exporters';
+import {
+  toBinaryStl,
+  toOrthogonalCutterSvg,
+  toOrthogonalCutterPdf,
+  exportName,
+} from '@patturn/exporters';
 import { cutterSvgPoints } from './cutter-svg';
 import { NumericControl } from './NumericControl';
 import { formatNumber } from './number-format';
@@ -124,6 +129,42 @@ export function OrthogonalCutterTool({
     sourceContours,
     editorMode,
   ]);
+  const pdfSource = useRef(geometry);
+  pdfSource.current = geometry;
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const pdfRequest = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setPdfBusy(false);
+    return () => {
+      pdfRequest.current?.abort();
+      pdfRequest.current = null;
+    };
+  }, [geometry]);
+  async function downloadPdf() {
+    if (!geometry || pdfRequest.current) return;
+    const controller = new AbortController();
+    pdfRequest.current = controller;
+    setPdfBusy(true);
+    setError('');
+    try {
+      const result = await toOrthogonalCutterPdf(
+        points,
+        { heightMm, wallMm, tipMm },
+        controller.signal,
+      );
+      if (pdfRequest.current !== controller || pdfSource.current !== geometry) return;
+      if (controller.signal.aborted) setError(text.pdfCancelled);
+      else if (!result.ok || !result.bytes) setError(text.pdfError);
+      else onExport(result.filename, result.bytes);
+    } catch {
+      if (pdfRequest.current === controller) setError(text.pdfError);
+    } finally {
+      if (pdfRequest.current === controller) {
+        pdfRequest.current = null;
+        setPdfBusy(false);
+      }
+    }
+  }
   const stepHistory = (direction: 'undo' | 'redo') => {
     if (
       sourceMode ||
@@ -665,6 +706,20 @@ export function OrthogonalCutterTool({
       >
         {text.fileSave}
       </button>
+      <p className="hint">{text.pdfHelp}</p>
+      <button
+        type="button"
+        className="btn"
+        disabled={!geometry || pdfBusy}
+        onClick={() => void downloadPdf()}
+      >
+        {pdfBusy ? text.pdfBusy : text.pdfDownload}
+      </button>
+      {pdfBusy && (
+        <button type="button" className="btn" onClick={() => pdfRequest.current?.abort()}>
+          {text.pdfCancel}
+        </button>
+      )}
       <p className="hint">{sourceMode ? text.traceFileHelp : text.fileHelp}</p>
       {sourceMode && onCopy && (
         <button
