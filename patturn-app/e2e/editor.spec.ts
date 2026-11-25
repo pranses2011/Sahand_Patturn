@@ -3025,6 +3025,10 @@ test('named project archive exports and imports losslessly without applying it t
   const manager = page.locator('.project-manager');
   await manager.getByRole('textbox', { name: 'نام پروژهٔ جدید', exact: true }).fill('فایل مستقل');
   await manager.getByRole('button', { name: 'ذخیرهٔ وضعیت فعلی با نام', exact: true }).click();
+  // Saving is asynchronous; a click resolving does not mean persistence completed.
+  await expect(
+    manager.getByRole('button', { name: 'بازکردن فایل مستقل', exact: true }),
+  ).toBeVisible();
   const original = await page.evaluate(
     () => JSON.parse(localStorage.getItem('patturn:projects')!)[0],
   );
