@@ -298,3 +298,16 @@ packages/ui/
 ---
 
 ➡️ ادامه در [`10-BACKEND-AUTH-BILLING.md`](./10-BACKEND-AUTH-BILLING.md)
+
+
+---
+
+## رابط افزوده برای موتور الگو و Wrap
+
+دامنهٔ [SV-12/18/19/26/27/28/35/47](16-SOLIDVENTS-SPEC.md): پنل‌های layout، style/layers، gradient چهارکاناله، image، boundary و export؛ Wrap فضای کاری با STEP face، نمای تخت+سه‌بعدی و distortion legend دارد. پنل floating/docked با دو ستون در عرض کافی، بازگردانی layout و مهار خارج viewport؛ برای عرض کم ترتیب خواندن و scroll روشن.
+
+همهٔ stringهای UI در messages/fa.json و RTL؛ مقادیر/واحدهای mm/°/% با bdi و ترتیب عددی درست. ابزار pointer-only ممنوع: keyboard و touch/pen، منوی long-press، on-screen modifier و focus-visible. Shortcuts پشت modal اعمال نشوند؛ Esc cancel و focus trap و برگشت focus آزموده شود.
+
+Numeric field: draft text تا blur/Enter، drag با coarse/fine و Esc rollback، wheel بدون دزدیدن scroll صفحه. Sync scale باید offset/range/fillet/path را هم پوشش دهد. Performance Mode handle را زنده و هندسه را روی commit به‌روز کند؛ pending/progress/error/cancel قابل‌فهم باشد.
+
+نمایش فنی: تعداد عناصر، open area با روش/خطا، warning ضخامت/فاصله، حالت surface/solid و distortion؛ شاخص‌ها نباید با عبارت «قابل ساخت تضمینی» ارائه شوند. محتوای آموزشی و گالری مستقل تولید شود، نه clone بصری/متنی مرجع.
