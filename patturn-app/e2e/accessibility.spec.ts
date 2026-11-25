@@ -665,3 +665,47 @@ test('orthogonal rotation and reflection controls support keyboard and narrow re
   await audit(page, info, 'orthogonal-transform-320');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal numerical drawing and rejected closure are accessible at 320px', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const mode = panel.getByRole('button', {
+    name: 'حالت رسم عددی کانتور قائم‌الزاویه',
+    exact: true,
+  });
+  await mode.focus();
+  await page.keyboard.press('Enter');
+  await expect(mode).toHaveAttribute('aria-pressed', 'true');
+  for (const [x, y] of [
+    [0, 0],
+    [80, 0],
+    [80, 30],
+    [30, 30],
+  ]) {
+    await panel
+      .getByRole('spinbutton', { name: 'مختصات افقی نقطهٔ رسم (mm)', exact: true })
+      .fill(String(x));
+    await panel
+      .getByRole('spinbutton', { name: 'مختصات عمودی نقطهٔ رسم (mm)', exact: true })
+      .fill(String(y));
+    await panel.getByRole('button', { name: 'افزودن نقطهٔ قائم‌الزاویه', exact: true }).focus();
+    await page.keyboard.press('Enter');
+  }
+  await audit(page, info, 'orthogonal-numerical-draft-320');
+  await panel
+    .getByRole('button', { name: 'بستن و اعمال کانتور قائم‌الزاویه', exact: true })
+    .click();
+  await expect(panel.getByRole('alert')).toContainText('کانتور بسته پذیرفته نشد');
+  await audit(page, info, 'orthogonal-numerical-closure-error-320');
+  await panel.getByRole('button', { name: 'لغو رسم و حفظ کانتور قبلی', exact: true }).click();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

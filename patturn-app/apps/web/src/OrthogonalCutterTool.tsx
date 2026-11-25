@@ -1,3 +1,4 @@
+import { OrthogonalSketchEditor } from './OrthogonalSketchEditor';
 import { transformOrthogonalContour, type OrthogonalTransform } from './orthogonal-transform';
 import { tracedOrthogonalCutterGeometry } from './traced-cutter';
 import { OrthogonalDragEditor } from './OrthogonalDragEditor';
@@ -48,7 +49,7 @@ export function OrthogonalCutterTool({
   onExport: (name: string, bytes: Uint8Array) => void;
   sourceContours?: readonly (readonly CutterPoint[])[];
 }) {
-  const [editorMode, setEditorMode] = useState<'corner' | 'notch' | 'drag'>('corner');
+  const [editorMode, setEditorMode] = useState<'corner' | 'notch' | 'drag' | 'draw'>('corner');
   const notchMode = editorMode === 'notch';
   const [dragging, setDragging] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
@@ -79,7 +80,7 @@ export function OrthogonalCutterTool({
     };
   }, []);
   const geometry = useMemo(() => {
-    if (!sourceMode && (busy || failed || draftDirty)) return null;
+    if (!sourceMode && (busy || failed || draftDirty || editorMode === 'draw')) return null;
     try {
       const options = { heightMm, wallMm, tipMm };
       if (sourceContours !== undefined) {
@@ -93,7 +94,18 @@ export function OrthogonalCutterTool({
     } catch {
       return null;
     }
-  }, [points, heightMm, wallMm, tipMm, busy, failed, draftDirty, sourceMode, sourceContours]);
+  }, [
+    points,
+    heightMm,
+    wallMm,
+    tipMm,
+    busy,
+    failed,
+    draftDirty,
+    sourceMode,
+    sourceContours,
+    editorMode,
+  ]);
   const stepHistory = (direction: 'undo' | 'redo') => {
     if (
       sourceMode ||
@@ -106,6 +118,7 @@ export function OrthogonalCutterTool({
     setDraftDirty(false);
     setError('');
     setEditorRevision((value) => value + 1);
+    setEditorMode((mode) => (mode === 'draw' ? 'corner' : mode));
     dispatch({ type: direction });
   };
   return (
@@ -193,6 +206,7 @@ export function OrthogonalCutterTool({
                 setError('');
                 setDraftDirty(false);
                 setEditorRevision((value) => value + 1);
+                setEditorMode((mode) => (mode === 'draw' ? 'corner' : mode));
                 dispatch({ type: 'edit', points: samples[name] });
               }}
             >
@@ -220,6 +234,7 @@ export function OrthogonalCutterTool({
                     if (!alive.current || request.current !== id) return;
                     setDraftDirty(false);
                     setEditorRevision((value) => value + 1);
+                    setEditorMode((mode) => (mode === 'draw' ? 'corner' : mode));
                     dispatch({ type: 'reset', points: openOrthogonalContour(doc.points) });
                     setHeight(doc.heightMm);
                     setWall(doc.wallMm);
@@ -260,6 +275,7 @@ export function OrthogonalCutterTool({
                     if (alive.current && request.current === id) {
                       setDraftDirty(false);
                       setEditorRevision((value) => value + 1);
+                      setEditorMode((mode) => (mode === 'draw' ? 'corner' : mode));
                       dispatch({ type: 'reset', points: openOrthogonalContour(contour) });
                     }
                   } catch {
@@ -306,6 +322,39 @@ export function OrthogonalCutterTool({
       ))}
       {!sourceMode && (
         <>
+          <button
+            type="button"
+            className="btn"
+            aria-pressed={editorMode === 'draw'}
+            disabled={busy || failed || dragging}
+            onClick={() => {
+              setEditorMode((mode) => (mode === 'draw' ? 'corner' : 'draw'));
+              setDraftDirty(false);
+              setError('');
+              setEditorRevision((value) => value + 1);
+            }}
+          >
+            {text.sketchMode}
+          </button>
+          {!busy && !failed && editorMode === 'draw' && (
+            <OrthogonalSketchEditor
+              key={editorRevision}
+              options={{ heightMm, wallMm, tipMm }}
+              onApply={(next) => {
+                dispatch({ type: 'edit', points: next });
+                setDraftDirty(false);
+                setError('');
+                setEditorMode('corner');
+                setEditorRevision((value) => value + 1);
+              }}
+              onCancel={() => {
+                setDraftDirty(false);
+                setError('');
+                setEditorMode('corner');
+                setEditorRevision((value) => value + 1);
+              }}
+            />
+          )}
           <button
             type="button"
             className="btn"
@@ -427,13 +476,15 @@ export function OrthogonalCutterTool({
       <p role="status" aria-label={text.status}>
         {busy
           ? text.loading
-          : draftDirty
-            ? text.editPending
-            : geometry
-              ? text.valid
-              : sourceMode
-                ? text.traceInvalid
-                : text.invalid}
+          : editorMode === 'draw' && !sourceMode
+            ? text.sketchPending
+            : draftDirty
+              ? text.editPending
+              : geometry
+                ? text.valid
+                : sourceMode
+                  ? text.traceInvalid
+                  : text.invalid}
       </p>
       <p className="hint">{text.limits}</p>
       <button

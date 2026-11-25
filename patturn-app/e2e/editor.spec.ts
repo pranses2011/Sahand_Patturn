@@ -5745,3 +5745,103 @@ test('orthogonal exact rotations and reflections preserve files, local history a
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal numerical drawing closes explicitly and commits one independent undoable contour', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const outputs = [
+    'دانلود STL کاتر قائم‌الزاویه',
+    'دانلود SVG مرز کاتر قائم‌الزاویه',
+    'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه',
+  ];
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return readFile((await (await pending).path())!);
+  };
+  const original = await download(outputs[0]!);
+  const mode = panel.getByRole('button', {
+    name: 'حالت رسم عددی کانتور قائم‌الزاویه',
+    exact: true,
+  });
+  await mode.click();
+  for (const name of outputs)
+    await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+  await expect(
+    panel.getByRole('button', { name: 'چرخش کاتر ۹۰ درجه به راست', exact: true }),
+  ).toBeDisabled();
+  const x = panel.getByRole('spinbutton', { name: 'مختصات افقی نقطهٔ رسم (mm)', exact: true }),
+    y = panel.getByRole('spinbutton', { name: 'مختصات عمودی نقطهٔ رسم (mm)', exact: true });
+  const add = async (px: number, py: number) => {
+    await x.fill(String(px));
+    await y.fill(String(py));
+    await panel.getByRole('button', { name: 'افزودن نقطهٔ قائم‌الزاویه', exact: true }).click();
+  };
+  const list = panel
+    .getByRole('list', { name: 'نقاط پیش‌نویس قائم‌الزاویه به ترتیب', exact: true })
+    .getByRole('listitem');
+  const close = panel.getByRole('button', {
+    name: 'بستن و اعمال کانتور قائم‌الزاویه',
+    exact: true,
+  });
+  await add(0, 0);
+  await add(20, 20);
+  await expect(panel.getByRole('alert')).toContainText('نقطه افزوده نشد');
+  await expect(list).toHaveCount(1);
+  for (const [px, py] of [
+    [90, 0],
+    [90, 30],
+    [30, 30],
+    [30, 60],
+  ])
+    await add(px!, py!);
+  await close.click();
+  await expect(panel.getByRole('alert')).toContainText('کانتور بسته پذیرفته نشد');
+  for (const name of outputs)
+    await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+  await add(0, 60);
+  await close.click();
+  await expect(mode).toHaveAttribute('aria-pressed', 'false');
+  const drawn = await download(outputs[0]!);
+  expect(drawn.readUInt32LE(80)).toBe(84);
+  expect(drawn).not.toEqual(original);
+  const file = await download(outputs[2]!);
+  const doc = JSON.parse(file.toString());
+  expect(doc.points).toHaveLength(6);
+  expect(
+    Math.max(...doc.points.map((p: number[]) => p[0]!)) -
+      Math.min(...doc.points.map((p: number[]) => p[0]!)),
+  ).toBe(90);
+  await panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(outputs[0]!)).toEqual(original);
+  await expect(
+    panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await panel.getByRole('button', { name: 'بازانجام ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(outputs[0]!)).toEqual(drawn);
+  await mode.click();
+  await add(10.25, 10.125);
+  await panel.getByRole('button', { name: 'حذف آخرین نقطهٔ رسم', exact: true }).click();
+  await expect(list).toHaveCount(0);
+  await expect(close).toBeDisabled();
+  await add(15, 15);
+  await panel.getByRole('button', { name: 'پاک‌کردن نقاط رسم', exact: true }).click();
+  await expect(list).toHaveCount(0);
+  await panel.getByRole('button', { name: 'لغو رسم و حفظ کانتور قبلی', exact: true }).click();
+  expect(await download(outputs[0]!)).toEqual(drawn);
+  await mode.click();
+  await add(5, 5);
+  await panel
+    .getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true })
+    .setInputFiles({ name: 'drawn.orthogonal.json', mimeType: 'application/json', buffer: file });
+  await expect(mode).toHaveAttribute('aria-pressed', 'false');
+  expect(await download(outputs[0]!)).toEqual(drawn);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
