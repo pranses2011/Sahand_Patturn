@@ -5869,8 +5869,8 @@ test('orthogonal sketch pointer and keyboard share millimetres without implicit 
     const box = (await canvas.boundingBox())!;
     const size = Math.min(box.width, box.height);
     await page.mouse.click(
-      box.x + (box.width - size) / 2 + ((x + 5) * size) / 160,
-      box.y + (box.height - size) / 2 + ((y + 5) * size) / 160,
+      Math.round(box.x + (box.width - size) / 2 + ((x + 5) * size) / 160),
+      Math.round(box.y + (box.height - size) / 2 + ((y + 5) * size) / 160),
       { button },
     );
   };
@@ -5887,6 +5887,14 @@ test('orthogonal sketch pointer and keyboard share millimetres without implicit 
   await click(30, 30);
   await click(30, 80);
   await click(10, 80);
+  await expect(items).toHaveText([
+    '۱۰، ۱۰ mm',
+    '۹۰، ۱۰ mm',
+    '۹۰، ۳۰ mm',
+    '۳۰، ۳۰ mm',
+    '۳۰، ۸۰ mm',
+    '۱۰، ۸۰ mm',
+  ]);
   await expect(items).toHaveCount(6);
   await expect(
     panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
@@ -5929,4 +5937,98 @@ test('orthogonal sketch pointer and keyboard share millimetres without implicit 
     .click();
   expect(await download()).toEqual(pointer);
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+});
+
+test('orthogonal existing contour copies to a translated editable draft without altering the source until apply', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const stl = 'دانلود STL کاتر قائم‌الزاویه',
+    save = 'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه';
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return readFile((await (await pending).path())!);
+  };
+  const doc = JSON.parse((await download(save)).toString());
+  doc.points = [
+    [-10.25, 20.125],
+    [69.75, 20.125],
+    [69.75, 50.375],
+    [20.5, 50.375],
+    [20.5, 100.125],
+    [-10.25, 100.125],
+  ];
+  await panel.getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true }).setInputFiles({
+    name: 'translated.orthogonal.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(doc)),
+  });
+  const original = await download(stl);
+  const seed = panel.getByRole('button', {
+      name: 'ویرایش نسخهٔ کانتور فعلی در محیط رسم',
+      exact: true,
+    }),
+    cancel = panel.getByRole('button', { name: 'لغو رسم و حفظ کانتور قبلی', exact: true });
+  const items = panel
+    .getByRole('list', { name: 'نقاط پیش‌نویس قائم‌الزاویه به ترتیب', exact: true })
+    .getByRole('listitem');
+  await seed.click();
+  await expect(items).toHaveCount(6);
+  await expect(items.nth(0)).toHaveText('۰، ۰ mm');
+  await expect(items.nth(2)).toHaveText('۸۰، ۳۰٫۲۵ mm');
+  await expect(seed).toBeDisabled();
+  await expect(panel.getByRole('button', { name: stl, exact: true })).toBeDisabled();
+  await cancel.click();
+  expect(await download(stl)).toEqual(original);
+  await expect(
+    panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await seed.click();
+  for (let i = 0; i < 2; i++)
+    await panel.getByRole('button', { name: 'حذف آخرین نقطهٔ رسم', exact: true }).click();
+  const add = async (x: number, y: number) => {
+    await panel
+      .getByRole('spinbutton', { name: 'مختصات افقی نقطهٔ رسم (mm)', exact: true })
+      .fill(String(x));
+    await panel
+      .getByRole('spinbutton', { name: 'مختصات عمودی نقطهٔ رسم (mm)', exact: true })
+      .fill(String(y));
+    await panel.getByRole('button', { name: 'افزودن نقطهٔ قائم‌الزاویه', exact: true }).click();
+  };
+  const apply = panel.getByRole('button', {
+    name: 'بستن و اعمال کانتور قائم‌الزاویه',
+    exact: true,
+  });
+  await add(30.75, 100);
+  await apply.click();
+  await expect(panel.getByRole('alert')).toContainText('کانتور بسته پذیرفته نشد');
+  await expect(panel.getByRole('button', { name: save, exact: true })).toBeDisabled();
+  await add(0, 100);
+  await apply.click();
+  const changed = await download(stl);
+  expect(changed).not.toEqual(original);
+  expect(changed.readUInt32LE(80)).toBe(84);
+  const file = await download(save);
+  const points = JSON.parse(file.toString()).points as number[][];
+  expect(Math.max(...points.map((p) => p[1]!)) - Math.min(...points.map((p) => p[1]!))).toBe(100);
+  await panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(stl)).toEqual(original);
+  await expect(
+    panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await panel.getByRole('button', { name: 'بازانجام ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download(stl)).toEqual(changed);
+  await panel
+    .getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true })
+    .setInputFiles({ name: 'edited.orthogonal.json', mimeType: 'application/json', buffer: file });
+  await expect(seed).toBeEnabled();
+  expect(await download(stl)).toEqual(changed);
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });

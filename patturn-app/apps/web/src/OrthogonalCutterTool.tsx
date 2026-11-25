@@ -1,3 +1,4 @@
+import { seedOrthogonalSketch } from './orthogonal-sketch';
 import { OrthogonalSketchEditor } from './OrthogonalSketchEditor';
 import { transformOrthogonalContour, type OrthogonalTransform } from './orthogonal-transform';
 import { tracedOrthogonalCutterGeometry } from './traced-cutter';
@@ -55,6 +56,7 @@ export function OrthogonalCutterTool({
   const [draftDirty, setDraftDirty] = useState(false);
   const [editorRevision, setEditorRevision] = useState(0);
   const [rectangleOutward, setRectangleOutward] = useState(false);
+  const [sketchSeed, setSketchSeed] = useState<CutterPoint[]>([]);
   const [history, dispatch] = useReducer(sketchHistory, samples.L, initialSketchHistory);
   const sourceMode = sourceContours !== undefined;
   const points =
@@ -328,6 +330,7 @@ export function OrthogonalCutterTool({
             aria-pressed={editorMode === 'draw'}
             disabled={busy || failed || dragging}
             onClick={() => {
+              setSketchSeed([]);
               setEditorMode((mode) => (mode === 'draw' ? 'corner' : 'draw'));
               setDraftDirty(false);
               setError('');
@@ -336,9 +339,32 @@ export function OrthogonalCutterTool({
           >
             {text.sketchMode}
           </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || failed || dragging || draftDirty || !geometry}
+            onClick={() => {
+              if (busy || failed || dragging || draftDirty || !geometry) return;
+              try {
+                const seed = seedOrthogonalSketch(points, { heightMm, wallMm, tipMm });
+                setSketchSeed(seed);
+                setEditorMode('draw');
+                setDraftDirty(false);
+                setError('');
+                setEditorRevision((value) => value + 1);
+              } catch {
+                setDraftDirty(true);
+                setError(text.sketchSeedError);
+              }
+            }}
+          >
+            {text.sketchSeed}
+          </button>
+          <p className="hint">{text.sketchSeedHelp}</p>
           {!busy && !failed && editorMode === 'draw' && (
             <OrthogonalSketchEditor
               key={editorRevision}
+              initialPoints={sketchSeed}
               options={{ heightMm, wallMm, tipMm }}
               onApply={(next) => {
                 dispatch({ type: 'edit', points: next });

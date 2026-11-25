@@ -49,3 +49,19 @@ export function orthogonalSketchPointer(
   if (px < 0 || py < 0 || px > 150 || py > 150) throw Error('ORTHOGONAL_SKETCH_OUTSIDE');
   return [Math.round(px) || 0, Math.round(py) || 0];
 }
+
+/** Copy an existing open contour into the workspace by translation only, preserving order and decimals. */
+export function seedOrthogonalSketch(
+  points: readonly CutterPoint[],
+  options: ConvexCutterOptions,
+): CutterPoint[] {
+  orthogonalCutterProfile(points, options);
+  if (points[0]![0] === points.at(-1)![0] && points[0]![1] === points.at(-1)![1])
+    throw Error('ORTHOGONAL_SKETCH_CLOSED_DUPLICATE');
+  const minX = Math.min(...points.map((p) => p[0])),
+    minY = Math.min(...points.map((p) => p[1]));
+  return closeOrthogonalSketch(
+    points.map(([x, y]): CutterPoint => [x - minX, y - minY]),
+    options,
+  );
+}

@@ -9,14 +9,18 @@ import { orthogonalCutter as text } from './messages/fa.json';
 import { formatNumber } from './number-format';
 export function OrthogonalSketchEditor({
   options,
+  initialPoints = [],
   onApply,
   onCancel,
 }: {
   options: ConvexCutterOptions;
+  initialPoints?: readonly CutterPoint[];
   onApply: (points: CutterPoint[]) => void;
   onCancel: () => void;
 }) {
-  const [points, setPoints] = useState<CutterPoint[]>([]),
+  const [points, setPoints] = useState<CutterPoint[]>(() =>
+      initialPoints.map(([px, py]) => [px, py]),
+    ),
     [x, setX] = useState('0'),
     [y, setY] = useState('0'),
     [error, setError] = useState('');

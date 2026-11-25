@@ -713,3 +713,37 @@ test('orthogonal numerical drawing and rejected closure are accessible at 320px'
   ).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal seeded draft and rejected tail closure are accessible at 320px', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const seed = panel.getByRole('button', {
+    name: 'ویرایش نسخهٔ کانتور فعلی در محیط رسم',
+    exact: true,
+  });
+  await seed.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    panel
+      .getByRole('list', { name: 'نقاط پیش‌نویس قائم‌الزاویه به ترتیب', exact: true })
+      .getByRole('listitem'),
+  ).toHaveCount(6);
+  await audit(page, info, 'orthogonal-seeded-draft-320');
+  await panel.getByRole('button', { name: 'حذف آخرین نقطهٔ رسم', exact: true }).click();
+  await panel
+    .getByRole('button', { name: 'بستن و اعمال کانتور قائم‌الزاویه', exact: true })
+    .click();
+  await expect(panel.getByRole('alert')).toContainText('کانتور بسته پذیرفته نشد');
+  await audit(page, info, 'orthogonal-seeded-tail-error-320');
+  await panel.getByRole('button', { name: 'لغو رسم و حفظ کانتور قبلی', exact: true }).click();
+  await expect(seed).toBeEnabled();
+  await expect(
+    panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+});
