@@ -50,6 +50,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser smoke tests (disabled and software WebGL)
         run: npm run test:e2e
+      - name: Keep local-only browser network audits (not installed Windows evidence)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-only-network-audits
+          path: patturn-app/test-results/**/offline-*-audit.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Keep automated accessibility scans including manual-review items
         uses: actions/upload-artifact@v4
         if: always()

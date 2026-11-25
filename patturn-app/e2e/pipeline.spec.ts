@@ -1,25 +1,18 @@
+import { localOnlyPolicy, writeLocalOnlyAudit } from './local-only-policy';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync, gunzipSync, strFromU8 } from 'fflate';
 import DxfParser from 'dxf-parser';
 
+test.use({ serviceWorkers: 'block' });
+
 test('form to mold to ZIP uses local assets only and exports coherent manufacturing files', async ({
   page,
   baseURL,
-}) => {
+  context,
+}, testInfo) => {
   test.setTimeout(120_000);
-  const external: string[] = [];
-  await page.route('**/*', async (route) => {
-    const url = route.request().url();
-    if (url.startsWith('http:') || url.startsWith('https:')) {
-      if (new URL(url).origin !== new URL(baseURL!).origin) {
-        external.push(url);
-        await route.abort();
-        return;
-      }
-    }
-    await route.continue();
-  });
+  const audit = await localOnlyPolicy(context, baseURL!);
   await page.goto('/');
   await page.getByRole('radio', { name: 'حرفه‌ای', exact: true }).check();
   const segments = page.locator('.ctl').filter({ hasText: 'تعداد سگمنت' }).locator('input.num');
@@ -106,7 +99,8 @@ test('form to mold to ZIP uses local assets only and exports coherent manufactur
   expect(changedParams.segments).toBe(28);
   expect(changedParams.motherBoxPartsIncluded).toBe(0);
   expect(Object.keys(changedFiles).filter((n) => n.startsWith('mother-box/'))).toHaveLength(0);
-  expect(external).toEqual([]);
+  await writeLocalOnlyAudit(testInfo, 'pipeline', audit);
+  expect(audit.blocked).toEqual([]);
 });
 
 test('failed WASM load does not invalidate the form and explicit mold retry recovers', async ({
