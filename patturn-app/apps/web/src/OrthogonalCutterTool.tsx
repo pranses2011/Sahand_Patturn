@@ -1,3 +1,5 @@
+import { OrthogonalVertexEditor } from './OrthogonalVertexEditor';
+import { openOrthogonalContour } from './orthogonal-vertex';
 import { readOrthogonalCutterFile, writeOrthogonalCutterFile } from './orthogonal-cutter-file';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
@@ -37,6 +39,8 @@ export function OrthogonalCutterTool({
 }: {
   onExport: (name: string, bytes: Uint8Array) => void;
 }) {
+  const [draftDirty, setDraftDirty] = useState(false);
+  const [editorRevision, setEditorRevision] = useState(0);
   const [points, setPoints] = useState<readonly CutterPoint[]>(samples.L);
   const [heightMm, setHeight] = useState(20),
     [wallMm, setWall] = useState(1.6),
@@ -55,7 +59,7 @@ export function OrthogonalCutterTool({
     };
   }, []);
   const geometry = useMemo(() => {
-    if (busy || failed) return null;
+    if (busy || failed || draftDirty) return null;
     try {
       const options = { heightMm, wallMm, tipMm };
       const profile = orthogonalCutterProfile(points, options),
@@ -65,7 +69,7 @@ export function OrthogonalCutterTool({
     } catch {
       return null;
     }
-  }, [points, heightMm, wallMm, tipMm, busy, failed]);
+  }, [points, heightMm, wallMm, tipMm, busy, failed, draftDirty]);
   return (
     <>
       <p className="hint">{text.intro}</p>
@@ -79,6 +83,8 @@ export function OrthogonalCutterTool({
             setBusy(false);
             setFailed(false);
             setError('');
+            setDraftDirty(false);
+            setEditorRevision((value) => value + 1);
             setPoints(samples[name]);
           }}
         >
@@ -104,7 +110,9 @@ export function OrthogonalCutterTool({
                 if (file.size > 65536) throw Error('ORTHOGONAL_FILE_TOO_LARGE');
                 const doc = readOrthogonalCutterFile(await file.text());
                 if (!alive.current || request.current !== id) return;
-                setPoints(doc.points);
+                setDraftDirty(false);
+                setEditorRevision((value) => value + 1);
+                setPoints(openOrthogonalContour(doc.points));
                 setHeight(doc.heightMm);
                 setWall(doc.wallMm);
                 setTip(doc.tipMm);
@@ -141,7 +149,11 @@ export function OrthogonalCutterTool({
                 const contour = cutterSvgPoints(await file.text());
                 // Reject shapes unsupported even at the minimum grip width; current settings validate below.
                 orthogonalCutterProfile(contour, { heightMm: 20, wallMm: 0.8, tipMm: 0.4 });
-                if (alive.current && request.current === id) setPoints(contour);
+                if (alive.current && request.current === id) {
+                  setDraftDirty(false);
+                  setEditorRevision((value) => value + 1);
+                  setPoints(openOrthogonalContour(contour));
+                }
               } catch {
                 if (alive.current && request.current === id) {
                   setFailed(true);
@@ -177,6 +189,26 @@ export function OrthogonalCutterTool({
           onEndEdit={() => {}}
         />
       ))}
+      {!busy && !failed && (
+        <OrthogonalVertexEditor
+          key={editorRevision}
+          points={points}
+          options={{ heightMm, wallMm, tipMm }}
+          onDirty={() => {
+            setDraftDirty(true);
+            setError('');
+          }}
+          onApply={(next) => {
+            setPoints(next);
+            setDraftDirty(false);
+            setError('');
+          }}
+          onCancel={() => {
+            setDraftDirty(false);
+            setError('');
+          }}
+        />
+      )}
       {geometry && (
         <>
           <svg
@@ -202,7 +234,7 @@ export function OrthogonalCutterTool({
         </>
       )}
       <p role="status" aria-label={text.status}>
-        {busy ? text.loading : geometry ? text.valid : text.invalid}
+        {busy ? text.loading : draftDirty ? text.editPending : geometry ? text.valid : text.invalid}
       </p>
       <p className="hint">{text.limits}</p>
       <button

@@ -5064,3 +5064,94 @@ test('orthogonal cutter files and SVG round trip geometry and settings without b
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal corner edits slide neighbors, block drafts and round trip the changed concavity', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  const selection = panel.getByLabel('انتخاب گوشهٔ کاتر قائم‌الزاویه', { exact: true });
+  const x = panel.getByRole('spinbutton', {
+    name: 'مختصات افقی گوشهٔ قائم‌الزاویه (mm)',
+    exact: true,
+  });
+  const y = panel.getByRole('spinbutton', {
+    name: 'مختصات عمودی گوشهٔ قائم‌الزاویه (mm)',
+    exact: true,
+  });
+  const apply = panel.getByRole('button', { name: 'اعمال گوشهٔ قائم‌الزاویه', exact: true });
+  const cancel = panel.getByRole('button', { name: 'لغو ویرایش گوشهٔ قائم‌الزاویه', exact: true });
+  const outputs = [
+    'دانلود STL کاتر قائم‌الزاویه',
+    'دانلود SVG مرز کاتر قائم‌الزاویه',
+    'ذخیرهٔ فایل مستقل کاتر قائم‌الزاویه',
+  ];
+  const download = async (name: string) => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name, exact: true }).click();
+    return await readFile((await (await pending).path())!);
+  };
+  const original = await download(outputs[0]!);
+  await selection.selectOption('3');
+  await x.fill('40.25');
+  await y.fill('40.5');
+  await expect(selection).toBeDisabled();
+  for (const name of outputs)
+    await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('img')).toHaveCount(0);
+  await apply.click();
+  await expect(selection).toBeEnabled();
+  await expect(panel.getByRole('button', { name: outputs[0]!, exact: true })).toBeEnabled();
+  const edited = await download(outputs[0]!);
+  expect(edited).not.toEqual(original);
+  expect(edited.readUInt32LE(80)).toBe(84);
+  await selection.selectOption('2');
+  await expect(y).toHaveValue('40.5');
+  await selection.selectOption('4');
+  await expect(x).toHaveValue('40.25');
+  await selection.selectOption('3');
+  for (const [a, b] of [
+    ['75', '75'],
+    ['', '40.5'],
+    ['1001', '40.5'],
+  ]) {
+    await x.fill(a!);
+    await y.fill(b!);
+    await apply.click();
+    await expect(panel.getByRole('alert')).toContainText('ویرایش پذیرفته نشد');
+    for (const name of outputs)
+      await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled();
+    await cancel.click();
+    await expect(x).toHaveValue('40.25');
+    await expect(y).toHaveValue('40.5');
+    await expect(selection).toBeEnabled();
+    await expect(panel.getByRole('button', { name: outputs[0]!, exact: true })).toBeEnabled();
+  }
+  const file = await download(outputs[2]!);
+  const doc = JSON.parse(file.toString());
+  expect(doc.points[3]).toEqual([0.25, 0.5]);
+  // Replacing a pending draft must reset the editor and never keep its unsaved coordinates.
+  await x.fill('50');
+  await panel
+    .getByLabel('بازکردن فایل مستقل کاتر قائم‌الزاویه', { exact: true })
+    .setInputFiles({ name: 'edited.orthogonal.json', mimeType: 'application/json', buffer: file });
+  await expect(selection).toBeEnabled();
+  await selection.selectOption('3');
+  await expect(x).toHaveValue('0.25');
+  await expect(y).toHaveValue('0.5');
+  expect(await download(outputs[0]!)).toEqual(edited);
+  await x.fill('55');
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ U کاتر قائم‌الزاویه', exact: true })
+    .click();
+  await expect(selection).toBeEnabled();
+  await expect(x).toHaveValue('0');
+  await expect(panel).toContainText('۱۰۰ × ۱۰۰ mm');
+  await expect(panel.getByRole('button', { name: outputs[0]!, exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
