@@ -85,3 +85,37 @@ it('a successful file replacement resets both branches with an independent seed'
   expect(reset.future).toEqual([]);
   expect(state.future).toHaveLength(1);
 });
+
+it('keeps add/delete/clear draft edits separate from the single committed contour edit', () => {
+  const committed = initialSketchHistory(square);
+  let draft = initialSketchHistory([]);
+  const first: CutterPoint[] = [[0, 0]],
+    second: CutterPoint[] = [
+      [0, 0],
+      [80, 0],
+    ];
+  draft = sketchHistory(draft, { type: 'edit', points: first });
+  draft = sketchHistory(draft, { type: 'edit', points: second });
+  draft = sketchHistory(draft, { type: 'edit', points: first });
+  draft = sketchHistory(draft, { type: 'edit', points: [] });
+  expect(sketchHistory(draft, { type: 'undo' }).points).toEqual(first);
+  draft = sketchHistory(draft, { type: 'undo' });
+  draft = sketchHistory(draft, { type: 'undo' });
+  expect(draft.points).toEqual(second);
+  expect(sketchHistory(draft, { type: 'redo' }).points).toEqual(first);
+  expect(committed.past).toHaveLength(0);
+  const applied = sketchHistory(committed, { type: 'edit', points: second });
+  expect(applied.past).toHaveLength(1);
+  expect(sketchHistory(applied, { type: 'undo' }).points).toEqual(square);
+});
+it('starts a copied draft without history and drops redo only on a real replacement', () => {
+  const seed = initialSketchHistory(square);
+  let draft = sketchHistory(seed, { type: 'edit', points: square.slice(0, -1) });
+  draft = sketchHistory(draft, { type: 'undo' });
+  const same = sketchHistory(draft, { type: 'edit', points: square });
+  expect(same.future).toHaveLength(1);
+  const branched = sketchHistory(same, { type: 'edit', points: [] });
+  expect(branched.future).toHaveLength(0);
+  expect(seed.past).toHaveLength(0);
+  expect(seed.points).toEqual(square);
+});

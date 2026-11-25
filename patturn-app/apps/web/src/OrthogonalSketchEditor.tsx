@@ -1,4 +1,7 @@
-import { useId, useState } from 'react';
+import { useId, useState, useReducer } from 'react';
+import { initialSketchHistory, sketchHistory } from './sketch-history';
+import { historyShortcut } from './history-shortcut';
+import { preserveNativeUndo } from './native-undo';
 import type { ConvexCutterOptions, CutterPoint } from '@patturn/kernel';
 import {
   appendOrthogonalSketchPoint,
@@ -18,12 +21,16 @@ export function OrthogonalSketchEditor({
   onApply: (points: CutterPoint[]) => void;
   onCancel: () => void;
 }) {
-  const [points, setPoints] = useState<CutterPoint[]>(() =>
-      initialPoints.map(([px, py]) => [px, py]),
-    ),
-    [x, setX] = useState('0'),
+  const [history, dispatch] = useReducer(sketchHistory, initialPoints, initialSketchHistory);
+  const points = history.points;
+  const setPoints = (next: CutterPoint[]) => dispatch({ type: 'edit', points: next });
+  const [x, setX] = useState('0'),
     [y, setY] = useState('0'),
     [error, setError] = useState('');
+  const stepDraft = (direction: 'undo' | 'redo') => {
+    dispatch({ type: direction });
+    setError('');
+  };
   const help = useId();
   const addPoint = (px: number, py: number) => {
     try {
@@ -36,11 +43,44 @@ export function OrthogonalSketchEditor({
   const cursorX = Math.max(0, Math.min(150, Number(x) || 0));
   const cursorY = Math.max(0, Math.min(150, Number(y) || 0));
   return (
-    <fieldset>
+    <fieldset
+      tabIndex={0}
+      onKeyDown={(event) => {
+        const target = event.target;
+        if (
+          target instanceof HTMLElement &&
+          preserveNativeUndo(target.tagName, target.getAttribute('type'), target.isContentEditable)
+        )
+          return;
+        const direction = historyShortcut(event.nativeEvent);
+        if (!direction) return;
+        // Never bubble a draft shortcut to the committed contour or global project history.
+        event.preventDefault();
+        event.stopPropagation();
+        stepDraft(direction);
+      }}
+    >
       <legend>{text.sketchLegend}</legend>
       <p id={help} className="hint">
         {text.sketchHelp}
       </p>
+      <p className="hint">{text.sketchHistoryHelp}</p>
+      <button
+        type="button"
+        className="btn"
+        disabled={!history.past.length}
+        onClick={() => stepDraft('undo')}
+      >
+        {text.sketchUndo}
+      </button>
+      <button
+        type="button"
+        className="btn"
+        disabled={!history.future.length}
+        onClick={() => stepDraft('redo')}
+      >
+        {text.sketchRedo}
+      </button>
       {[
         { label: text.sketchX, value: x, set: setX },
         { label: text.sketchY, value: y, set: setY },

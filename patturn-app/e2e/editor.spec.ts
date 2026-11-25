@@ -6136,3 +6136,104 @@ test('live orthogonal trace snapshots become editable independent copies and exp
   await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
 });
+
+test('orthogonal draft history scopes shortcuts, restores cleared points and commits only once', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '📤 خروجی', exact: true }).click();
+  await page.locator('.cookie-cutter-tool > summary').click();
+  const panel = page.locator('.orthogonal-cutter-tool');
+  await panel.locator('summary').click();
+  await panel
+    .getByRole('button', { name: 'بازیابی نمونهٔ U کاتر قائم‌الزاویه', exact: true })
+    .click();
+  const download = async () => {
+    const pending = page.waitForEvent('download');
+    await panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }).click();
+    return readFile((await (await pending).path())!);
+  };
+  const original = await download();
+  const mode = panel.getByRole('button', {
+    name: 'حالت رسم عددی کانتور قائم‌الزاویه',
+    exact: true,
+  });
+  await mode.click();
+  const canvas = panel.getByRole('group', { name: 'پلان باز پیش‌نویس قائم‌الزاویه', exact: true }),
+    items = panel
+      .getByRole('list', { name: 'نقاط پیش‌نویس قائم‌الزاویه به ترتیب', exact: true })
+      .getByRole('listitem'),
+    undo = panel.getByRole('button', { name: 'برگرداندن تغییر نقاط پیش‌نویس', exact: true }),
+    redo = panel.getByRole('button', { name: 'بازانجام تغییر نقاط پیش‌نویس', exact: true });
+  await canvas.focus();
+  await page.keyboard.press('Control+z');
+  await expect(items).toHaveCount(0);
+  await expect(mode).toHaveAttribute('aria-pressed', 'true');
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+  const x = panel.getByRole('spinbutton', { name: 'مختصات افقی نقطهٔ رسم (mm)', exact: true }),
+    y = panel.getByRole('spinbutton', { name: 'مختصات عمودی نقطهٔ رسم (mm)', exact: true });
+  const add = async (px: number, py: number) => {
+    await x.fill(String(px));
+    await y.fill(String(py));
+    await panel.getByRole('button', { name: 'افزودن نقطهٔ قائم‌الزاویه', exact: true }).click();
+  };
+  for (const [px, py] of [
+    [0, 0],
+    [80, 0],
+    [80, 60],
+    [0, 60],
+  ])
+    await add(px!, py!);
+  await add(40, 20);
+  await expect(panel.getByRole('alert')).toContainText('نقطه افزوده نشد');
+  await undo.click();
+  await expect(items).toHaveCount(3);
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await canvas.focus();
+  await page.keyboard.press('Control+Shift+z');
+  await expect(items).toHaveCount(4);
+  await x.fill('33');
+  await x.press('Control+z');
+  await expect(items).toHaveCount(4);
+  await panel.getByRole('button', { name: 'پاک‌کردن نقاط رسم', exact: true }).click();
+  await expect(items).toHaveCount(0);
+  await canvas.focus();
+  await page.keyboard.press('Control+z');
+  await expect(items).toHaveCount(4);
+  await page.keyboard.press('Control+y');
+  await expect(items).toHaveCount(0);
+  await undo.click();
+  await expect(items).toHaveCount(4);
+  await undo.click();
+  await expect(items).toHaveCount(3);
+  await add(0, 80);
+  await expect(items).toHaveCount(3);
+  await expect(redo).toBeEnabled();
+  await redo.click();
+  await expect(items).toHaveCount(4);
+  await undo.click();
+  await panel.getByRole('button', { name: 'پاک‌کردن نقاط رسم', exact: true }).click();
+  await expect(redo).toBeDisabled();
+  await undo.click();
+  await expect(items).toHaveCount(3);
+  await add(0, 60);
+  await expect(redo).toBeDisabled();
+  await expect(
+    panel.getByRole('button', { name: 'دانلود STL کاتر قائم‌الزاویه', exact: true }),
+  ).toBeDisabled();
+  await panel
+    .getByRole('button', { name: 'بستن و اعمال کانتور قائم‌الزاویه', exact: true })
+    .click();
+  const drawn = await download();
+  expect(drawn).not.toEqual(original);
+  await panel.getByRole('button', { name: 'برگرداندن ویرایش قائم‌الزاویه', exact: true }).click();
+  expect(await download()).toEqual(original);
+  await mode.click();
+  await expect(items).toHaveCount(0);
+  await expect(undo).toBeDisabled();
+  await panel.getByRole('button', { name: 'لغو رسم و حفظ کانتور قبلی', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^واگرد/ })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});

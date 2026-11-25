@@ -708,6 +708,18 @@ test('orthogonal numerical drawing and rejected closure are accessible at 320px'
   await canvas.focus();
   await page.keyboard.press('ArrowDown');
   await expect(canvas).toBeFocused();
+  await page.keyboard.press('Control+z');
+  await expect(
+    panel
+      .getByRole('list', { name: 'نقاط پیش‌نویس قائم‌الزاویه به ترتیب', exact: true })
+      .getByRole('listitem'),
+  ).toHaveCount(3);
+  await page.keyboard.press('Control+Shift+z');
+  await expect(
+    panel
+      .getByRole('list', { name: 'نقاط پیش‌نویس قائم‌الزاویه به ترتیب', exact: true })
+      .getByRole('listitem'),
+  ).toHaveCount(4);
   await audit(page, info, 'orthogonal-numerical-draft-320');
   await panel
     .getByRole('button', { name: 'بستن و اعمال کانتور قائم‌الزاویه', exact: true })
