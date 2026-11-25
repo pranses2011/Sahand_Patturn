@@ -84,7 +84,9 @@ try {
   $report.success = $true
 } catch {
   # Error codes from this script contain no project contents or user paths.
-  $report.failure = $_.Exception.Message
+  $report['failure'] = $_.Exception.Message
+  $annotation = $_.Exception.Message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+  Write-Host "::error title=Windows installer smoke::$annotation"
   throw
 } finally {
   if ($application -and -not $application.HasExited) { $application.Kill() }
