@@ -6635,7 +6635,7 @@ test('orthogonal cutter PDF is lazy, cancellable and prints one actual-size inne
   page.on('download', (file) => downloads.push(file.suggestedFilename()));
   const pdfRequests: string[] = [];
   page.on('request', (req) => {
-    if (/jspdf|vazirmatn/.test(req.url())) pdfRequests.push(req.url());
+    if (/jspdf|vazirmatn|orthogonal-cutter-pdf-/.test(req.url())) pdfRequests.push(req.url());
   });
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto('/');
@@ -6647,6 +6647,7 @@ test('orthogonal cutter PDF is lazy, cancellable and prints one actual-size inne
   const pdf = panel.getByRole('button', { name: 'دانلود PDF مرز کاتر قائم‌الزاویه', exact: true });
   await pdf.click();
   await requested;
+  expect(pdfRequests.some((url) => url.includes('orthogonal-cutter-pdf-'))).toBe(true);
   await panel.getByRole('button', { name: 'لغو PDF کاتر قائم‌الزاویه', exact: true }).click();
   release();
   await expect(panel.getByRole('alert')).toContainText('ساخت PDF کاتر لغو شد');

@@ -129,7 +129,13 @@ export { toDxf } from './dxf.js';
 export * from './bundle.js';
 export * from './dimensions.js';
 export * from './obj.js';
-export * from './rib-pdf.js';
+export { ribPdfLayout } from './rib-pdf-layout.js';
 export * from './extruder.js';
 export { toCutterSvg, toOrthogonalCutterSvg } from './cutter-svg.js';
-export * from './orthogonal-cutter-pdf.js';
+export { orthogonalCutterPdfLayout } from './orthogonal-cutter-pdf-layout.js';
+export { toLazyOrthogonalCutterPdf, toLazyRibPdf } from './lazy-tool-pdf.js';
+
+export {
+  toLazyOrthogonalCutterPdf as toOrthogonalCutterPdf,
+  toLazyRibPdf as toRibPdf,
+} from './lazy-tool-pdf.js';

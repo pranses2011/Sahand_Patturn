@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildRibMesh, type Profile } from '@patturn/kernel';
 import { buildRib } from '@patturn/patterns';
-import { toSvg, toDxf, toBinaryStl, toRibPdf, exportName } from '@patturn/exporters';
+import {
+  toSvg,
+  toDxf,
+  toBinaryStl,
+  toLazyRibPdf as toRibPdf,
+  exportName,
+} from '@patturn/exporters';
 import { NumericControl } from './NumericControl';
 import { dxfErrorMessage } from './export-error';
 import { formatNumber } from './number-format';

@@ -26,7 +26,7 @@ import {
 import {
   toBinaryStl,
   toOrthogonalCutterSvg,
-  toOrthogonalCutterPdf,
+  toLazyOrthogonalCutterPdf as toOrthogonalCutterPdf,
   exportName,
 } from '@patturn/exporters';
 import { cutterSvgPoints } from './cutter-svg';
