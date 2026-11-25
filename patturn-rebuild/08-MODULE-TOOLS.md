@@ -426,3 +426,14 @@ tab = نیم‌دایره یا منحنی S با پارامترهای:
 ---
 
 ➡️ ادامه در [`09-UI-DESIGN-SYSTEM.md`](./09-UI-DESIGN-SYSTEM.md)
+
+
+---
+
+## استفادهٔ مشترک ابزارها از زیرساخت SolidVents
+
+[SV-10/13/15/16/32/49/50](16-SOLIDVENTS-SPEC.md) زیرساخت بردار/مرز/fillet/ساخت را مشترک می‌کنند. کاتر arbitrary، چاپ slab، مهر و extruder از parser و canonical boundary مشترک استفاده کنند؛ خطای entity یا مسیر نامعتبر نباید به تقریب خاموش منجر شود.
+
+پنل مشبک ابزار جدید مستقل است: layout + boundary + ligaments/edge clearance + open area + thickness + process compensation. hole ratio واقعی باید union clipped را حساب کند، نه مجموع دایره‌های همپوشان؛ روش تقریبی با error bound نمایش داده شود. kerf و حداقل feature به پروفایل دستگاه/ماده تعلق دارند، نه تضمین عمومی.
+
+کارهای باز قبلی: کاتر دلخواه8.2، وکتور8.4، UI مسیر و اتصال واقعی دسته8.5، آزمون فیزیکی ریب8.6، extruder8.10، jigger8.14 و slab8.15. API sweep موجود صرفاً مسیر مقطع دایروی محدود است؛ union بدنه، اتصال۴mm و شواهد بارگذاری همچنان لازم است. نمونهٔ lattice یا STEP Shapes Only هیچ‌کدام این بندها را خودکار کامل نمی‌کنند.
