@@ -138,15 +138,23 @@ jobs:
       - name: Verify inherited Cargo version and stable artifact directory
         shell: pwsh
         run: |
-          npm run desktop:prepare
-          if ($LASTEXITCODE -ne 0) { throw 'DESKTOP_VERSION_PREPARATION_FAILED' }
-          $metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) { throw 'CARGO_METADATA_FAILED' }
-          $expected = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $desktop = @($metadata.packages | Where-Object { $_.name -eq 'patturn-desktop' })
-          if ($desktop.Count -ne 1 -or $desktop[0].version -ne $expected) { throw 'CARGO_VERSION_SOURCE_MISMATCH' }
-          $target = [IO.Path]::GetFullPath('apps/desktop/src-tauri/target')
-          if ($metadata.target_directory -ne $target) { throw 'CARGO_TARGET_DIRECTORY_CHANGED' }
+          try {
+            npm run desktop:prepare
+            if ($LASTEXITCODE -ne 0) { throw 'DESKTOP_VERSION_PREPARATION_FAILED' }
+            $stderrFile = Join-Path $env:RUNNER_TEMP 'patturn-cargo-metadata-error.txt'
+            $json = cargo metadata --no-deps --format-version 1 2> $stderrFile
+            if ($LASTEXITCODE -ne 0) { throw ('CARGO_METADATA_FAILED: ' + (Get-Content $stderrFile -Raw)) }
+            $metadata = $json | ConvertFrom-Json
+            $expected = (Get-Content package.json -Raw | ConvertFrom-Json).version
+            $desktop = @($metadata.packages | Where-Object { $_.name -eq 'patturn-desktop' })
+            if ($desktop.Count -ne 1 -or $desktop[0].version -ne $expected) { throw 'CARGO_VERSION_SOURCE_MISMATCH' }
+            $target = [IO.Path]::GetFullPath((Join-Path (Get-Location).Path 'apps/desktop/src-tauri/target'))
+            if ($metadata.target_directory -ne $target) { throw "CARGO_TARGET_DIRECTORY_CHANGED: actual=$($metadata.target_directory) expected=$target" }
+          } catch {
+            $message = $_.Exception.Message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Host "::error title=Cargo single-source verification::$message"
+            throw
+          }
       - name: Compile desktop executable, without installer or signing
         run: npm run desktop:check
       - uses: actions/upload-artifact@v4
