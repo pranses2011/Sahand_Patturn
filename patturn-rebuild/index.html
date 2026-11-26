@@ -3339,7 +3339,9 @@ type Res =
 <li>Worker protocol: jobId + recipeHash + algorithmVersion + progress + cancel؛ فقط آخرین job مجاز به commit است. بودجهٔ memory/instructions/points قبل محاسبه.</li>
 <li>API/MCP همان توابع schema/engine/export را فراخوانی کند؛ tenant/rate/scope و temporary object cleanup خارج core. DSL برای AI Custom بدون eval/I/O.</li>
 </ul>
-<p>ADRهای باز: انتخاب CAD kernel و مجوز، vector boolean و exact predicates، tolerance policy، سطح distortion و topology naming. هیچ سرویس آنلاین اجباری برای صادرات محلی پذیرفته نیست.</p></section><section class="doc" id="doc-04DATAMODEL"><h1 id="_1">🗄️ فایل ۰۴ — مدل داده، اسکیما و قراردادهای ذخیره‌سازی</h1>
+<p>ADRهای باز: انتخاب CAD kernel و مجوز، vector boolean و exact predicates، tolerance policy، سطح distortion و topology naming. هیچ سرویس آنلاین اجباری برای صادرات محلی پذیرفته نیست.</p>
+<h3 id="app">منبع واحد نسخهٔ app</h3>
+<p>نسخهٔ جاری فقط <code>patturn-app/package.json.version</code> است؛ packageهای private نسخهٔ انتشار مستقل ندارند. UI/export/CI آن را مصرف می‌کنند، Tauri مسیر JSON را resolve می‌کند و Cargo از workspace تولیدی/خارج Git ریشه ارث می‌برد. wrapper npm دسکتاپ قبل از CLI فایل تولیدی را تازه می‌کند؛ مسیر target سابق با <code>.cargo/config.toml</code> ثابت است. CHANGELOG نسخه‌های تاریخی دارد، نه متغیر جاری. گیت انتشار تکرار scalar جاری در workspace/lock/Tauri/Cargo و pin داخلی را رد می‌کند؛ افزودن مصرف‌کنندهٔ جدید باید به همین مرجع متصل باشد. اجرای مستقیم cargo پس از <code>desktop:prepare</code> است.</p></section><section class="doc" id="doc-04DATAMODEL"><h1 id="_1">🗄️ فایل ۰۴ — مدل داده، اسکیما و قراردادهای ذخیره‌سازی</h1>
 <blockquote>
 <p>قاعدهٔ طلایی: <strong>آنچه ذخیره می‌شود پارامتر است، نه هندسه.</strong> هندسه همیشه بازتولیدپذیر است.</p>
 </blockquote>
@@ -10509,7 +10511,7 @@ Boolean قالب مش غیر‌manifold می‌دهد در ۲۰٪ فرم‌ها.
 <td>13.1</td>
 <td style="text-align: center;" class="task"><input type="checkbox" checked disabled></td>
 <td>بسته‌بندی نسخه</td>
-<td>نسخهٔ آزمایشی 0.3.1 و CHANGELOG فارسی؛ ابزار افزایش هماهنگ npm/lock/workspace/Tauri/Cargo، کنترل افزایش نسخه در push، ZIP وب و نصب‌کنندهٔ NSIS و انتشار prerelease مشروط به موفقیت هر دو job؛ ۴۱ تست Node و ۱۶۷ مرورگر محلی موفق. انتشار نهایی/امضای آپدیت و آزمون نصب واقعی همچنان جدا و باز هستند</td>
+<td>منبع واحد package.json.version؛ workspaceهای private بدون version، lock فقط نسخهٔ dependency خارجی، Tauri ارجاع مستقیم و Cargo inheritance از workspace تولیدی خارج Git؛ version:bump فقط یک فایل را تغییر می‌دهد. گیت‌های SemVer/نبود کپی/یادداشت فارسی و انتشار آزمایشی وب و NSIS دارای WebView2 و smoke نصب/پنجره/حذف حفظ شده‌اند؛ نصب پاک/ارتقا و امضای نهایی همچنان جدا و بازند</td>
 <td style="text-align: center;">🟠</td>
 </tr>
 <tr>
@@ -11305,7 +11307,9 @@ Boolean قالب مش غیر‌manifold می‌دهد در ۲۰٪ فرم‌ها.
 </blockquote>
 <ul>
 <li>از SemVer استفاده شود: اصلاح خطا/مستندات/تست/CI → patch، قابلیت سازگار جدید → minor، تغییر ناسازگار قرارداد → major.</li>
-<li>نسخهٔ ریشه، workspaceها، وابستگی‌های داخلی، lockfile، Tauri و Cargo هم‌زمان هماهنگ و CHANGELOG فارسی ثبت شوند.</li>
+<li><strong>تنها منبع نسخهٔ جاری <code>patturn-app/package.json</code> → <code>version</code> است.</strong> فقط این مقدار را تغییر بده یا <code>npm run version:bump -- patch|minor|major</code> اجرا کن؛ نسخهٔ جاری در workspace/lockfile/config/کد/مستندات به‌صورت scalar تکرار نشود.</li>
+<li>workspaceها خصوصی و بدون نسخهٔ مستقل‌اند و ارجاع داخلی <code>*</code> دارند؛ Tauri با مسیر <code>../../../package.json</code> نسخه را می‌خواند. Cargo از workspace تولیدی توسط <code>desktop:prepare</code> ارث می‌برد؛ فایل generated در Git نیست و دستی ویرایش نمی‌شود. wrapperهای دسکتاپ قبل از هر build/dev آن را تازه می‌کنند.</li>
+<li>CHANGELOG فارسی نسخه‌های تاریخی را برای حسابرسی نگه می‌دارد؛ ثبت یادداشت انتشار جداست و به معنی منبع دوم نسخهٔ جاری نیست. عبارت نسخهٔ فعلی در README به منبع واحد ارجاع دهد، نه عددی که با هر انتشار باید ویرایش شود.</li>
 <li>افزایش نسخه جزئی از همان کامیت تغییر است؛ نسخهٔ منتشرشده بازنویسی یا برای محتوای متفاوت دوباره استفاده نشود.</li>
 <li>چک: <code>npm run release:check</code> و مقایسهٔ نسخه با والد/مبدأ تغییر، پیش از کامیت/انتشار.</li>
 </ul>
@@ -11355,11 +11359,11 @@ Boolean قالب مش غیر‌manifold می‌دهد در ۲۰٪ فرم‌ها.
 <li class="task"><input type="checkbox" disabled> R-010 + R-015: تست‌ها سبز و چک‌لیست به‌روز شد</li>
 <li class="task"><input type="checkbox" disabled> R-011 تا R-013: زبان/حقوقی/هویت رعایت شد</li>
 <li class="task"><input type="checkbox" disabled> R-014: آفلاین‌کاری دسکتاپ حفظ شد</li>
-<li class="task"><input type="checkbox" disabled> R-018: نسخه متناسب با تغییر افزایش یافت و metadata هماهنگ است</li>
+<li class="task"><input type="checkbox" disabled> R-018: فقط منبع واحد نسخه افزایش یافت و مصرف‌کنندگان ارجاعی/مشتق‌شده معتبرند</li>
 <li class="task"><input type="checkbox" disabled> R-019: فایل‌های همان نسخه منتشر شدند یا مانع انتشار صریحاً اعلام شد</li>
 </ul>
 <hr />
-<p><em>نسخهٔ قوانین: 1.2 — تعداد: ۱۹ قانون (۱۶ 🔴 · ۳ 🟠) — آخرین به‌روزرسانی: 2026-11-20</em></p></section><section class="doc" id="doc-16SOLIDVENTSSPEC"><h1 id="solidvents-patturn">۱۶ — تحلیل مستند SolidVents و قرارداد گسترش Patturn</h1>
+<p><em>نسخهٔ قوانین: 1.3 — تعداد: ۱۹ قانون (۱۶ 🔴 · ۳ 🟠) — آخرین به‌روزرسانی: 2026-11-20</em></p></section><section class="doc" id="doc-16SOLIDVENTSSPEC"><h1 id="solidvents-patturn">۱۶ — تحلیل مستند SolidVents و قرارداد گسترش Patturn</h1>
 <p>تاریخ بررسی: 2026-11-20 (UTC). نسخهٔ مبنای کد: <code>90b7c06</code> / 0.2.0. این سند <strong>برنامهٔ توسعه است نه اعلام پیاده‌سازی</strong>. دامنهٔ آن علاوه بر تمام نیازمندی‌های قبلی سفال، قالب، ابزار، وب و ویندوز است، نه جایگزین آن‌ها.</p>
 <h2 id="_1">۱. روش، منابع و مرز اطمینان</h2>
 <p>محتوای متنی صفحات عمومی زیر مستقیم خوانده شد؛ صفحهٔ اصلی سه بخش، تاریخچه پنج بخش، آموزش دو بخش، AI دو بخش و حریم خصوصی سه بخش داشت. هیچ حسابی ساخته نشد، خرید/ورود/ارسال فایل انجام نشد و خروجی CAD مرجع آزمایش نشده است. صفحهٔ app فقط quick start، شمار نقاط و Hole Ratio را به خوانش متن ارائه کرد؛ Wrap صفحهٔ ورود STEP و سه نمونه را نشان داد. پس «مستند در سایت» با «آزموده‌شدهٔ عملی» یکسان نیست. صفحهٔ <code>/guides/en</code> در زمان بررسی قابل واکشی نبود. گالری فقط برای شناسایی وجود کتابخانه دیده شد؛ presetها، عکس‌ها و طرح‌ها دانلود یا بازنشر نشوند.</p>
