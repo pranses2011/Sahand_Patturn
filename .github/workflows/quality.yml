@@ -149,7 +149,8 @@ jobs:
             $desktop = @($metadata.packages | Where-Object { $_.name -eq 'patturn-desktop' })
             if ($desktop.Count -ne 1 -or $desktop[0].version -ne $expected) { throw 'CARGO_VERSION_SOURCE_MISMATCH' }
             $target = [IO.Path]::GetFullPath((Join-Path (Get-Location).Path 'apps/desktop/src-tauri/target'))
-            if ($metadata.target_directory -ne $target) { throw "CARGO_TARGET_DIRECTORY_CHANGED: actual=$($metadata.target_directory) expected=$target" }
+            $actualTarget = [IO.Path]::GetFullPath($metadata.target_directory)
+            if ($actualTarget -ne $target) { throw "CARGO_TARGET_DIRECTORY_CHANGED: actual=$actualTarget expected=$target" }
           } catch {
             $message = $_.Exception.Message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Host "::error title=Cargo single-source verification::$message"
